@@ -1,0 +1,79 @@
+/**
+ * Full grafit entry point: all series and axes included.
+ * Default modules are registered lazily (on the first create) — the module
+ * stays free of side effects, but it statically references app/setup,
+ * so the whole library ends up in the bundle. For a minimal bundle
+ * use 'grafit-charts/core' + 'grafit-charts/modules'.
+ */
+import { buildCharts } from '@/app/chart-factory';
+import { registerDefaultModules } from '@/app/setup';
+
+export const Charts = buildCharts(registerDefaultModules);
+
+export { register } from '@/app/registry';
+export type { ChartModule, SeriesModule, AxisModule } from '@/shared/kernel';
+export * from './modules';
+
+export type {
+  ChartInstance,
+  ChartOptions,
+  SeriesOptions,
+  AxisOptions,
+  CaptionOptions,
+  BackgroundOptions,
+  LegendOptions,
+  GradientLegendOptions,
+  TooltipOptions,
+  HighlightOptions,
+  OverlaysOptions,
+  ZoomOptions,
+  NavigatorOptions,
+  CrosshairOptions,
+  SyncOptions,
+  ContextMenuOptions,
+  AnimationOptions,
+  ChartState,
+  LineSeriesOptions,
+  BarSeriesOptions,
+  AreaSeriesOptions,
+  ScatterSeriesOptions,
+  BubbleSeriesOptions,
+  HistogramSeriesOptions,
+  PieSeriesOptions,
+  DonutSeriesOptions,
+  RadarLineSeriesOptions,
+  RadarAreaSeriesOptions,
+  NightingaleSeriesOptions,
+  RadialColumnSeriesOptions,
+  RadialBarSeriesOptions,
+  HeatmapSeriesOptions,
+  RangeBarSeriesOptions,
+  RangeAreaSeriesOptions,
+  BoxPlotSeriesOptions,
+  WaterfallSeriesOptions,
+  FunnelSeriesOptions,
+  ConeFunnelSeriesOptions,
+  CandlestickSeriesOptions,
+  OhlcSeriesOptions,
+  TreemapSeriesOptions,
+  SunburstSeriesOptions,
+  PyramidSeriesOptions,
+  SankeySeriesOptions,
+  ChordSeriesOptions,
+  RadialGaugeSeriesOptions,
+  LinearGaugeSeriesOptions,
+  LocaleOptions,
+  AnnotationOptions,
+  SelectionOptions,
+  ChartListeners,
+  NumberAxisOptions,
+  CategoryAxisOptions,
+  TimeAxisOptions,
+  LogAxisOptions,
+  OrdinalTimeAxisOptions,
+  GroupedCategoryAxisOptions,
+} from '@/app/chart-factory';
+export { buildSparklineOptions } from '@/app/chart-factory';
+export type { FinancialChartOptions, GaugeOptions, SparklineOptions } from '@/app/chart-factory';
+export type { ThemeName, ThemeOptions } from '@/app/themes';
+export type * from '@/shared/options/primitives';

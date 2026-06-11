@@ -1,0 +1,13 @@
+{
+  "entryPoints": ["src/index.ts"],
+  "plugin": ["typedoc-plugin-markdown"],
+  "out": "docs/reference",
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "disableSources": true,
+  "hideBreadcrumbs": true,
+  "useHTMLEncodedBrackets": true,
+  "entryFileName": "index"
+}

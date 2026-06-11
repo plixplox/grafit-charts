@@ -1,0 +1,88 @@
+{
+  "name": "grafit-charts",
+  "version": "0.1.3",
+  "description": "Declarative charting library for the browser: one serializable options object describes the whole chart. Canvas 2D via a custom scene graph, zero dependencies, TypeScript. 29 series types, 6 axis types, tooltips, legend, zoom, annotations, themes, animations, a11y.",
+  "license": "MIT",
+  "author": "Dmitry Petrushkin <plixplox.dev@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/plixplox/grafit-charts.git"
+  },
+  "homepage": "https://plixplox.github.io/grafit-charts/",
+  "bugs": {
+    "url": "https://github.com/plixplox/grafit-charts/issues"
+  },
+  "keywords": [
+    "charts",
+    "charting",
+    "chart",
+    "canvas",
+    "data-visualization",
+    "dataviz",
+    "graph",
+    "plot",
+    "typescript",
+    "zero-dependencies"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "unpkg": "./dist/grafit.min.js",
+  "jsdelivr": "./dist/grafit.min.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js",
+      "default": "./dist/core.js"
+    },
+    "./modules": {
+      "types": "./dist/modules.d.ts",
+      "import": "./dist/modules.js",
+      "default": "./dist/modules.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --config vite.config.cdn.ts",
+    "prepublishOnly": "npm run lint && npm test && npm run build",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:all": "TZ=UTC vitest run",
+    "test:image": "TZ=UTC vitest run --project image",
+    "test:image:update": "TZ=UTC vitest run --project image --update",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "npm run docs:api && vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "docs:api": "typedoc"
+  },
+  "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "@types/node": "^25.9.2",
+    "@vitest/browser-playwright": "^4.1.8",
+    "eslint": "^10.4.1",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-boundaries": "^6.0.2",
+    "playwright": "^1.60.0",
+    "prettier": "^3.8.4",
+    "typedoc": "^0.28.19",
+    "typedoc-plugin-markdown": "^4.12.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.0",
+    "vite": "^8.0.16",
+    "vite-plugin-dts": "^5.0.2",
+    "vitepress": "^1.6.4",
+    "vitest": "^4.1.8",
+    "vue": "^3.5.35"
+  }
+}
