@@ -16,6 +16,13 @@ Range series: instead of `yField`, a `yLowField` / `yHighField` pair.
 
 ::: chart-example range-bar-horizontal
 
+### Per-bar colour (Gantt)
+
+`fill` accepts a callback `({ low, high, datum, index }) => color` — colour each bar
+individually, e.g. a Gantt timeline painted by task status from a single series:
+
+::: chart-example range-bar-gantt
+
 ## Range labels
 
 `label.formatter({ low, high, datum })`; placements are the same as for bar — here `center`
@@ -34,6 +41,7 @@ Range-area as the background + line on top, with a shared tooltip:
 | `yLowField`          | `string`                     | range bounds                |
 | `yHighField`         | `string`                     | range bounds                |
 | `direction` (bar)    | `'vertical' \| 'horizontal'` | bar direction (`vertical`)  |
+| `fill`               | `ColorValue \| (params) => ColorValue` | fill; callback colours per datum |
 | `fill`               | styles   | fill              |
 | `fillOpacity`        | styles   | fill              |
 | `stroke` (area)      | styles   | outline lines     |

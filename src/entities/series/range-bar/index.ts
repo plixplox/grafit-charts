@@ -19,10 +19,16 @@ export interface RangeBarSeriesOptions extends Omit<SeriesBaseOptions, 'yField' 
       placement?: RectLabelPlacement;
       formatter?: (params: { low: number; high: number; datum: Datum }) => string;
     };
-  fill?: ColorValue;
+  /**
+   * Bar fill. A callback receives each datum and returns a color — use it to
+   * paint bars by category/status (e.g. a Gantt chart coloured by task state).
+   */
+  fill?: ColorValue | RangeBarFillFn;
   fillOpacity?: Fraction;
   cornerRadius?: Pixels;
 }
+
+export type RangeBarFillFn = (params: { low: number; high: number; datum: Datum; index: number }) => ColorValue;
 
 interface BarRect {
   index: number;
@@ -37,7 +43,13 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
   private rects: BarRect[] = [];
 
   protected mainColor(): ColorValue {
-    return this.options.fill ?? this.env.colors.fill;
+    // legend/tooltip fall back to the theme colour when fill is a per-datum callback
+    return typeof this.options.fill === 'function' ? this.env.colors.fill : this.options.fill ?? this.env.colors.fill;
+  }
+
+  private fillFor(params: { low: number; high: number; datum: Datum; index: number }): ColorValue {
+    const fill = this.options.fill;
+    return typeof fill === 'function' ? fill(params) : fill ?? this.env.colors.fill;
   }
 
   protected override get seriesName(): string {
@@ -89,7 +101,7 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
       node.y = rect.y;
       node.width = rect.width;
       node.height = rect.height;
-      node.fill = this.mainColor();
+      node.fill = this.fillFor({ low, high, datum, index });
       node.opacity = this.options.fillOpacity ?? 0.9;
       node.cornerRadius = this.options.cornerRadius ?? 3;
       group.append(node);
@@ -129,13 +141,15 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
   override tooltipFor(datumIndex: number): TooltipContentData {
     const datum = this.lastCtx?.data[datumIndex];
     if (!datum) return { rows: [] };
+    const low = Number(datum[this.options.yLowField]);
+    const high = Number(datum[this.options.yHighField]);
     return {
       heading: String(datum[this.options.xField]),
       rows: [
         {
           label: this.seriesName,
           value: `${datum[this.options.yLowField]} – ${datum[this.options.yHighField]}`,
-          color: this.mainColor(),
+          color: this.fillFor({ low, high, datum, index: datumIndex }),
         },
       ],
     };

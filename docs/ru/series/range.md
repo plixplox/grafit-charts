@@ -16,6 +16,13 @@
 
 ::: chart-example range-bar-horizontal
 
+### Цвет на каждый бар (Гант)
+
+`fill` принимает колбэк `({ low, high, datum, index }) => цвет` — красит каждый бар
+отдельно, например Гант-таймлайн по статусу задачи из одной серии:
+
+::: chart-example range-bar-gantt
+
 ## Подписи диапазонов
 
 `label.formatter({ low, high, datum })`; позиции как у bar — здесь `center`
@@ -34,6 +41,7 @@ Range-area как фон + line поверх, общий тултип:
 | `yLowField`          | `string`                     | границы диапазона                 |
 | `yHighField`         | `string`                     | границы диапазона                 |
 | `direction` (bar)    | `'vertical' \| 'horizontal'` | направление баров (`vertical`)    |
+| `fill`               | `ColorValue \| (params) => ColorValue` | заливка; колбэк красит по datum |
 | `fill`               | стили       | заливка           |
 | `fillOpacity`        | стили       | заливка           |
 | `stroke` (area)      | стили       | контурные линии   |
