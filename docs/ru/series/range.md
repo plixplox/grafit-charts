@@ -10,6 +10,12 @@
 
 ::: chart-example range-bar-basic
 
+### Горизонтальные range-бары
+
+`direction: 'horizontal'` разворачивает чарт: категории уходят на вертикальную ось.
+
+::: chart-example range-bar-horizontal
+
 ## Подписи диапазонов
 
 `label.formatter({ low, high, datum })`; позиции как у bar — здесь `center`
@@ -23,10 +29,11 @@ Range-area как фон + line поверх, общий тултип:
 
 ::: chart-example range-combo
 
-| Опция                | Тип         | Описание          |
-| -------------------- | ----------- | ----------------- |
-| `yLowField`          | `string`    | границы диапазона |
-| `yHighField`         | `string`    | границы диапазона |
+| Опция                | Тип                          | Описание                          |
+| -------------------- | ---------------------------- | --------------------------------- |
+| `yLowField`          | `string`                     | границы диапазона                 |
+| `yHighField`         | `string`                     | границы диапазона                 |
+| `direction` (bar)    | `'vertical' \| 'horizontal'` | направление баров (`vertical`)    |
 | `fill`               | стили       | заливка           |
 | `fillOpacity`        | стили       | заливка           |
 | `stroke` (area)      | стили       | контурные линии   |

@@ -10,6 +10,12 @@ Range series: instead of `yField`, a `yLowField` / `yHighField` pair.
 
 ::: chart-example range-bar-basic
 
+### Horizontal range bars
+
+`direction: 'horizontal'` flips the chart: categories move to the vertical axis.
+
+::: chart-example range-bar-horizontal
+
 ## Range labels
 
 `label.formatter({ low, high, datum })`; placements are the same as for bar — here `center`
@@ -23,10 +29,11 @@ Range-area as the background + line on top, with a shared tooltip:
 
 ::: chart-example range-combo
 
-| Option               | Type     | Description       |
-| -------------------- | -------- | ----------------- |
-| `yLowField`          | `string` | range bounds      |
-| `yHighField`         | `string` | range bounds      |
+| Option               | Type                         | Description                 |
+| -------------------- | ---------------------------- | --------------------------- |
+| `yLowField`          | `string`                     | range bounds                |
+| `yHighField`         | `string`                     | range bounds                |
+| `direction` (bar)    | `'vertical' \| 'horizontal'` | bar direction (`vertical`)  |
 | `fill`               | styles   | fill              |
 | `fillOpacity`        | styles   | fill              |
 | `stroke` (area)      | styles   | outline lines     |

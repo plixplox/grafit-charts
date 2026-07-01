@@ -9,6 +9,7 @@ import { extent, contrastTextColor } from '@/shared/util';
 
 export interface RangeBarSeriesOptions extends Omit<SeriesBaseOptions, 'yField' | 'name'> {
   type: 'range-bar';
+  direction?: 'vertical' | 'horizontal';
   yLowField: string;
   yHighField: string;
   name?: string;
