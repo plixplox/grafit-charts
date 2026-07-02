@@ -1,26 +1,23 @@
 import { Group } from './group';
 import type { CanvasFactory, SceneCanvas } from './types';
 
-interface SceneLayer {
-  canvas: SceneCanvas;
-  root: Group;
-  dirty: boolean;
-}
-
 /**
- * Scene with named layers: each layer is its own canvas,
- * only layers marked dirty are redrawn. Layer order = order of
- * first access (z-order).
+ * Scene with named layers on a single canvas: each layer is a root group,
+ * layer order = order of first access (z-order). The scene graph is retained,
+ * so any change simply redraws the whole canvas once per frame.
  */
 export class Scene {
-  private readonly layers = new Map<string, SceneLayer>();
-  private measureCanvas: SceneCanvas | undefined;
+  private readonly canvas: SceneCanvas;
+  private readonly layers = new Map<string, Group>();
+  private dirty = true;
 
   constructor(
-    private readonly factory: CanvasFactory,
+    factory: CanvasFactory,
     private logicalWidth: number,
     private logicalHeight: number,
-  ) {}
+  ) {
+    this.canvas = factory(logicalWidth, logicalHeight);
+  }
 
   get width(): number {
     return this.logicalWidth;
@@ -30,31 +27,23 @@ export class Scene {
     return this.logicalHeight;
   }
 
-  /** Root group of the layer; the canvas is created on first access. */
+  /** Root group of the layer; created on first access. */
   layer(name: string): Group {
-    let layer = this.layers.get(name);
-    if (!layer) {
-      layer = { canvas: this.factory(this.logicalWidth, this.logicalHeight), root: new Group(), dirty: true };
-      this.layers.set(name, layer);
+    let root = this.layers.get(name);
+    if (!root) {
+      root = new Group();
+      this.layers.set(name, root);
     }
-    return layer.root;
+    return root;
   }
 
-  /** Marks layers for redraw (all when called without arguments). */
-  markDirty(...names: string[]): void {
-    if (names.length === 0) {
-      for (const layer of this.layers.values()) layer.dirty = true;
-      return;
-    }
-    for (const name of names) {
-      const layer = this.layers.get(name);
-      if (layer) layer.dirty = true;
-    }
+  /** Marks the scene for redraw (layer names are accepted for call-site clarity; the canvas is redrawn whole). */
+  markDirty(..._names: string[]): void {
+    this.dirty = true;
   }
 
   measureText(text: string, font: string): number {
-    this.measureCanvas ??= this.factory(1, 1);
-    const ctx = this.measureCanvas.context;
+    const ctx = this.canvas.context;
     ctx.save();
     ctx.font = font;
     const width = ctx.measureText(text).width;
@@ -65,37 +54,30 @@ export class Scene {
   resize(width: number, height: number): void {
     this.logicalWidth = width;
     this.logicalHeight = height;
-    for (const layer of this.layers.values()) {
-      layer.canvas.resize(width, height);
-      layer.dirty = true;
-    }
+    this.canvas.resize(width, height);
+    this.dirty = true;
   }
 
-  /** Redraws dirty layers. */
+  /** Redraws the canvas if anything changed since the last render. */
   render(): void {
-    for (const layer of this.layers.values()) {
-      if (!layer.dirty) continue;
-      layer.dirty = false;
-      const { context: ctx, pixelRatio } = layer.canvas;
-      ctx.save();
-      ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-      ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
-      layer.root.render(ctx);
-      ctx.restore();
-    }
+    if (!this.dirty) return;
+    this.dirty = false;
+    const { context: ctx, pixelRatio } = this.canvas;
+    ctx.save();
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    for (const root of this.layers.values()) root.render(ctx);
+    ctx.restore();
   }
 
-  /** Layer composition (PNG export): the callback receives each layer's image source in order. */
+  /** Rendered image source (PNG export). */
   composite(draw: (image: unknown) => void): void {
     this.render();
-    for (const layer of this.layers.values()) {
-      draw(layer.canvas.image);
-    }
+    draw(this.canvas.image);
   }
 
   destroy(): void {
-    for (const layer of this.layers.values()) layer.canvas.destroy();
+    this.canvas.destroy();
     this.layers.clear();
-    this.measureCanvas?.destroy();
   }
 }

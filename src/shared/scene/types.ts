@@ -8,7 +8,7 @@ export interface SceneCanvas {
   /** Device scale (devicePixelRatio in the browser, 1 in Node). */
   readonly pixelRatio: number;
   readonly context: CanvasRenderingContext2D;
-  /** Source for drawImage when compositing layers (HTMLCanvasElement etc.). */
+  /** Source for drawImage (PNG export; HTMLCanvasElement etc.). */
   readonly image: unknown;
   resize(width: number, height: number): void;
   destroy(): void;

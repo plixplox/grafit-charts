@@ -36,14 +36,14 @@ export function createChart(options: ChartOptions): ChartInstance {
   if (typeof getComputedStyle === 'function' && getComputedStyle(container).position === 'static') {
     container.style.position = 'relative';
   }
-  // each scene layer is a separate canvas stacked in the container
-  const layerFactory: CanvasFactory = (layerWidth, layerHeight) => {
-    const layerCanvas = new DomCanvas(layerWidth, layerHeight);
-    Object.assign(layerCanvas.element.style, { position: 'absolute', left: '0', top: '0' });
-    container.appendChild(layerCanvas.element);
-    return layerCanvas;
+  // the whole scene is drawn on a single canvas; layers are groups on the scene graph
+  const canvasFactory: CanvasFactory = (canvasWidth, canvasHeight) => {
+    const sceneCanvas = new DomCanvas(canvasWidth, canvasHeight);
+    Object.assign(sceneCanvas.element.style, { position: 'absolute', left: '0', top: '0' });
+    container.appendChild(sceneCanvas.element);
+    return sceneCanvas;
   };
-  const scene = new Scene(layerFactory, ...measure(container, options));
+  const scene = new Scene(canvasFactory, ...measure(container, options));
   const scheduler = new RenderScheduler(() => scene.render());
   const requestRender = () => void scheduler.schedule();
 
