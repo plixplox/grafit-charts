@@ -1,5 +1,5 @@
 import { renderBackground, type BackgroundOptions } from '@/entities/background';
-import { renderCaption, type CaptionOptions } from '@/entities/caption';
+import { renderCaptions, type CaptionOptions } from '@/entities/caption';
 import type { Legend, LegendApi, LegendOptions } from '@/entities/legend';
 import type { HighlightOptions } from '@/features/highlight';
 import type { ChartListeners, SelectedItem, SelectionOptions } from '@/features/selection';
@@ -141,15 +141,13 @@ export class PolarChart implements ChartWidget {
     renderBackground(backgroundLayer, this.inputs.background, this.theme, width, height);
 
     const padding = { ...DEFAULT_PADDING, ...this.inputs.padding };
-    let contentTop = padding.top;
-    contentTop += renderCaption(captionLayer, 'title', this.inputs.title, this.theme, width, contentTop);
-    contentTop += renderCaption(captionLayer, 'subtitle', this.inputs.subtitle, this.theme, width, contentTop);
+    const captions = renderCaptions(captionLayer, this.inputs.title, this.inputs.subtitle, this.theme, width, height, padding);
 
     const avail: LayoutRect = {
       x: padding.left,
-      y: contentTop,
+      y: padding.top + captions.top,
       width: width - padding.left - padding.right,
-      height: height - contentTop - padding.bottom,
+      height: height - padding.top - captions.top - padding.bottom - captions.bottom,
     };
 
     const data = this.inputs.data ?? [];
@@ -159,27 +157,35 @@ export class PolarChart implements ChartWidget {
     const legend = this.legend;
     if (legend?.enabled) {
       legend.setItems(this.series.flatMap((series) => series.legendItems()));
-      const size = legend.measure(measureText, avail.width, avail.height);
+      // a floating legend is anchored to the whole chart area (captions included) and reserves no space
+      const floatRect: LayoutRect | undefined = legend.floating
+        ? { x: padding.left, y: padding.top, width: width - padding.left - padding.right, height: height - padding.top - padding.bottom }
+        : undefined;
+      const size = legend.measure(measureText, (floatRect ?? avail).width, (floatRect ?? avail).height);
       if (size.width > 0 && size.height > 0) {
         let legendRect: LayoutRect;
-        switch (legend.position) {
-          case 'top':
-            legendRect = { x: avail.x, y: avail.y, width: avail.width, height: size.height };
-            avail.y += size.height + LEGEND_GAP;
-            avail.height -= size.height + LEGEND_GAP;
-            break;
-          case 'right':
-            legendRect = { x: avail.x + avail.width - size.width, y: avail.y, width: size.width, height: avail.height };
-            avail.width -= size.width + LEGEND_GAP;
-            break;
-          case 'left':
-            legendRect = { x: avail.x, y: avail.y, width: size.width, height: avail.height };
-            avail.x += size.width + LEGEND_GAP;
-            avail.width -= size.width + LEGEND_GAP;
-            break;
-          default:
-            legendRect = { x: avail.x, y: avail.y + avail.height - size.height, width: avail.width, height: size.height };
-            avail.height -= size.height + LEGEND_GAP;
+        if (floatRect) {
+          legendRect = floatRect;
+        } else {
+          switch (legend.position) {
+            case 'top':
+              legendRect = { x: avail.x, y: avail.y, width: avail.width, height: size.height };
+              avail.y += size.height + LEGEND_GAP;
+              avail.height -= size.height + LEGEND_GAP;
+              break;
+            case 'right':
+              legendRect = { x: avail.x + avail.width - size.width, y: avail.y, width: size.width, height: avail.height };
+              avail.width -= size.width + LEGEND_GAP;
+              break;
+            case 'left':
+              legendRect = { x: avail.x, y: avail.y, width: size.width, height: avail.height };
+              avail.x += size.width + LEGEND_GAP;
+              avail.width -= size.width + LEGEND_GAP;
+              break;
+            default:
+              legendRect = { x: avail.x, y: avail.y + avail.height - size.height, width: avail.width, height: size.height };
+              avail.height -= size.height + LEGEND_GAP;
+          }
         }
         legend.render(legendLayer, legendRect);
       }
@@ -505,6 +511,11 @@ export class PolarChart implements ChartWidget {
   }
 
   handleClick(x: number, y: number): void {
+    // a floating legend overlays the plot — its items win over point picking
+    if (this.legend?.enabled && this.legend.floating && this.legend.hitTest(x, y) !== undefined) {
+      this.handleLegendClick(x, y);
+      return;
+    }
     const pick = this.pickNearest(x, y);
     if (pick && this.inputs.listeners?.nodeClick) {
       const datum = (this.inputs.data ?? [])[pick.datumIndex];
@@ -540,6 +551,10 @@ export class PolarChart implements ChartWidget {
       this.requestRender();
       return;
     }
+    this.handleLegendClick(x, y);
+  }
+
+  private handleLegendClick(x: number, y: number): void {
     const legend = this.legend;
     if (!legend?.enabled || !legend.toggleSeries) return;
     const seriesId = legend.hitTest(x, y);

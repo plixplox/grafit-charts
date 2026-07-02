@@ -60,15 +60,20 @@ axes: [
 | Опция                | Тип         | По умолчанию | Описание                    |
 | -------------------- | ----------- | ------------ | --------------------------- |
 | `title.text`         | `string`    | —            | заголовок чарта             |
+| `title.textAlign`    | `'left' \| 'center' \| 'right'` | `'center'` | горизонтальное выравнивание |
 | `title.fontSize`     | `Pixels` | `17`         | размер шрифта заголовка     |
 | `title.color`        | `ColorValue`  | foreground   | цвет                        |
-| `subtitle.text`      | `string`    | —            | подзаголовок (приглушённый) |
+| `title.position`     | `'top' \| 'bottom'` | `'top'` | над или под областью построения |
+| `title.spacing`      | `Pixels` | `8`          | отступ до области построения |
+| `subtitle.text`      | `string`    | —            | подзаголовок (приглушённый, те же опции) |
 | `padding.top`        | `Pixels` | `12`         | внешние поля чарта          |
 | `padding.right`      | `Pixels` | `20`         | —                           |
 | `padding.bottom`     | `Pixels` | `12`         | —                           |
 | `padding.left`       | `Pixels` | `20`         | —                           |
 | `background.fill`    | `ColorValue`  | фон темы     | заливка подложки            |
 | `background.visible` | `boolean`   | `true`       | рисовать ли фон             |
+
+Все опции заголовков с живыми примерами: [Заголовок и подзаголовок](/ru/interactivity/captions).
 
 ## Оверлеи и загрузка
 

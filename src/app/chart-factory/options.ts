@@ -8,7 +8,7 @@ import type { TimeAxisOptions } from '@/entities/axis/time';
 import type { BackgroundOptions } from '@/entities/background';
 import type { CaptionOptions } from '@/entities/caption';
 import type { GradientLegendOptions } from '@/entities/gradient-legend';
-import type { LegendOptions } from '@/entities/legend';
+import type { LegendBackgroundOptions, LegendItemOptions, LegendOptions, LegendPlacement } from '@/entities/legend';
 import type { AreaSeriesOptions } from '@/entities/series/area';
 import type { BarSeriesOptions } from '@/entities/series/bar';
 import type { BoxPlotSeriesOptions } from '@/entities/series/box-plot';
@@ -133,6 +133,9 @@ export type {
   BackgroundOptions,
   CaptionOptions,
   LegendOptions,
+  LegendItemOptions,
+  LegendPlacement,
+  LegendBackgroundOptions,
   GradientLegendOptions,
   TooltipOptions,
   HighlightOptions,

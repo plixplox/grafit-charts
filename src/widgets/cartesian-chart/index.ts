@@ -1,5 +1,5 @@
 import { renderBackground, type BackgroundOptions } from '@/entities/background';
-import { renderCaption, type CaptionOptions } from '@/entities/caption';
+import { renderCaptions, type CaptionOptions } from '@/entities/caption';
 import type { GradientLegendApi, GradientLegendOptions } from '@/entities/gradient-legend';
 import type { Legend, LegendApi, LegendOptions } from '@/entities/legend';
 import type { AnnotationOptions, AnnotationsApi } from '@/features/annotations';
@@ -318,15 +318,13 @@ export class CartesianChart implements SyncMember {
     renderBackground(backgroundLayer, this.inputs.background, this.theme, width, height);
 
     const padding = { ...DEFAULT_PADDING, ...this.inputs.padding };
-    let contentTop = padding.top;
-    contentTop += renderCaption(captionLayer, 'title', this.inputs.title, this.theme, width, contentTop);
-    contentTop += renderCaption(captionLayer, 'subtitle', this.inputs.subtitle, this.theme, width, contentTop);
+    const captions = renderCaptions(captionLayer, this.inputs.title, this.inputs.subtitle, this.theme, width, height, padding);
 
     const avail: LayoutRect = {
       x: padding.left,
-      y: contentTop,
+      y: padding.top + captions.top,
       width: width - padding.left - padding.right,
-      height: height - contentTop - padding.bottom,
+      height: height - padding.top - captions.top - padding.bottom - captions.bottom,
     };
 
     const measureText = (text: string, font: string) => this.scene.measureText(text, font);
@@ -334,27 +332,35 @@ export class CartesianChart implements SyncMember {
     const legend = this.legend;
     if (legend?.enabled) {
       legend.setItems(this.series.flatMap((series) => series.legendItems()));
-      const size = legend.measure(measureText, avail.width, avail.height);
+      // a floating legend is anchored to the whole chart area (captions included) and reserves no space
+      const floatRect: LayoutRect | undefined = legend.floating
+        ? { x: padding.left, y: padding.top, width: width - padding.left - padding.right, height: height - padding.top - padding.bottom }
+        : undefined;
+      const size = legend.measure(measureText, (floatRect ?? avail).width, (floatRect ?? avail).height);
       if (size.width > 0 && size.height > 0) {
-        switch (legend.position) {
-          case 'bottom':
-            legendRect = { x: avail.x, y: avail.y + avail.height - size.height, width: avail.width, height: size.height };
-            avail.height -= size.height + LEGEND_GAP;
-            break;
-          case 'top':
-            legendRect = { x: avail.x, y: avail.y, width: avail.width, height: size.height };
-            avail.y += size.height + LEGEND_GAP;
-            avail.height -= size.height + LEGEND_GAP;
-            break;
-          case 'right':
-            legendRect = { x: avail.x + avail.width - size.width, y: avail.y, width: size.width, height: avail.height };
-            avail.width -= size.width + LEGEND_GAP;
-            break;
-          case 'left':
-            legendRect = { x: avail.x, y: avail.y, width: size.width, height: avail.height };
-            avail.x += size.width + LEGEND_GAP;
-            avail.width -= size.width + LEGEND_GAP;
-            break;
+        if (floatRect) {
+          legendRect = floatRect;
+        } else {
+          switch (legend.position) {
+            case 'bottom':
+              legendRect = { x: avail.x, y: avail.y + avail.height - size.height, width: avail.width, height: size.height };
+              avail.height -= size.height + LEGEND_GAP;
+              break;
+            case 'top':
+              legendRect = { x: avail.x, y: avail.y, width: avail.width, height: size.height };
+              avail.y += size.height + LEGEND_GAP;
+              avail.height -= size.height + LEGEND_GAP;
+              break;
+            case 'right':
+              legendRect = { x: avail.x + avail.width - size.width, y: avail.y, width: size.width, height: avail.height };
+              avail.width -= size.width + LEGEND_GAP;
+              break;
+            case 'left':
+              legendRect = { x: avail.x, y: avail.y, width: size.width, height: avail.height };
+              avail.x += size.width + LEGEND_GAP;
+              avail.width -= size.width + LEGEND_GAP;
+              break;
+          }
         }
       }
     }
@@ -468,8 +474,8 @@ export class CartesianChart implements SyncMember {
     | undefined;
 
   /**
-   * Fast hover/highlight path: only the series and overlay layers are
-   * redrawn from the last layout cache (no domain/axis recalculation).
+   * Fast hover/highlight path: only the series and overlay groups are
+   * rebuilt from the last layout cache (no domain/axis recalculation).
    */
   private renderDynamicLayers(): void {
     const cache = this.renderCache;
@@ -794,6 +800,11 @@ export class CartesianChart implements SyncMember {
   }
 
   handleClick(x: number, y: number): void {
+    // a floating legend overlays the plot — its items win over point picking
+    if (this.legend?.enabled && this.legend.floating && this.legend.hitTest(x, y) !== undefined) {
+      this.handleLegendClick(x, y);
+      return;
+    }
     const inPlot = x >= this.plot.x && x <= this.plot.x + this.plot.width && y >= this.plot.y && y <= this.plot.y + this.plot.height;
     if (inPlot) {
       const pick = this.pickNearest(x, y);
@@ -821,6 +832,10 @@ export class CartesianChart implements SyncMember {
         return;
       }
     }
+    this.handleLegendClick(x, y);
+  }
+
+  private handleLegendClick(x: number, y: number): void {
     const legend = this.legend;
     if (!legend?.enabled || !legend.toggleSeries) return;
     const seriesId = legend.hitTest(x, y);

@@ -83,6 +83,7 @@ const SIDEBAR_LABELS: Record<DocsLocale, Record<string, string>> = {
     seriesOptions: 'Common series options',
     axes: 'Axes',
     chartComponents: 'Chart components',
+    captions: 'Title and subtitle',
     legend: 'Legend',
     tooltip: 'Tooltip',
     crosshair: 'Crosshair',
@@ -111,6 +112,7 @@ const SIDEBAR_LABELS: Record<DocsLocale, Record<string, string>> = {
     seriesOptions: 'Общие опции серий',
     axes: 'Оси',
     chartComponents: 'Компоненты чарта',
+    captions: 'Заголовки',
     legend: 'Легенда',
     tooltip: 'Тултип',
     crosshair: 'Crosshair',
@@ -157,6 +159,7 @@ function mainSidebar(locale: DocsLocale) {
       text: t.chartComponents,
       collapsed: false,
       items: [
+        { text: t.captions, link: `${base}/interactivity/captions` },
         { text: t.legend, link: `${base}/interactivity/legend` },
         { text: t.tooltip, link: `${base}/interactivity/tooltip` },
         { text: t.crosshair, link: `${base}/interactivity/crosshair` },

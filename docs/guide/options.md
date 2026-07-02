@@ -62,15 +62,20 @@ size the container with CSS. Numeric `width`/`height` fix the size.
 | Option               | Type        | Default      | Description                  |
 | -------------------- | ----------- | ------------ | ---------------------------- |
 | `title.text`         | `string`    | —            | chart title                  |
+| `title.textAlign`    | `'left' \| 'center' \| 'right'` | `'center'` | horizontal alignment |
 | `title.fontSize`     | `Pixels` | `17`         | title font size              |
 | `title.color`        | `ColorValue`  | foreground   | color                        |
-| `subtitle.text`      | `string`    | —            | subtitle (muted)             |
+| `title.position`     | `'top' \| 'bottom'` | `'top'` | above or below the plot |
+| `title.spacing`      | `Pixels` | `8`          | gap towards the plot         |
+| `subtitle.text`      | `string`    | —            | subtitle (muted, same options) |
 | `padding.top`        | `Pixels` | `12`         | outer chart padding          |
 | `padding.right`      | `Pixels` | `20`         | —                            |
 | `padding.bottom`     | `Pixels` | `12`         | —                            |
 | `padding.left`       | `Pixels` | `20`         | —                            |
 | `background.fill`    | `ColorValue`  | theme background | backdrop fill            |
 | `background.visible` | `boolean`   | `true`       | whether to draw the background |
+
+All caption options with live examples: [Title and subtitle](/interactivity/captions).
 
 ## Overlays and loading
 
