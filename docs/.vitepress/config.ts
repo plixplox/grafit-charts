@@ -241,6 +241,11 @@ export default defineConfig({
   title: 'Grafit charts',
   base: SITE_BASE,
 
+  // общий themeConfig мержится в обе локали
+  themeConfig: {
+    socialLinks: [{ icon: 'github', link: 'https://github.com/plixplox/grafit-charts' }],
+  },
+
   locales: {
     root: {
       label: 'English',
