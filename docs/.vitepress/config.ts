@@ -241,8 +241,12 @@ export default defineConfig({
   title: 'Grafit charts',
   base: SITE_BASE,
 
+  // base не подставляется в head автоматически — прописываем сами
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${SITE_BASE}logo.svg` }]],
+
   // общий themeConfig мержится в обе локали
   themeConfig: {
+    logo: '/logo.svg',
     socialLinks: [{ icon: 'github', link: 'https://github.com/plixplox/grafit-charts' }],
   },
 
