@@ -164,7 +164,9 @@ export function createChart(options: ChartOptions): ChartInstance {
       if (width === scene.width && height === scene.height) return;
       scene.resize(width, height);
       widget.layoutAndRender();
-      requestRender();
+      // RO callbacks fire after rAF but before paint, and scene.resize() has just
+      // wiped the canvas bitmap — render synchronously, or this frame paints blank
+      scene.render();
     });
     resizeObserver.observe(container);
   }
