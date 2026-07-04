@@ -28,6 +28,32 @@ By default the tooltip shows the `xField` value as the heading and a "series nam
 | `yOffset`           | `Pixels`                         | `0`          | tooltip offset                                                                                                             |
 | `range`             | `Pixels \| 'exact' \| 'nearest'` | `30`         | number — radius in px; `'exact'` — only direct hits on a node; `'nearest'` — nearest node from anywhere in the plot area |
 
+## Appearance
+
+The tooltip container is styled in the same `tooltip` block:
+
+| Option         | Type                | Default                     | Description                          |
+| -------------- | ------------------- | --------------------------- | ------------------------------------ |
+| `background`   | `ColorValue`        | theme background            | background                           |
+| `borderColor`  | `ColorValue`        | theme muted color           | border color                         |
+| `borderWidth`  | `Pixels`            | `1`                         | border width; `0` removes the border |
+| `borderRadius` | `Pixels`            | `6`                         | corner radius                        |
+| `shadow`       | `string \| false`   | `0 2px 8px rgba(0,0,0,.25)` | CSS box-shadow; `false` — no shadow  |
+| `padding`      | `string`            | `7px 10px`                  | CSS padding of the container         |
+| `fontSize`     | `Pixels`            | `12`                        | font size                            |
+| `fontFamily`   | `string`            | `system-ui, sans-serif`     | font family                          |
+| `color`        | `ColorValue`        | theme foreground            | text color                           |
+
+```ts
+tooltip: {
+  background: '#141821',
+  color: '#f0f0f0',
+  borderColor: '#436ff4',
+  borderRadius: 10,
+  shadow: false,
+},
+```
+
 ## Series options
 
 `series[].tooltip.renderer(params)` returns a string (which becomes the heading) or a structure:

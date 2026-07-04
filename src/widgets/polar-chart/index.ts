@@ -466,7 +466,7 @@ export class PolarChart implements ChartWidget {
     }
     if (pick && this.tooltip && this.inputs.tooltip?.enabled !== false) {
       const series = this.series.find((instance) => instance.id === pick.seriesId);
-      if (series) this.tooltip.show(series.tooltipFor(pick.datumIndex), ...this.tooltipAnchor(pick, x, y), this.theme);
+      if (series) this.tooltip.show(series.tooltipFor(pick.datumIndex), ...this.tooltipAnchor(pick, x, y), this.theme, this.inputs.tooltip);
     } else {
       this.tooltip?.hide();
     }

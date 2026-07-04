@@ -739,7 +739,7 @@ export class CartesianChart implements SyncMember {
         this.inputs.tooltip?.mode === 'shared'
           ? this.sharedTooltipContent(pick)
           : this.series.find((instance) => instance.id === pick.seriesId)?.tooltipFor(pick.datumIndex);
-      if (content) this.tooltip.show(content, ...this.tooltipAnchor(pick, x, y), this.theme);
+      if (content) this.tooltip.show(content, ...this.tooltipAnchor(pick, x, y), this.theme, this.inputs.tooltip);
     } else {
       this.tooltip?.hide();
     }

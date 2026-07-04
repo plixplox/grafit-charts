@@ -171,7 +171,7 @@ export class StandaloneChart implements ChartWidget {
     }
     if (pick && this.tooltip && this.inputs.tooltip?.enabled !== false) {
       const series = this.series.find((instance) => instance.id === pick.seriesId);
-      if (series) this.tooltip.show(series.tooltipFor(pick.datumIndex), pick.x, pick.y, this.theme);
+      if (series) this.tooltip.show(series.tooltipFor(pick.datumIndex), pick.x, pick.y, this.theme, this.inputs.tooltip);
     } else {
       this.tooltip?.hide();
     }

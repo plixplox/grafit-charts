@@ -28,6 +28,32 @@
 | `yOffset`           | `Pixels`                         | `0`          | смещение тултипа                                                                                                          |
 | `range`             | `Pixels \| 'exact' \| 'nearest'` | `30`         | число — радиус в px; `'exact'` — только попадание в узел; `'nearest'` — ближайший узел из любого места области построения |
 
+## Внешний вид
+
+Контейнер тултипа настраивается там же, в `tooltip`:
+
+| Опция          | Тип                 | По умолчанию               | Описание                             |
+| -------------- | ------------------- | -------------------------- | ------------------------------------ |
+| `background`   | `ColorValue`        | фон темы                   | фон                                  |
+| `borderColor`  | `ColorValue`        | приглушённый цвет темы     | цвет рамки                           |
+| `borderWidth`  | `Pixels`            | `1`                        | толщина рамки; `0` убирает рамку     |
+| `borderRadius` | `Pixels`            | `6`                        | скругление углов                     |
+| `shadow`       | `string \| false`   | `0 2px 8px rgba(0,0,0,.25)` | CSS box-shadow; `false` — без тени   |
+| `padding`      | `string`            | `7px 10px`                 | CSS padding контейнера               |
+| `fontSize`     | `Pixels`            | `12`                       | размер шрифта                        |
+| `fontFamily`   | `string`            | `system-ui, sans-serif`    | гарнитура                            |
+| `color`        | `ColorValue`        | foreground темы            | цвет текста                          |
+
+```ts
+tooltip: {
+  background: '#141821',
+  color: '#f0f0f0',
+  borderColor: '#436ff4',
+  borderRadius: 10,
+  shadow: false,
+},
+```
+
 ## Опции серии
 
 `series[].tooltip.renderer(params)` возвращает строку (станет заголовком) или структуру:
