@@ -9,29 +9,32 @@ export interface OhlcSeriesOptions extends OhlcSeriesBaseOptions {
 export class OhlcSeries extends OhlcSeriesBase<OhlcSeriesOptions> {
   readonly type = 'ohlc';
 
-  protected renderCandle(geometry: CandleGeometry, highlighted: boolean): SceneNode[] {
+  protected renderCandle(geometry: CandleGeometry, highlighted: boolean, selected: boolean): SceneNode[] {
     const style = geometry.up ? this.upStyle() : this.downStyle();
-    const strokeWidth = highlighted ? style.strokeWidth + 1 : style.strokeWidth;
+    // selection: the glyph is all strokes, so the selected candle keeps its
+    // up/down colour (unless itemStyle.stroke overrides it) and gets thicker
+    const strokeWidth = selected ? style.strokeWidth + 1.5 : highlighted ? style.strokeWidth + 1 : style.strokeWidth;
+    const strokeColor = selected ? (this.lastCtx?.selectionStyle?.stroke ?? style.stroke) : style.stroke;
 
     const stem = new Line();
     stem.x1 = stem.x2 = geometry.centerX;
     stem.y1 = geometry.high;
     stem.y2 = geometry.low;
-    stem.stroke = style.stroke;
+    stem.stroke = strokeColor;
     stem.strokeWidth = strokeWidth;
 
     const openTick = new Line();
     openTick.x1 = geometry.bodyX;
     openTick.x2 = geometry.centerX;
     openTick.y1 = openTick.y2 = geometry.open;
-    openTick.stroke = style.stroke;
+    openTick.stroke = strokeColor;
     openTick.strokeWidth = strokeWidth;
 
     const closeTick = new Line();
     closeTick.x1 = geometry.centerX;
     closeTick.x2 = geometry.bodyX + geometry.bodyWidth;
     closeTick.y1 = closeTick.y2 = geometry.close;
-    closeTick.stroke = style.stroke;
+    closeTick.stroke = strokeColor;
     closeTick.strokeWidth = strokeWidth;
 
     return [stem, openTick, closeTick];

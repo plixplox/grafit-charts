@@ -46,7 +46,7 @@ export const DOWN_COLOR = '#e5484d';
 export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends CartesianSeries<O & { yField: string }> {
   protected candles: CandleGeometry[] = [];
 
-  protected abstract renderCandle(geometry: CandleGeometry, highlighted: boolean): SceneNode[];
+  protected abstract renderCandle(geometry: CandleGeometry, highlighted: boolean, selected: boolean): SceneNode[];
 
   protected mainColor(): ColorValue {
     return this.options.item?.up?.fill ?? UP_COLOR;
@@ -116,7 +116,9 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
         up: close! >= open!,
       };
       this.candles.push(geometry);
-      for (const node of this.renderCandle(geometry, index === highlighted)) {
+      const isSelected = ctx.selected?.has(index) === true;
+      for (const node of this.renderCandle(geometry, index === highlighted, isSelected)) {
+        if (ctx.selectionActive && !isSelected) node.opacity *= ctx.selectionStyle?.inactiveOpacity ?? 0.45;
         group.append(node);
       }
     });

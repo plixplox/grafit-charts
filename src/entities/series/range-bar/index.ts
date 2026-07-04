@@ -104,6 +104,13 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
       node.fill = this.fillFor({ low, high, datum, index });
       node.opacity = this.options.fillOpacity ?? 0.9;
       node.cornerRadius = this.options.cornerRadius ?? 3;
+      if (ctx.selected?.has(index)) {
+        node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
+        node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
+      }
+      if (ctx.selectionActive && !ctx.selected?.has(index)) {
+        node.opacity *= ctx.selectionStyle?.inactiveOpacity ?? 0.45;
+      }
       group.append(node);
 
       if (this.options.label?.enabled === true) {

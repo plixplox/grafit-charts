@@ -4,7 +4,7 @@ import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { CartesianRenderContext, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
-import { Group, Path } from '@/shared/scene';
+import { Group, Marker, Path } from '@/shared/scene';
 import { extent } from '@/shared/util';
 
 export interface RangeAreaSeriesOptions extends Omit<SeriesBaseOptions, 'yField' | 'name'> {
@@ -86,6 +86,22 @@ export class RangeAreaSeries extends CartesianSeries<RangeAreaSeriesOptions & { 
         else line.lineTo(point.x, point[key]);
       });
       group.append(line);
+    }
+
+    if (ctx.selected && ctx.selected.size > 0) {
+      for (const point of this.points) {
+        if (!ctx.selected.has(point.index)) continue;
+        for (const py of [point.yHigh, point.yLow]) {
+          const marker = new Marker();
+          marker.x = point.x;
+          marker.y = py;
+          marker.size = 7 * (ctx.selectionStyle?.sizeRatio ?? 1.4);
+          marker.fill = this.mainColor();
+          marker.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
+          marker.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 2;
+          group.append(marker);
+        }
+      }
     }
 
     if (ctx.highlight && ctx.highlight.seriesId !== this.id) group.opacity = ctx.dimOpacity ?? DEFAULT_DIM_OPACITY;

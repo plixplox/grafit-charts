@@ -9,7 +9,7 @@ export interface CandlestickSeriesOptions extends OhlcSeriesBaseOptions {
 export class CandlestickSeries extends OhlcSeriesBase<CandlestickSeriesOptions> {
   readonly type = 'candlestick';
 
-  protected renderCandle(geometry: CandleGeometry, _highlighted: boolean): SceneNode[] {
+  protected renderCandle(geometry: CandleGeometry, _highlighted: boolean, selected: boolean): SceneNode[] {
     const style = geometry.up ? this.upStyle() : this.downStyle();
     const wick = new Line();
     wick.x1 = wick.x2 = geometry.centerX;
@@ -25,6 +25,10 @@ export class CandlestickSeries extends OhlcSeriesBase<CandlestickSeriesOptions> 
     body.height = Math.max(1, Math.abs(geometry.close - geometry.open));
     body.fill = style.fill;
     body.cornerRadius = 1;
+    if (selected) {
+      body.stroke = this.lastCtx?.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
+      body.strokeWidth = this.lastCtx?.selectionStyle?.strokeWidth ?? 1.5;
+    }
     return [wick, body];
   }
 }

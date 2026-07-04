@@ -135,6 +135,13 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
       node.height = bar.height;
       node.fill = step.isTotal ? totalFill : step.end >= step.start ? positiveFill : negativeFill;
       node.cornerRadius = this.options.cornerRadius ?? 2;
+      if (ctx.selected?.has(index)) {
+        node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
+        node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
+      }
+      if (ctx.selectionActive && !ctx.selected?.has(index)) {
+        node.opacity *= ctx.selectionStyle?.inactiveOpacity ?? 0.45;
+      }
       group.append(node);
 
       if (this.options.label?.enabled === true) {

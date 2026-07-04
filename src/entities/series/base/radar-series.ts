@@ -117,10 +117,28 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
         marker.y = point.y;
         marker.shape = this.options.marker?.shape ?? 'circle';
         const base = this.options.marker?.size ?? 6;
-        marker.size = point.index === highlighted ? base * (1 + 0.5 * (ctx.highlightT ?? 1)) : base;
+        const isSelected = ctx.selected?.has(point.index) === true;
+        marker.size = isSelected
+          ? base * (ctx.selectionStyle?.sizeRatio ?? 1.4)
+          : point.index === highlighted
+            ? base * (1 + 0.5 * (ctx.highlightT ?? 1))
+            : base;
         marker.fill = this.mainColor();
-        marker.stroke = this.env.theme.backgroundColor;
-        marker.strokeWidth = 1.2;
+        marker.stroke = isSelected ? (ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor) : this.env.theme.backgroundColor;
+        marker.strokeWidth = isSelected ? (ctx.selectionStyle?.strokeWidth ?? 2) : 1.2;
+        if (ctx.selectionActive && !isSelected) marker.opacity = ctx.selectionStyle?.inactiveOpacity ?? 0.45;
+        group.append(marker);
+      }
+    } else if (ctx.selected && ctx.selected.size > 0) {
+      for (const point of this.points) {
+        if (!ctx.selected.has(point.index)) continue;
+        const marker = new Marker();
+        marker.x = point.x;
+        marker.y = point.y;
+        marker.size = 6 * (ctx.selectionStyle?.sizeRatio ?? 1.4);
+        marker.fill = this.mainColor();
+        marker.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
+        marker.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 2;
         group.append(marker);
       }
     }

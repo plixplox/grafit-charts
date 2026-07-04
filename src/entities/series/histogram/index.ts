@@ -137,6 +137,13 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
       node.opacity = this.options.fillOpacity ?? 0.85;
       node.stroke = this.options.stroke ?? this.env.theme.backgroundColor;
       node.strokeWidth = this.options.strokeWidth ?? 1;
+      if (ctx.selected?.has(binIndex)) {
+        node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
+        node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
+      }
+      if (ctx.selectionActive && !ctx.selected?.has(binIndex)) {
+        node.opacity *= ctx.selectionStyle?.inactiveOpacity ?? 0.45;
+      }
       group.append(node);
 
       if (this.options.label?.enabled === true) {

@@ -89,6 +89,8 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
       this.boxes.push({ index, x, width, q1: pq1, q3: pq3 });
 
       const capWidth = width * (this.options.capLengthRatio ?? 0.5);
+      const isSelected = ctx.selected?.has(index) === true;
+      const item = new Group();
 
       const whisker = new Line();
       whisker.x1 = whisker.x2 = centerX;
@@ -96,7 +98,7 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
       whisker.y2 = valueScale.convert(max);
       whisker.stroke = stroke;
       whisker.strokeWidth = strokeWidth;
-      group.append(whisker);
+      item.append(whisker);
 
       for (const value of [min, max]) {
         const cap = new Line();
@@ -105,7 +107,7 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
         cap.y1 = cap.y2 = valueScale.convert(value);
         cap.stroke = stroke;
         cap.strokeWidth = strokeWidth;
-        group.append(cap);
+        item.append(cap);
       }
 
       const box = new Rect();
@@ -115,10 +117,10 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
       box.height = Math.abs(pq3 - pq1);
       box.fill = this.mainColor();
       box.opacity = this.options.fillOpacity ?? 0.45;
-      box.stroke = stroke;
-      box.strokeWidth = index === highlighted ? 2 : strokeWidth;
+      box.stroke = isSelected ? (ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor) : stroke;
+      box.strokeWidth = isSelected ? (ctx.selectionStyle?.strokeWidth ?? 2) : index === highlighted ? 2 : strokeWidth;
       box.cornerRadius = 2;
-      group.append(box);
+      item.append(box);
 
       const medianLine = new Line();
       medianLine.x1 = x;
@@ -126,7 +128,10 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
       medianLine.y1 = medianLine.y2 = valueScale.convert(median);
       medianLine.stroke = stroke;
       medianLine.strokeWidth = strokeWidth + 0.5;
-      group.append(medianLine);
+      item.append(medianLine);
+
+      if (ctx.selectionActive && !isSelected) item.opacity = ctx.selectionStyle?.inactiveOpacity ?? 0.45;
+      group.append(item);
     });
 
     if (ctx.highlight && ctx.highlight.seriesId !== this.id) group.opacity = ctx.dimOpacity ?? DEFAULT_DIM_OPACITY;
