@@ -2,7 +2,7 @@ import type { BandScale } from './band-scale';
 import type { LinearScale } from './linear-scale';
 
 export { LinearScale } from './linear-scale';
-export { BandScale } from './band-scale';
+export { BandScale, DEFAULT_GROUP_GAP, groupSlot } from './band-scale';
 export { LogScale } from './log-scale';
 export { TimeScale, toTimestamp, type TimeUnit } from './time-scale';
 export { ColorScale } from './color-scale';

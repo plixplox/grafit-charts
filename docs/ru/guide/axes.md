@@ -23,6 +23,11 @@
 
 ::: chart-example axis-grouped
 
+В горизонтальных чартах ось категорий вертикальная, и колонка групп
+с разделителями появляется слева от подписей элементов:
+
+::: chart-example axis-grouped-horizontal
+
 ## CrossLines
 
 Опорные линии и диапазоны в координатах оси — с подписями:
@@ -85,6 +90,7 @@
 | `base (log)`                                              | `number`                                                                            | `10`                        | основание логарифма                          |
 | `paddingInner` (category, grouped-category)               | `Fraction`                                                                             | `0.2` (ordinal-time `0.25`) | внутренний band-отступ                       |
 | `paddingOuter` (category, ordinal-time, grouped-category) | `Fraction`                                                                             | `0.1`                       | внешний band-отступ                          |
+| `groupSpacing` (grouped-category)                         | `Pixels`                                                                         | `8`                         | отступ между подписями элементов и строкой групп |
 
 Подписи горизонтальных осей автоматически прореживаются при тесноте
 (`label.avoidCollisions: false` отключает).

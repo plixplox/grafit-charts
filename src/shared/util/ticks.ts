@@ -19,11 +19,18 @@ export function tickStep(start: number, stop: number, count: number): number {
 export function ticks(start: number, stop: number, count = 5): number[] {
   if (start === stop) return [start];
   const step = tickStep(start, stop, count);
-  const first = Math.ceil(start / step) * step;
   const result: number[] = [];
-  for (let value = first; value <= stop + step * 1e-9; value += step) {
-    // remove accumulated floating-point error
-    result.push(Math.round(value / step) * step);
+  if (step < 1) {
+    // i * 0.1 accumulates FP error (7 * 0.1 = 0.7000000000000001);
+    // dividing by the integer inverse yields the closest double to the exact tick
+    const inverse = Math.round(1 / step);
+    const first = Math.ceil(start * inverse);
+    const last = Math.floor(stop * inverse + 1e-9);
+    for (let i = first; i <= last; i++) result.push(i / inverse);
+  } else {
+    const first = Math.ceil(start / step);
+    const last = Math.floor(stop / step + 1e-9);
+    for (let i = first; i <= last; i++) result.push(i * step);
   }
   return result;
 }
@@ -32,6 +39,10 @@ export function ticks(start: number, stop: number, count = 5): number[] {
 export function niceExtent(start: number, stop: number, count = 5): [number, number] {
   if (start === stop) return start === 0 ? [0, 1] : [start - Math.abs(start) / 2, stop + Math.abs(stop) / 2];
   const step = tickStep(start, stop, count);
+  if (step < 1) {
+    const inverse = Math.round(1 / step);
+    return [Math.floor(start * inverse) / inverse, Math.ceil(stop * inverse) / inverse];
+  }
   return [Math.floor(start / step) * step, Math.ceil(stop / step) * step];
 }
 

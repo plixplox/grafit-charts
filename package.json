@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "description": "Declarative charting library for the browser: one serializable options object describes the whole chart. Canvas 2D via a custom scene graph, zero dependencies, TypeScript. 29 series types, 6 axis types, tooltips, legend, zoom, annotations, themes, animations, a11y.",
   "license": "MIT",
-  "author": "Dmitry Petrushkin <plixplox.dev@gmail.com>",
+  "author": "plixplox.dev@gmail.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/plixplox/grafit-charts.git"

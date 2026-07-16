@@ -10,7 +10,9 @@ export function createOptions(): ChartOptions {
       {
         type: 'bubble',
         xField: 'reach',
+        xName: 'Reach',
         yField: 'engagement',
+        yName: 'Engagement',
         sizeField: 'budget',
         sizeName: 'Budget',
         name: 'Channels',

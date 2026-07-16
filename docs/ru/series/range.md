@@ -47,6 +47,7 @@ Range-area как фон + line поверх, общий тултип:
 | `stroke` (area)      | стили       | контурные линии   |
 | `strokeWidth` (area) | стили       | контурные линии   |
 | `cornerRadius` (bar) | `Pixels` | скругление        |
+| `groupGap` (bar)     | `Fraction` | зазор между барами одной группы (`0.2`) |
 
 ### Полный список опций
 

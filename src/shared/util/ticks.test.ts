@@ -45,12 +45,9 @@ describe('ticks', () => {
     expect(ticks(-25, 47, 5)).toEqual([-20, 0, 20, 40]);
   });
 
-  it('fractional step: values compared with tolerance (3·0.2 = 0.6000…01 in FP)', () => {
-    const result = ticks(0, 1, 5);
-    expect(result).toHaveLength(6);
-    [0, 0.2, 0.4, 0.6, 0.8, 1].forEach((expected, i) => {
-      expect(result[i]).toBeCloseTo(expected, 10);
-    });
+  it('fractional step yields exact values, without FP artifacts (7·0.1 = 0.7000…01)', () => {
+    expect(ticks(0, 1, 5)).toEqual([0, 0.2, 0.4, 0.6, 0.8, 1]);
+    expect(ticks(0, 1, 10)).toEqual([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]);
   });
 
   it('domain end is included via epsilon tolerance', () => {
@@ -72,6 +69,10 @@ describe('niceExtent', () => {
 
   it('an already-nice domain is unchanged', () => {
     expect(niceExtent(0, 100, 5)).toEqual([0, 100]);
+  });
+
+  it('fractional step yields exact bounds, without FP artifacts', () => {
+    expect(niceExtent(0.05, 0.65, 5)).toEqual([0, 0.7]);
   });
 });
 

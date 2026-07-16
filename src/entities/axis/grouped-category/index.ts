@@ -1,5 +1,6 @@
 import { BaseAxis, type AxisBaseOptions } from '@/entities/axis/base';
 import type { AxisModule, LayoutRect } from '@/shared/kernel';
+import type { Pixels } from '@/shared/options';
 import { BandScale } from '@/shared/scale';
 import { Group, Line, Text } from '@/shared/scene';
 
@@ -7,9 +8,12 @@ export interface GroupedCategoryAxisOptions extends AxisBaseOptions {
   type: 'grouped-category';
   paddingInner?: number;
   paddingOuter?: number;
+  /** Gap between the item labels and the group row, px. */
+  groupSpacing?: Pixels;
 }
 
 const GROUP_ROW_HEIGHT = 16;
+const GROUP_SPACING = 8;
 
 /**
  * Hierarchical categories: data values are [group, item] arrays.
@@ -41,7 +45,11 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
   }
 
   override measure(measureText: (text: string, font: string) => number): number {
-    return super.measure(measureText) + (this.hasGroups() ? GROUP_ROW_HEIGHT : 0);
+    return super.measure(measureText) + (this.hasGroups() ? this.groupSpacing() + GROUP_ROW_HEIGHT : 0);
+  }
+
+  private groupSpacing(): number {
+    return this.options.groupSpacing ?? GROUP_SPACING;
   }
 
   private hasGroups(): boolean {
@@ -50,14 +58,21 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
 
   override render(axisLayer: Group, gridLayer: Group, plot: LayoutRect): void {
     super.render(axisLayer, gridLayer, plot);
-    if (!this.hasGroups() || !this.isHorizontal) return;
+    if (!this.hasGroups()) return;
 
     // group row: contiguous runs with the same first element
     const domain = this.scale.domain;
-    const edge = this.position === 'bottom' ? plot.y + plot.height : plot.y;
-    const direction = this.position === 'bottom' ? 1 : -1;
-    const baseThickness = super.measure((text, font) => this.approxMeasure(text, font));
-    const rowY = edge + (baseThickness + 2) * direction;
+    const horizontal = this.isHorizontal;
+    const edge = horizontal
+      ? this.position === 'bottom'
+        ? plot.y + plot.height
+        : plot.y
+      : this.position === 'left'
+        ? plot.x
+        : plot.x + plot.width;
+    const direction = this.position === 'bottom' || this.position === 'right' ? 1 : -1;
+    const baseThickness = super.measure((text, font) => this.measureWithCanvasFallback(text, font));
+    const rowCoord = edge + (baseThickness + this.groupSpacing()) * direction;
 
     let spanStart = 0;
     const groupOf = (value: unknown) => (Array.isArray(value) ? String(value[0]) : '');
@@ -65,14 +80,21 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
       if (i < domain.length && groupOf(domain[i]) === groupOf(domain[spanStart])) continue;
       const first = domain[spanStart];
       const last = domain[i - 1];
-      const x0 = this.scale.convert(first);
-      const x1 = this.scale.convert(last) + this.scale.bandwidth;
+      const c0 = this.scale.convert(first);
+      const c1 = this.scale.convert(last) + this.scale.bandwidth;
       const label = new Text();
       label.text = groupOf(first);
-      label.x = (x0 + x1) / 2;
-      label.y = rowY;
       label.textAlign = 'center';
-      label.textBaseline = this.position === 'bottom' ? 'top' : 'bottom';
+      if (horizontal) {
+        label.x = (c0 + c1) / 2;
+        label.y = rowCoord;
+        label.textBaseline = this.position === 'bottom' ? 'top' : 'bottom';
+      } else {
+        label.x = rowCoord;
+        label.y = (c0 + c1) / 2;
+        label.textBaseline = this.position === 'left' ? 'bottom' : 'top';
+        label.rotation = -90;
+      }
       label.fontSize = 11;
       label.fontWeight = 'bold';
       label.fontFamily = this.env.theme.fontFamily;
@@ -81,20 +103,22 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
 
       if (spanStart > 0) {
         const separator = new Line();
-        separator.x1 = separator.x2 = (this.scale.convert(domain[spanStart - 1]) + this.scale.bandwidth + x0) / 2;
-        separator.y1 = edge;
-        separator.y2 = rowY + 10 * direction;
+        const sepCoord = (this.scale.convert(domain[spanStart - 1]) + this.scale.bandwidth + c0) / 2;
+        if (horizontal) {
+          separator.x1 = separator.x2 = sepCoord;
+          separator.y1 = edge;
+          separator.y2 = rowCoord + 10 * direction;
+        } else {
+          separator.y1 = separator.y2 = sepCoord;
+          separator.x1 = edge;
+          separator.x2 = rowCoord + 10 * direction;
+        }
         separator.stroke = this.env.theme.mutedColor;
         separator.opacity = 0.5;
         axisLayer.append(separator);
       }
       spanStart = i;
     }
-  }
-
-  private approxMeasure(text: string, font: string): number {
-    const fontSize = Number.parseFloat(font) || 11;
-    return text.length * fontSize * 0.6;
   }
 }
 

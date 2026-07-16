@@ -13,6 +13,7 @@ Distribution via five statistics per category: `minField`, `q1Field`, `medianFie
 | `stroke`            | styles   | fill color   | outlines and whiskers |
 | `strokeWidth`       | styles   | `1.5`        | outlines and whiskers |
 | `capLengthRatio`    | `Fraction`  | `0.5`        | width of whisker caps |
+| `groupGap`          | `Fraction`  | `0.2`        | gap between boxes of one group |
 | `q1Field`           | `string` | —            | quartiles and median  |
 | `medianField`       | `string` | —            | quartiles and median  |
 | `q3Field`           | `string` | —            | quartiles and median  |

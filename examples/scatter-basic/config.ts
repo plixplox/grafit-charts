@@ -5,7 +5,7 @@ export function createOptions(): ChartOptions {
   return {
     data: getData(),
     title: { text: 'Height and weight' },
-    series: [{ type: 'scatter', xField: 'height', xName: 'Height', yField: 'weight', name: 'Weight' }],
+    series: [{ type: 'scatter', xField: 'height', xName: 'Height', yField: 'weight', yName: 'Weight', name: 'People' }],
     axes: [
       { type: 'number', position: 'bottom', title: { text: 'Height, cm' }, nice: false },
       { type: 'number', position: 'left', title: { text: 'Weight, kg' } },

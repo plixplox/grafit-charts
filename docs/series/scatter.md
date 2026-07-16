@@ -24,6 +24,8 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | ------------------ | ---------------------------------------------------- | ---------------------------------- | ---------------------------------------------------- |
 | `xField`           | `string`                                             | —                                  | numeric data keys                                    |
 | `yField`           | `string`                                             | —                                  | numeric data keys                                    |
+| `xName`            | `string`                                             | `xField`                           | x value name in the tooltip                          |
+| `yName`            | `string`                                             | `yField`                           | y value name in the tooltip                          |
 | `shape`            | `MarkerShape`                                        | `'circle'`                         | marker shape                                         |
 | `size`             | `Pixels`                                             | `8`                                | marker size                                          |
 | `fill`             | `ColorValue`                                         | palette                            | fill                                                 |
@@ -41,3 +43,8 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 
 `itemStyler` receives `{ datum, index, highlighted, fill, stroke, size }` and returns partial styles —
 this is how you color points conditionally without separate series.
+
+## Tooltip
+
+Both axes of a point series are measures, so the default tooltip identifies the series in the heading
+(marker + `name`) and lists the values as labelled rows: `xName: x`, `yName: y` (bubble adds `sizeName: size`).

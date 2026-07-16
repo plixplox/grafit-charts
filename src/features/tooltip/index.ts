@@ -94,28 +94,30 @@ export class HtmlTooltip {
 
   private buildContent(content: TooltipContentData, theme: ThemeContext): Node[] {
     const nodes: Node[] = [];
-    if (content.heading) {
-      const heading = document.createElement('div');
-      heading.textContent = content.heading;
-      heading.style.fontWeight = '600';
-      nodes.push(heading);
+    const heading = typeof content.heading === 'string' ? { text: content.heading } : content.heading;
+    if (heading?.text) {
+      const line = document.createElement('div');
+      line.style.fontWeight = '600';
+      if (heading.color) {
+        line.style.display = 'flex';
+        line.style.alignItems = 'center';
+        line.style.gap = '6px';
+        const text = document.createElement('span');
+        text.textContent = heading.text;
+        line.append(this.buildSwatch(heading.color), text);
+      } else {
+        line.textContent = heading.text;
+      }
+      nodes.push(line);
     }
+    const hasRowMarkers = content.rows.some((row) => row.color);
     for (const row of content.rows) {
       const line = document.createElement('div');
       line.style.display = 'flex';
       line.style.alignItems = 'center';
       line.style.gap = '6px';
-      if (row.color) {
-        const swatch = document.createElement('span');
-        Object.assign(swatch.style, {
-          width: '8px',
-          height: '8px',
-          borderRadius: '2px',
-          background: row.color,
-          display: 'inline-block',
-        } satisfies Partial<CSSStyleDeclaration>);
-        line.appendChild(swatch);
-      }
+      // a transparent swatch reserves the marker slot so mixed rows stay aligned
+      if (hasRowMarkers) line.appendChild(this.buildSwatch(row.color));
       const label = document.createElement('span');
       label.textContent = `${row.label}:`;
       label.style.color = theme.mutedColor;
@@ -126,6 +128,19 @@ export class HtmlTooltip {
       nodes.push(line);
     }
     return nodes;
+  }
+
+  private buildSwatch(color?: ColorValue): HTMLSpanElement {
+    const swatch = document.createElement('span');
+    Object.assign(swatch.style, {
+      width: '8px',
+      height: '8px',
+      borderRadius: '2px',
+      background: color ?? 'transparent',
+      display: 'inline-block',
+      flexShrink: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    return swatch;
   }
 }
 

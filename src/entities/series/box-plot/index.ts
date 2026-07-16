@@ -3,7 +3,7 @@ import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { CartesianRenderContext, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction } from '@/shared/options';
-import { BandScale, LinearScale } from '@/shared/scale';
+import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Line, Rect } from '@/shared/scene';
 import { extent } from '@/shared/util';
 
@@ -21,6 +21,11 @@ export interface BoxPlotSeriesOptions extends Omit<SeriesBaseOptions, 'yField' |
   strokeWidth?: Pixels;
   /** Whisker cap width as a fraction of the box width. */
   capLengthRatio?: Fraction;
+  /**
+   * Gap between boxes of one category group — fraction of the slot step
+   * (0–0.9, default 0.2). Ignored when the series is alone in the band.
+   */
+  groupGap?: Fraction;
 }
 
 interface BoxGeometry {
@@ -62,9 +67,7 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
     }
     const stroke = this.options.stroke ?? this.mainColor();
     const strokeWidth = this.options.strokeWidth ?? 1.5;
-    const groupIndex = ctx.group?.index ?? 0;
-    const groupCount = ctx.group?.count ?? 1;
-    const slot = bandScale.bandwidth / groupCount;
+    const slot = groupSlot(bandScale.bandwidth, ctx.group, this.options.groupGap);
     const highlighted =
       ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
     const group = new Group();
@@ -81,8 +84,8 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
       const [min, q1, median, q3, max] = stats as [number, number, number, number, number];
       const bandStart = bandScale.convert(datum[this.options.xField]);
       if (Number.isNaN(bandStart)) return;
-      const x = bandStart + slot * groupIndex + slot * 0.15;
-      const width = slot * 0.7;
+      const x = bandStart + slot.start + slot.size * 0.15;
+      const width = slot.size * 0.7;
       const centerX = x + width / 2;
       const pq1 = valueScale.convert(q1);
       const pq3 = valueScale.convert(q3);

@@ -8,7 +8,7 @@ import { buildCharts } from '@/app/chart-factory';
 export const Charts = buildCharts();
 
 export { register } from '@/app/registry';
-export type { ChartModule, SeriesModule, AxisModule } from '@/shared/kernel';
+export type { ChartModule, SeriesModule, AxisModule, TooltipContentData, TooltipHeading, TooltipRow } from '@/shared/kernel';
 
 export type {
   ChartInstance,

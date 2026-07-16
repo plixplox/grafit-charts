@@ -35,8 +35,8 @@ export class BubbleSeries extends MarkerSeries<BubbleSeriesOptions> {
     return this.sizes[index] ?? this.options.size ?? 8;
   }
 
-  override tooltipFor(datumIndex: number): TooltipContentData {
-    const content = super.tooltipFor(datumIndex);
+  override tooltipFor(datumIndex: number, mode?: 'single' | 'shared'): TooltipContentData {
+    const content = super.tooltipFor(datumIndex, mode);
     if (this.options.tooltip?.renderer) return content;
     const datum = this.lastCtx?.data[datumIndex];
     if (datum) {

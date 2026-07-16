@@ -1,4 +1,4 @@
-import { BandScale } from './band-scale';
+import { BandScale, DEFAULT_GROUP_GAP, groupSlot } from './band-scale';
 import { describe, expect, it } from 'vitest';
 
 describe('BandScale', () => {
@@ -41,5 +41,35 @@ describe('BandScale', () => {
 
   it('ticks returns the domain', () => {
     expect(make().ticks()).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('groupSlot', () => {
+  it('a single slot takes the whole band', () => {
+    expect(groupSlot(100, undefined)).toEqual({ start: 0, size: 100 });
+    expect(groupSlot(100, { index: 0, count: 1 })).toEqual({ start: 0, size: 100 });
+  });
+
+  it('slots are separated by the default gap and stay flush with the band edges', () => {
+    // step = 100 / (2 − 0.2) = 55.55…, size = step·0.8
+    const step = 100 / (2 - DEFAULT_GROUP_GAP);
+    const first = groupSlot(100, { index: 0, count: 2 });
+    const second = groupSlot(100, { index: 1, count: 2 });
+    expect(first.start).toBe(0);
+    expect(first.size).toBeCloseTo(step * (1 - DEFAULT_GROUP_GAP));
+    expect(second.start).toBeCloseTo(step);
+    // gap between neighbours = step·gap, last slot ends at the band edge
+    expect(second.start - first.size).toBeCloseTo(step * DEFAULT_GROUP_GAP);
+    expect(second.start + second.size).toBeCloseTo(100);
+  });
+
+  it('gap 0 splits the band into contiguous slots', () => {
+    expect(groupSlot(100, { index: 0, count: 2 }, 0)).toEqual({ start: 0, size: 50 });
+    expect(groupSlot(100, { index: 1, count: 2 }, 0)).toEqual({ start: 50, size: 50 });
+  });
+
+  it('gap is clamped to keep slots positive', () => {
+    expect(groupSlot(100, { index: 0, count: 2 }, 5).size).toBeGreaterThan(0);
+    expect(groupSlot(100, { index: 0, count: 2 }, -1)).toEqual({ start: 0, size: 50 });
   });
 });

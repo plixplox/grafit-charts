@@ -82,8 +82,15 @@ export interface TooltipRow {
   color?: ColorValue;
 }
 
+/** Tooltip heading: text with an optional series marker before it. */
+export interface TooltipHeading {
+  text: string;
+  /** Colour of the marker before the text; without it the heading renders as plain text. */
+  color?: ColorValue;
+}
+
 export interface TooltipContentData {
-  heading?: string;
+  heading?: string | TooltipHeading;
   rows: TooltipRow[];
 }
 
@@ -177,7 +184,8 @@ export interface CartesianSeriesInstance {
   pick(x: number, y: number, searchRadius?: number): SeriesPick | undefined;
   /** Indices of datums whose nodes fall inside the rectangle (Data Selection). */
   pickInRect?(x0: number, y0: number, x1: number, y1: number): number[];
-  tooltipFor(datumIndex: number): TooltipContentData;
+  /** mode 'shared' — the rows go into a combined multi-series tooltip, so each row needs its own marker. */
+  tooltipFor(datumIndex: number, mode?: 'single' | 'shared'): TooltipContentData;
   legendItems(): LegendItemDescriptor[];
 }
 

@@ -748,10 +748,10 @@ export class CartesianChart implements SyncMember {
   /** Shared mode: rows of all visible series for the category under the cursor. */
   private sharedTooltipContent(pick: SeriesPick) {
     const rows: TooltipContentData['rows'] = [];
-    let heading: string | undefined;
+    let heading: TooltipContentData['heading'];
     for (const series of this.series) {
       if (!series.visible) continue;
-      const content = series.tooltipFor(pick.datumIndex);
+      const content = series.tooltipFor(pick.datumIndex, 'shared');
       heading ??= content.heading;
       rows.push(...content.rows);
     }
@@ -1094,7 +1094,8 @@ export class CartesianChart implements SyncMember {
     if (!series) return undefined;
     const content = series.tooltipFor(this.highlight.datumIndex);
     const rows = content.rows.map((row) => `${row.label}: ${row.value}`).join(', ');
-    return [content.heading, rows].filter(Boolean).join(' — ');
+    const heading = typeof content.heading === 'string' ? content.heading : content.heading?.text;
+    return [heading, rows].filter(Boolean).join(' — ');
   }
 
   /** Pinch zoom around the gesture center. */

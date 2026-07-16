@@ -3,7 +3,7 @@ import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { CartesianRenderContext, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction, FontOptions, Switchable } from '@/shared/options';
-import { BandScale, LinearScale } from '@/shared/scale';
+import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { extent, contrastTextColor } from '@/shared/util';
 
@@ -26,6 +26,11 @@ export interface RangeBarSeriesOptions extends Omit<SeriesBaseOptions, 'yField' 
   fill?: ColorValue | RangeBarFillFn;
   fillOpacity?: Fraction;
   cornerRadius?: Pixels;
+  /**
+   * Gap between bars of one category group — fraction of the slot step
+   * (0–0.9, default 0.2). Ignored when the series is alone in the band.
+   */
+  groupGap?: Fraction;
 }
 
 export type RangeBarFillFn = (params: { low: number; high: number; datum: Datum; index: number }) => ColorValue;
@@ -75,9 +80,7 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
     }
     const lows = numericValues(ctx.data, this.options.yLowField);
     const highs = numericValues(ctx.data, this.options.yHighField);
-    const groupIndex = ctx.group?.index ?? 0;
-    const groupCount = ctx.group?.count ?? 1;
-    const slot = bandScale.bandwidth / groupCount;
+    const slot = groupSlot(bandScale.bandwidth, ctx.group, this.options.groupGap);
     const t = ctx.animationT ?? 1;
     const group = new Group();
 
@@ -90,10 +93,10 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
       const mid = (low + high) / 2;
       const p0 = valueScale.convert(mid + (low - mid) * t);
       const p1 = valueScale.convert(mid + (high - mid) * t);
-      const along = bandStart + slot * groupIndex;
+      const along = bandStart + slot.start;
       const rect: BarRect = ctx.swapped
-        ? { index, x: Math.min(p0, p1), y: along, width: Math.abs(p1 - p0), height: slot }
-        : { index, x: along, y: Math.min(p0, p1), width: slot, height: Math.abs(p1 - p0) };
+        ? { index, x: Math.min(p0, p1), y: along, width: Math.abs(p1 - p0), height: slot.size }
+        : { index, x: along, y: Math.min(p0, p1), width: slot.size, height: Math.abs(p1 - p0) };
       this.rects.push(rect);
 
       const node = new Rect();

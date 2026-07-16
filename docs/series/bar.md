@@ -20,7 +20,9 @@ inside a bar the color is chosen by auto-contrast with a halo in the bar's color
 
 ## Grouping
 
-Multiple bar series automatically share the category band:
+Multiple bar series automatically share the category band. Adjacent bars are
+separated by `groupGap` — a fraction of the slot step (default `0.2`, `0` makes
+the bars touch):
 
 ::: chart-example bar-grouped
 
@@ -74,6 +76,7 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `stroke`           | `ColorValue`                              | —                                    | stroke                                            |
 | `strokeWidth`      | `Pixels`                             | —                                    | stroke                                            |
 | `cornerRadius`     | `Pixels`                             | `0`                                  | corner rounding                                   |
+| `groupGap`         | `Fraction`                              | `0.2`                                | gap between bars of one group (fraction of the slot step) |
 | `label.enabled`    | `boolean`                               | `false`                              | show value labels                                 |
 | `label.placement`  | outer/`center`/`inner-*` (17 positions) | `'top'`                              | label position                                    |
 | `label.formatter`  | `({ value, datum }) => string`          | the value                            | label content                                     |

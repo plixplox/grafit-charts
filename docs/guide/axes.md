@@ -25,6 +25,11 @@ with separators appears below the item labels:
 
 ::: chart-example axis-grouped
 
+In horizontal charts the category axis is vertical, and the group column with
+separators appears to the left of the item labels:
+
+::: chart-example axis-grouped-horizontal
+
 ## CrossLines
 
 Reference lines and ranges in axis coordinates — with labels:
@@ -87,6 +92,7 @@ Reference lines and ranges in axis coordinates — with labels:
 | `base (log)`                                              | `number`                                                                            | `10`                        | logarithm base                               |
 | `paddingInner` (category, grouped-category)               | `Fraction`                                                                             | `0.2` (ordinal-time `0.25`) | inner band padding                           |
 | `paddingOuter` (category, ordinal-time, grouped-category) | `Fraction`                                                                             | `0.1`                       | outer band padding                           |
+| `groupSpacing` (grouped-category)                         | `Pixels`                                                                         | `8`                         | gap between item labels and the group row    |
 
 Horizontal axis labels are automatically thinned out when crowded
 (`label.avoidCollisions: false` disables this).

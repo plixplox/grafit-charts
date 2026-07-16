@@ -1,7 +1,7 @@
 import { CartesianSeries, type SeriesBaseOptions } from './cartesian-series';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
-import type { CartesianRenderContext, SeriesPick } from '@/shared/kernel';
+import type { CartesianRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction, Styler, FontOptions, Switchable } from '@/shared/options';
 import { Group, Marker, Text, type MarkerShape } from '@/shared/scene';
 import { contrastTextColor } from '@/shared/util';
@@ -23,6 +23,8 @@ export interface MarkerItemStyle {
 }
 
 export interface MarkerSeriesBaseOptions extends SeriesBaseOptions {
+  /** Y value name in the tooltip (yField by default). */
+  yName?: string;
   shape?: MarkerShape;
   size?: Pixels;
   fill?: ColorValue;
@@ -65,6 +67,21 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
 
   /** Hook before iterating the data (bubble computes the size domain). */
   protected prepare(_ctx: CartesianRenderContext): void {}
+
+  override tooltipFor(datumIndex: number, mode?: 'single' | 'shared'): TooltipContentData {
+    if (this.options.tooltip?.renderer || mode === 'shared') return super.tooltipFor(datumIndex);
+    const datum = this.lastCtx?.data[datumIndex];
+    if (!datum) return { rows: [] };
+    // both axes of a point series are measures, so the x value is a labelled
+    // row like the others, and the heading identifies the series (marker + name)
+    return {
+      heading: { text: this.seriesName, color: this.mainColor() },
+      rows: [
+        { label: this.options.xName ?? this.options.xField, value: String(datum[this.options.xField]) },
+        { label: this.options.yName ?? this.options.yField, value: String(datum[this.options.yField]) },
+      ],
+    };
+  }
 
   update(ctx: CartesianRenderContext): void {
     this.lastCtx = ctx;

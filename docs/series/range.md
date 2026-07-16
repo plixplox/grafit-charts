@@ -47,6 +47,7 @@ Range-area as the background + line on top, with a shared tooltip:
 | `stroke` (area)      | styles   | outline lines     |
 | `strokeWidth` (area) | styles   | outline lines     |
 | `cornerRadius` (bar) | `Pixels` | corner rounding   |
+| `groupGap` (bar)     | `Fraction` | gap between bars of one group (`0.2`) |
 
 ### Full list of options
 

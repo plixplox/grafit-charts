@@ -6,7 +6,7 @@ Enabled by default: hovering shows the nearest node, the node itself is highligh
 When building with [grafit-charts/core](/guide/bundle), the tooltip is a separate module: `register(tooltipModule)`.
 :::
 
-By default the tooltip shows the `xField` value as the heading and a "series name: value" pair. The content is customized via `tooltip.renderer` on the series:
+By default the tooltip shows the `xField` value as the heading and a "series name: value" pair with the series marker. Point series (scatter, bubble) are the exception: both of their axes are measures, so the heading identifies the series (marker + `name`) and the values come as labelled rows — `xName: x`, `yName: y`, plus `sizeName: size` for bubble. The content is customized via `tooltip.renderer` on the series:
 
 ::: chart-example tooltip-custom
 
@@ -66,6 +66,18 @@ renderer: ({ datum, xValue, yValue, seriesName, color }) => ({
 ```
 
 `params.datum` is the entire data row: the tooltip can display fields that are not part of the series.
+
+`heading` is a string or a `{ text, color }` object; with `color` a marker matching the row markers is drawn before the heading text. This is how scatter and bubble render their default tooltip — the marker identifies the series rather than any single row:
+
+```ts
+renderer: ({ datum, xValue, yValue, seriesName, color }) => ({
+  heading: { text: String(datum.category), color },
+  rows: [
+    { label: 'X', value: String(xValue) },
+    { label: 'Y', value: String(yValue) },
+  ],
+});
+```
 
 Highlighting is controlled by the `highlight` block:
 

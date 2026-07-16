@@ -10,7 +10,9 @@ export function createOptions(): ChartOptions {
       {
         type: 'bubble',
         xField: 'effort',
+        xName: 'Effort',
         yField: 'impact',
+        yName: 'Impact',
         sizeField: 'team',
         sizeName: 'Team',
         name: 'Initiatives',

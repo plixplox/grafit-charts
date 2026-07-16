@@ -3,7 +3,7 @@ import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { CartesianRenderContext, SeriesModule, SeriesPick, StackSegment } from '@/shared/kernel';
 import type { ColorValue, Datum, FontOptions, Pixels, Fraction, Switchable } from '@/shared/options';
-import { BandScale, LinearScale } from '@/shared/scale';
+import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { contrastTextColor } from '@/shared/util';
 import { extent } from '@/shared/util';
@@ -20,6 +20,11 @@ export interface BarSeriesOptions extends SeriesBaseOptions {
   stroke?: ColorValue;
   strokeWidth?: Pixels;
   cornerRadius?: Pixels;
+  /**
+   * Gap between bars of one category group — fraction of the slot step
+   * (0–0.9, default 0.2). Ignored when the series is alone in the band.
+   */
+  groupGap?: Fraction;
   /**
    * Value labels. Outer placements: top/bottom/left/right and corners
    * (top-left, …); center and inner-* are inside the bar (auto-contrast + outline).
@@ -81,9 +86,7 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
       throw new Error('grafit: bar series requires a band category axis and a numeric value axis');
     }
 
-    const groupIndex = ctx.group?.index ?? 0;
-    const groupCount = ctx.group?.count ?? 1;
-    const slotWidth = bandScale.bandwidth / groupCount;
+    const slot = groupSlot(bandScale.bandwidth, ctx.group, this.options.groupGap);
     const values = numericValues(data, this.options.yField);
 
     const group = new Group();
@@ -100,7 +103,7 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
       const zero = valueScale.convert(0);
       const p0 = zero + (valueScale.convert(v0) - zero) * t;
       const p1 = zero + (valueScale.convert(v1) - zero) * t;
-      const along = bandStart + slotWidth * groupIndex;
+      const along = bandStart + slot.start;
 
       const rect: BarRect = swapped
         ? {
@@ -108,13 +111,13 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
             x: Math.min(p0, p1),
             y: along,
             width: Math.abs(p1 - p0),
-            height: slotWidth,
+            height: slot.size,
           }
         : {
             index,
             x: along,
             y: Math.min(p0, p1),
-            width: slotWidth,
+            width: slot.size,
             height: Math.abs(p1 - p0),
           };
       this.rects.push(rect);

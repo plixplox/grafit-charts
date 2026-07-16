@@ -34,3 +34,5 @@
 | `fillOpacity` | `Fraction`     | `0.85`        | заливка секторов |
 | `stroke`      | `ColorValue`  | фон           | обводка          |
 | `strokeWidth` | `Pixels` | `1`           | обводка          |
+| `groupGap`    | `Fraction` | `0.2`       | зазор между секторами одной группы (radial-column) |
+| `sectorSpacing` | `Pixels` | `1`         | зазор постоянной ширины между соседними секторами |

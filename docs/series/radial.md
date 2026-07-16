@@ -34,3 +34,5 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `fillOpacity` | `Fraction`   | `0.85`        | sector fill    |
 | `stroke`      | `ColorValue` | background    | stroke         |
 | `strokeWidth` | `Pixels`     | `1`           | stroke         |
+| `groupGap`    | `Fraction`   | `0.2`         | gap between sectors of one group (radial-column) |
+| `sectorSpacing` | `Pixels`   | `1`           | constant-width gap between adjacent sectors |

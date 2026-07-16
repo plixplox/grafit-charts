@@ -3,6 +3,7 @@ import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { LegendItemDescriptor, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction } from '@/shared/options';
+import { groupSlot } from '@/shared/scale';
 import { Group, Sector } from '@/shared/scene';
 import { extent } from '@/shared/util';
 
@@ -14,6 +15,13 @@ export interface RadialSectorSeriesBaseOptions extends PolarSeriesBaseOptions {
   fillOpacity?: Fraction;
   stroke?: ColorValue;
   strokeWidth?: Pixels;
+  /**
+   * Gap between sectors of one angle group (radial-column) — fraction of the
+   * slot step (0–0.9, default 0.2). Ignored when the series is alone in the band.
+   */
+  groupGap?: Fraction;
+  /** Constant-width gap between adjacent sectors, px (1 by default). */
+  sectorSpacing?: Pixels;
 }
 
 interface SectorGeometry {
@@ -64,9 +72,7 @@ export abstract class RadialSectorSeries<O extends RadialSectorSeriesBaseOptions
     const highlighted =
       ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
 
-    const slot = this.usesGroupSlot() ? ctx.group : undefined;
-    const slotCount = slot?.count ?? 1;
-    const slotIndex = slot?.index ?? 0;
+    const slot = groupSlot(angleScale.bandwidth, this.usesGroupSlot() ? ctx.group : undefined, this.options.groupGap);
 
     const group = new Group();
     data.forEach((datum, index) => {
@@ -74,9 +80,8 @@ export abstract class RadialSectorSeries<O extends RadialSectorSeriesBaseOptions
       if (value === undefined || Number.isNaN(value) || value <= 0) return;
       const bandStart = angleScale.convert(datum[this.options.angleField]);
       if (Number.isNaN(bandStart)) return;
-      const slotSpan = angleScale.bandwidth / slotCount;
-      const startAngle = bandStart + slotSpan * slotIndex;
-      const endAngle = startAngle + slotSpan;
+      const startAngle = bandStart + slot.start;
+      const endAngle = startAngle + slot.size;
       const outerRadius = radiusScale.convert(value) * t;
       this.sectors.push({ index, startAngle, endAngle, outerRadius });
 
@@ -87,6 +92,7 @@ export abstract class RadialSectorSeries<O extends RadialSectorSeriesBaseOptions
       node.outerRadius = outerRadius;
       node.startAngle = startAngle;
       node.endAngle = endAngle;
+      node.edgeInset = (this.options.sectorSpacing ?? 1) / 2;
       node.fill = this.mainColor();
       node.opacity = this.options.fillOpacity ?? 0.85;
       const isSelected = ctx.selected?.has(index) === true;

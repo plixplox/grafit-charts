@@ -6,7 +6,7 @@
 В сборке через [grafit-charts/core](/ru/guide/bundle) тултип — отдельный модуль: `register(tooltipModule)`.
 :::
 
-По умолчанию тултип показывает значение `xField` заголовком и пару «имя серии: значение». Содержимое настраивается через `tooltip.renderer` на серии:
+По умолчанию тултип показывает значение `xField` заголовком и пару «имя серии: значение» с маркером серии. Исключение — точечные серии (scatter, bubble): у них обе оси — измерения, поэтому заголовок обозначает серию (маркер + `name`), а значения выводятся подписанными строками — `xName: x`, `yName: y`, у bubble ещё `sizeName: size`. Содержимое настраивается через `tooltip.renderer` на серии:
 
 ::: chart-example tooltip-custom
 
@@ -66,6 +66,18 @@ renderer: ({ datum, xValue, yValue, seriesName, color }) => ({
 ```
 
 `params.datum` — вся строка данных: в тултип можно выводить поля, не участвующие в серии.
+
+`heading` — строка либо объект `{ text, color }`; с `color` перед текстом заголовка рисуется такой же маркер, как у строк. Именно так scatter и bubble рисуют тултип по умолчанию — маркер обозначает серию, а не отдельную строку:
+
+```ts
+renderer: ({ datum, xValue, yValue, seriesName, color }) => ({
+  heading: { text: String(datum.category), color },
+  rows: [
+    { label: 'X', value: String(xValue) },
+    { label: 'Y', value: String(yValue) },
+  ],
+});
+```
 
 Подсветка управляется блоком `highlight`:
 
