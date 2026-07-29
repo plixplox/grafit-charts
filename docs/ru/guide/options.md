@@ -64,8 +64,10 @@ axes: [
 | `title.fontSize`     | `Pixels` | `17`         | размер шрифта заголовка     |
 | `title.color`        | `ColorValue`  | foreground   | цвет                        |
 | `title.position`     | `'top' \| 'bottom'` | `'top'` | над или под областью построения |
-| `title.spacing`      | `Pixels` | `8`          | отступ до области построения |
+| `title.spacing`      | `Pixels` | `8`          | отступ под заголовком (до подзаголовка или графика) |
+| `title.wrap`         | `boolean` | `true`      | переносить длинный текст на несколько строк |
 | `subtitle.text`      | `string`    | —            | подзаголовок (приглушённый, те же опции) |
+| `subtitle.spacing`   | `Pixels` | `8`          | отступ между подзаголовком и графиком |
 | `padding.top`        | `Pixels` | `12`         | внешние поля чарта          |
 | `padding.right`      | `Pixels` | `20`         | —                           |
 | `padding.bottom`     | `Pixels` | `12`         | —                           |

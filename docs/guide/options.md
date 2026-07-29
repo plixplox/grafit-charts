@@ -66,8 +66,10 @@ size the container with CSS. Numeric `width`/`height` fix the size.
 | `title.fontSize`     | `Pixels` | `17`         | title font size              |
 | `title.color`        | `ColorValue`  | foreground   | color                        |
 | `title.position`     | `'top' \| 'bottom'` | `'top'` | above or below the plot |
-| `title.spacing`      | `Pixels` | `8`          | gap towards the plot         |
+| `title.spacing`      | `Pixels` | `8`          | gap below the title (towards the subtitle or the plot) |
+| `title.wrap`         | `boolean` | `true`      | break long text onto several lines |
 | `subtitle.text`      | `string`    | —            | subtitle (muted, same options) |
+| `subtitle.spacing`   | `Pixels` | `8`          | gap between the subtitle and the plot |
 | `padding.top`        | `Pixels` | `12`         | outer chart padding          |
 | `padding.right`      | `Pixels` | `20`         | —                            |
 | `padding.bottom`     | `Pixels` | `12`         | —                            |

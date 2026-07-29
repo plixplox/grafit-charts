@@ -141,7 +141,8 @@ export class PolarChart implements ChartWidget {
     renderBackground(backgroundLayer, this.inputs.background, this.theme, width, height);
 
     const padding = { ...DEFAULT_PADDING, ...this.inputs.padding };
-    const captions = renderCaptions(captionLayer, this.inputs.title, this.inputs.subtitle, this.theme, width, height, padding);
+    const measureText = (text: string, font: string) => this.scene.measureText(text, font);
+    const captions = renderCaptions(captionLayer, this.inputs.title, this.inputs.subtitle, this.theme, width, height, padding, { measureText });
 
     const avail: LayoutRect = {
       x: padding.left,
@@ -153,7 +154,6 @@ export class PolarChart implements ChartWidget {
     const data = this.inputs.data ?? [];
     for (const series of this.series) series.setData(data);
 
-    const measureText = (text: string, font: string) => this.scene.measureText(text, font);
     const legend = this.legend;
     if (legend?.enabled) {
       legend.setItems(this.series.flatMap((series) => series.legendItems()));

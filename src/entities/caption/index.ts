@@ -8,8 +8,18 @@ export interface CaptionOptions extends Switchable, FontOptions {
   textAlign?: 'left' | 'center' | 'right';
   /** Vertical placement: above ('top', default) or below ('bottom') the plot. */
   position?: 'top' | 'bottom';
-  /** Gap separating the caption from the plot area (8 by default). */
+  /**
+   * Gap on the plot-facing side of the caption — below it in the 'top' zone,
+   * above it in the 'bottom' zone (8 by default). When both captions share a
+   * zone, the gap of the outer one separates the two captions, and the gap of
+   * the one closest to the plot separates it from the plot.
+   */
   spacing?: Pixels;
+  /**
+   * Break the text onto several lines when it does not fit the available width
+   * (true by default). Line breaks written as '\n' always apply.
+   */
+  wrap?: boolean;
 }
 
 interface CaptionRole {
@@ -24,61 +34,178 @@ const ROLES: Record<'title' | 'subtitle', CaptionRole> = {
   subtitle: { fontSize: 13, fontWeight: 'normal', muted: true, spacing: 8 },
 };
 
+/** Baseline-to-baseline step of a wrapped caption, as a multiple of the font size. */
+const LINE_HEIGHT = 1.25;
+
+export interface CaptionLayoutContext {
+  measureText: (text: string, font: string) => number;
+}
+
+/** Horizontal room available to a caption line. */
+interface Span {
+  left: number;
+  right: number;
+}
+
+interface CaptionLine {
+  text: string;
+  /** Anchor point of the line, matching `align`. */
+  x: number;
+  y: number;
+  align: 'left' | 'center' | 'right';
+}
+
+interface CaptionPlacement {
+  role: 'title' | 'subtitle';
+  options: CaptionOptions;
+  fontSize: number;
+  /** Height of the whole block: the lines plus `spacing`. */
+  height: number;
+  lines: CaptionLine[];
+}
+
 function captionMetrics(role: 'title' | 'subtitle', options: CaptionOptions | undefined): { fontSize: number; spacing: number } | undefined {
   if (!options?.text || options.enabled === false) return undefined;
   const config = ROLES[role];
   return { fontSize: options.fontSize ?? config.fontSize, spacing: options.spacing ?? config.spacing };
 }
 
-function drawCaption(
-  layer: Group,
-  role: 'title' | 'subtitle',
-  options: CaptionOptions,
-  theme: ThemeContext,
-  width: number,
-  top: number,
-  inset?: { left: number; right: number },
-): void {
-  const config = ROLES[role];
-  const align = options.textAlign ?? 'center';
-  const node = new Text();
-  node.text = options.text ?? '';
-  node.x = align === 'left' ? (inset?.left ?? 0) : align === 'right' ? width - (inset?.right ?? 0) : width / 2;
-  node.y = top;
-  node.textAlign = align;
-  node.textBaseline = 'top';
-  node.fontSize = options.fontSize ?? config.fontSize;
-  node.fontWeight = options.fontWeight !== undefined ? String(options.fontWeight) : config.fontWeight;
-  node.fontFamily = options.fontFamily ?? theme.fontFamily;
-  node.fill = options.color ?? (config.muted ? theme.mutedColor : theme.foregroundColor);
-  layer.append(node);
+/**
+ * Greedy word wrap within `span`: '\n' always starts a new line, and a word
+ * wider than the line is not broken up.
+ */
+function wrapText(
+  text: string,
+  font: string,
+  measureText: (text: string, font: string) => number,
+  span: Span,
+  wrap: boolean,
+): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split('\n')) {
+    let current = '';
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (wrap && current && measureText(candidate, font) > span.right - span.left) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = candidate;
+      }
+    }
+    lines.push(current);
+  }
+  return lines;
 }
 
 /**
- * Renders a single caption at `top` (ignores `position`) and returns the
- * occupied height (0 if the caption is disabled or empty). `inset` is the
- * horizontal chart padding that left/right alignment snaps to.
+ * Lays a caption out inside `full`, starting at `blockTop`. `spacing` faces the
+ * plot: it trails the text in the 'top' zone ('after') and leads it in the
+ * 'bottom' one ('before'). Returns undefined for a disabled or empty caption.
  */
-export function renderCaption(
-  layer: Group,
+function layoutCaption(
   role: 'title' | 'subtitle',
   options: CaptionOptions | undefined,
   theme: ThemeContext,
-  width: number,
-  top: number,
-  inset?: { left: number; right: number },
-): number {
+  full: Span,
+  blockTop: number,
+  spacingSide: 'before' | 'after',
+  context: CaptionLayoutContext,
+): CaptionPlacement | undefined {
   const metrics = captionMetrics(role, options);
-  if (!metrics || !options) return 0;
-  drawCaption(layer, role, options, theme, width, top, inset);
-  return metrics.fontSize + metrics.spacing;
+  if (!metrics || !options) return undefined;
+  const config = ROLES[role];
+  const { fontSize, spacing } = metrics;
+  const fontWeight = options.fontWeight !== undefined ? String(options.fontWeight) : config.fontWeight;
+  const font = `${fontWeight} ${fontSize}px ${options.fontFamily ?? theme.fontFamily}`;
+  const step = fontSize * LINE_HEIGHT;
+  const textTop = spacingSide === 'before' ? blockTop + spacing : blockTop;
+
+  const align = options.textAlign ?? 'center';
+  const lines = wrapText(options.text ?? '', font, context.measureText, full, options.wrap !== false).map((text, index) => ({
+    text,
+    align,
+    x: align === 'left' ? full.left : align === 'right' ? full.right : (full.left + full.right) / 2,
+    y: textTop + index * step,
+  }));
+  return { role, options, fontSize, height: fontSize + (lines.length - 1) * step + spacing, lines };
+}
+
+function drawCaption(layer: Group, placement: CaptionPlacement, theme: ThemeContext): void {
+  const config = ROLES[placement.role];
+  const { options } = placement;
+  for (const line of placement.lines) {
+    const node = new Text();
+    node.text = line.text;
+    node.x = line.x;
+    node.y = line.y;
+    node.textAlign = line.align;
+    node.textBaseline = 'top';
+    node.fontSize = placement.fontSize;
+    node.fontWeight = options.fontWeight !== undefined ? String(options.fontWeight) : config.fontWeight;
+    node.fontFamily = options.fontFamily ?? theme.fontFamily;
+    node.fill = options.color ?? (config.muted ? theme.mutedColor : theme.foregroundColor);
+    layer.append(node);
+  }
 }
 
 /**
- * Renders the title and subtitle around the plot: 'top' captions stack below
+ * Places the title and subtitle around the plot: 'top' captions stack below
  * `padding.top`, 'bottom' ones sit above `padding.bottom` (the title stays
- * above the subtitle in both zones, `spacing` faces the plot). Returns the
- * space consumed from each edge, padding excluded.
+ * above the subtitle in both zones, `spacing` faces the plot). Long text wraps
+ * within the available width. Returns the placements plus the space consumed
+ * from each edge, padding excluded.
+ */
+export function layoutCaptions(
+  title: CaptionOptions | undefined,
+  subtitle: CaptionOptions | undefined,
+  theme: ThemeContext,
+  width: number,
+  height: number,
+  padding: { top: number; right: number; bottom: number; left: number },
+  context: CaptionLayoutContext,
+): { placements: CaptionPlacement[]; top: number; bottom: number } {
+  const full: Span = { left: padding.left, right: width - padding.right };
+  const entries: Array<['title' | 'subtitle', CaptionOptions | undefined]> = [
+    ['title', title],
+    ['subtitle', subtitle],
+  ];
+  const zone = (position: 'top' | 'bottom') =>
+    entries.filter(([, options]) => (options?.position === 'bottom' ? position === 'bottom' : position === 'top'));
+
+  const placements: CaptionPlacement[] = [];
+  let top = 0;
+  for (const [role, options] of zone('top')) {
+    const placement = layoutCaption(role, options, theme, full, padding.top + top, 'after', context);
+    if (!placement) continue;
+    placements.push(placement);
+    top += placement.height;
+  }
+
+  // the 'bottom' zone starts at its own height above the edge, so it is laid out
+  // twice: once to learn how tall the wrapped text is, then from the real start
+  const bottomEntries = zone('bottom');
+  let bottom = 0;
+  let bottomPlacements: CaptionPlacement[] = [];
+  for (let pass = 0; pass < 2 && bottomEntries.length > 0; pass++) {
+    const start = height - padding.bottom - bottom;
+    let cursor = start;
+    bottomPlacements = [];
+    for (const [role, options] of bottomEntries) {
+      const placement = layoutCaption(role, options, theme, full, cursor, 'before', context);
+      if (!placement) continue;
+      bottomPlacements.push(placement);
+      cursor += placement.height;
+    }
+    bottom = cursor - start;
+  }
+
+  return { placements: [...placements, ...bottomPlacements], top, bottom };
+}
+
+/**
+ * Renders the title and subtitle around the plot (see {@link layoutCaptions})
+ * and returns the space consumed from each edge, padding excluded.
  */
 export function renderCaptions(
   layer: Group,
@@ -88,29 +215,9 @@ export function renderCaptions(
   width: number,
   height: number,
   padding: { top: number; right: number; bottom: number; left: number },
+  context: CaptionLayoutContext,
 ): { top: number; bottom: number } {
-  const inset = { left: padding.left, right: padding.right };
-  const entries: Array<['title' | 'subtitle', CaptionOptions | undefined]> = [
-    ['title', title],
-    ['subtitle', subtitle],
-  ];
-
-  let top = 0;
-  for (const [role, options] of entries) {
-    if (options?.position === 'bottom') continue;
-    top += renderCaption(layer, role, options, theme, width, padding.top + top, inset);
-  }
-
-  const bottomEntries = entries.flatMap(([role, options]) => {
-    if (options?.position !== 'bottom') return [];
-    const metrics = captionMetrics(role, options);
-    return metrics && options ? [{ role, options, metrics }] : [];
-  });
-  const bottom = bottomEntries.reduce((sum, entry) => sum + entry.metrics.fontSize + entry.metrics.spacing, 0);
-  let y = height - padding.bottom - bottom;
-  for (const { role, options, metrics } of bottomEntries) {
-    drawCaption(layer, role, options, theme, width, y + metrics.spacing, inset);
-    y += metrics.spacing + metrics.fontSize;
-  }
+  const { placements, top, bottom } = layoutCaptions(title, subtitle, theme, width, height, padding, context);
+  for (const placement of placements) drawCaption(layer, placement, theme);
   return { top, bottom };
 }

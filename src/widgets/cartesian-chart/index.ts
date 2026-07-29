@@ -318,7 +318,8 @@ export class CartesianChart implements SyncMember {
     renderBackground(backgroundLayer, this.inputs.background, this.theme, width, height);
 
     const padding = { ...DEFAULT_PADDING, ...this.inputs.padding };
-    const captions = renderCaptions(captionLayer, this.inputs.title, this.inputs.subtitle, this.theme, width, height, padding);
+    const measureText = (text: string, font: string) => this.scene.measureText(text, font);
+    const captions = renderCaptions(captionLayer, this.inputs.title, this.inputs.subtitle, this.theme, width, height, padding, { measureText });
 
     const avail: LayoutRect = {
       x: padding.left,
@@ -327,7 +328,6 @@ export class CartesianChart implements SyncMember {
       height: height - padding.top - captions.top - padding.bottom - captions.bottom,
     };
 
-    const measureText = (text: string, font: string) => this.scene.measureText(text, font);
     let legendRect: LayoutRect | undefined;
     const legend = this.legend;
     if (legend?.enabled) {
