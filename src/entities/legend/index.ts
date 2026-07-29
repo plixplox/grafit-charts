@@ -51,6 +51,11 @@ export interface LegendOptions extends Switchable {
   floating?: boolean;
   /** Floating only: inset from the anchored edges; along a centered axis — a shift right/down. */
   offset?: { x?: Pixels; y?: Pixels };
+  /**
+   * Floating only: make the title and subtitle flow around the legend box instead of
+   * running underneath it (true by default). Set to false to allow the overlap.
+   */
+  avoidCaptions?: boolean;
   /** Panel behind the items. */
   background?: LegendBackgroundOptions;
   /** Clicking an item toggles series visibility (true by default). */
@@ -291,6 +296,19 @@ export class Legend {
     const pagerSpace = this.pages > 1 ? PAGER_HEIGHT : 0;
     this.size = { width: contentWidth + pad.left + pad.right, height: contentHeight + pagerSpace + pad.top + pad.bottom };
     return this.size;
+  }
+
+  /**
+   * Box a floating legend claims inside `rect` (measuring it along the way), for
+   * the captions to flow around. Undefined when the legend is docked, empty or
+   * explicitly allowed to overlap the captions. Requires `setItems` beforehand.
+   */
+  captionObstacle(rect: LayoutRect, measureText: (text: string, font: string) => number): LayoutRect | undefined {
+    if (!this.enabled || !this.floating || this.options?.avoidCaptions === false) return undefined;
+    const size = this.measure(measureText, rect.width, rect.height);
+    if (size.width <= 0 || size.height <= 0) return undefined;
+    const box = placeLegendBox(this.options?.position ?? 'bottom', size, rect, this.options?.offset);
+    return { x: box.x, y: box.y, width: size.width, height: size.height };
   }
 
   nextPage(delta: number): void {

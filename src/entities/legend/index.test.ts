@@ -1,5 +1,5 @@
-import { placeLegendBox, resolveLegendItems } from './index';
-import type { LegendItemDescriptor } from '@/shared/kernel';
+import { Legend, placeLegendBox, resolveLegendItems, type LegendOptions } from './index';
+import type { LegendItemDescriptor, ThemeContext } from '@/shared/kernel';
 import { describe, expect, it, vi } from 'vitest';
 
 const descriptors: LegendItemDescriptor[] = [
@@ -124,5 +124,54 @@ describe('placeLegendBox', () => {
   it('shifts right/down along a centered axis', () => {
     expect(placeLegendBox('top', size, rect, { x: 15 })).toEqual({ x: 125, y: 20 });
     expect(placeLegendBox('right', size, rect, { y: -30 })).toEqual({ x: 210, y: 70 });
+  });
+});
+
+describe('captionObstacle', () => {
+  const theme: ThemeContext = {
+    backgroundColor: '#fff',
+    foregroundColor: '#000',
+    mutedColor: '#888',
+    fontFamily: 'sans-serif',
+    palette: { fills: [], strokes: [] },
+  };
+  const rect = { x: 20, y: 12, width: 360, height: 276 };
+  const measureText = (text: string) => text.length * 10;
+
+  const obstacleOf = (options: LegendOptions) => {
+    const legend = new Legend(options, theme);
+    legend.setItems(descriptors);
+    return legend.captionObstacle(rect, measureText);
+  };
+
+  it('reports the box a floating legend claims, anchored as its placement says', () => {
+    const box = obstacleOf({ floating: true, position: 'top-right' });
+    expect(box).toBeDefined();
+    expect(box?.y).toBe(rect.y);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBe(rect.x + rect.width);
+    expect(box?.height).toBeGreaterThan(0);
+  });
+
+  it('accounts for the offset and the background padding', () => {
+    const plain = obstacleOf({ floating: true, position: 'top-right' });
+    const inset = obstacleOf({ floating: true, position: 'top-right', offset: { x: 10, y: 6 } });
+    expect((inset?.x ?? 0) + (inset?.width ?? 0)).toBe(rect.x + rect.width - 10);
+    expect(inset?.y).toBe(rect.y + 6);
+
+    const padded = obstacleOf({ floating: true, position: 'top-right', background: { fill: '#fff', padding: 12 } });
+    expect(padded?.width).toBe((plain?.width ?? 0) + 24);
+    expect(padded?.height).toBe((plain?.height ?? 0) + 24);
+  });
+
+  it('is absent for a docked, disabled or opted-out legend', () => {
+    expect(obstacleOf({ position: 'top-right' })).toBeUndefined();
+    expect(obstacleOf({ floating: true, enabled: false })).toBeUndefined();
+    expect(obstacleOf({ floating: true, avoidCaptions: false })).toBeUndefined();
+  });
+
+  it('is absent when the legend has no items to show', () => {
+    const legend = new Legend({ floating: true }, theme);
+    legend.setItems([]);
+    expect(legend.captionObstacle(rect, measureText)).toBeUndefined();
   });
 });

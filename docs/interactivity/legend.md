@@ -16,6 +16,7 @@ When building with [grafit-charts/core](/guide/bundle), the legend is a separate
 | `position`              | `LegendPlacement`                        | `'bottom'`   | docking side + alignment, or a floating anchor ([below](#floating-placement)) |
 | `floating`              | `boolean`                                | `false`      | overlay the whole chart area instead of reserving space |
 | `offset`                | `{ x?: Pixels; y?: Pixels }`             | `0`          | floating only: inset from the anchored edges |
+| `avoidCaptions`         | `boolean`                                | `true`       | floating only: title/subtitle flow around the legend box |
 | `toggleSeries`          | `boolean`                                | `true`       | click toggles visibility     |
 | `item.marker.size`      | `Pixels`                              | `10`         | item marker size             |
 | `item.label.fontSize`   | `Pixels`                              | `12`         | label font size              |
@@ -41,6 +42,12 @@ With `floating: true` the legend stops reserving space and overlays the chart (C
 ::: chart-example legend-floating
 
 `offset` insets the box from the anchored edges (`x` from left/right, `y` from top/bottom); along a centered axis a positive value shifts right/down. `background` draws a panel behind the items — handy over the plot.
+
+Since the legend overlays the caption zone, the [title and subtitle flow around it](/interactivity/captions#flowing-around-a-floating-legend) by default: lines level with the legend box wrap inside the gap beside it. `avoidCaptions: false` restores the plain overlay — the captions keep the full chart width and the legend is drawn on top:
+
+```js
+legend: { position: 'top-right', floating: true, avoidCaptions: false },
+```
 
 ## Custom items
 

@@ -14,8 +14,12 @@ const padding = { top: 10, right: 20, bottom: 10, left: 20 };
 /** 10px per character, whatever the font — keeps the expectations arithmetic. */
 const measureText = (text: string) => text.length * 10;
 
-function layout(title: CaptionOptions | undefined, subtitle: CaptionOptions | undefined) {
-  return layoutCaptions(title, subtitle, theme, 400, 300, padding, { measureText });
+function layout(
+  title: CaptionOptions | undefined,
+  subtitle: CaptionOptions | undefined,
+  obstacle?: { x: number; y: number; width: number; height: number },
+) {
+  return layoutCaptions(title, subtitle, theme, 400, 300, padding, { measureText, obstacle });
 }
 
 describe('layoutCaptions', () => {
@@ -47,6 +51,33 @@ describe('layoutCaptions', () => {
     expect(placements[0]?.lines).toHaveLength(1);
   });
 
+  it('flows lines around an obstacle in the top-right corner', () => {
+    // legend box: x 280..380, y 10..50 — lines level with it get the 250px gap on its left
+    const obstacle = { x: 280, y: 10, width: 100, height: 40 };
+    const { placements } = layout({ text: 'Site traffic by acquisition channel over the last twelve months', textAlign: 'left' }, undefined, obstacle);
+    const lines = placements[0]?.lines ?? [];
+    expect(lines.map((line) => line.text)).toEqual(['Site traffic by', 'acquisition channel over', 'the last twelve months']);
+    // the first two lines overlap the legend vertically and stop before it
+    for (const line of lines.slice(0, 2)) expect(line.x + measureText(line.text)).toBeLessThanOrEqual(obstacle.x);
+    expect(lines[2]?.y).toBeGreaterThanOrEqual(obstacle.y + obstacle.height);
+  });
+
+  it('centres a line level with the obstacle inside the remaining gap', () => {
+    const { placements } = layout({ text: 'Traffic' }, undefined, { x: 280, y: 10, width: 100, height: 40 });
+    // gap is 20..270, so the centre moves left from 200 to 145
+    expect(placements[0]?.lines[0]?.x).toBe(145);
+  });
+
+  it('picks the wider side when the obstacle sits on the left', () => {
+    const { placements } = layout({ text: 'Traffic', textAlign: 'left' }, undefined, { x: 20, y: 10, width: 100, height: 40 });
+    expect(placements[0]?.lines[0]?.x).toBe(130);
+  });
+
+  it('falls back to the full width when the obstacle leaves no gap', () => {
+    const { placements } = layout({ text: 'Traffic', textAlign: 'left' }, undefined, { x: 0, y: 0, width: 400, height: 40 });
+    expect(placements[0]?.lines[0]?.x).toBe(20);
+  });
+
   it('stacks the title above the subtitle and reports the consumed height', () => {
     const { placements, top } = layout({ text: 'Revenue', spacing: 4 }, { text: 'in thousands', spacing: 12 });
     expect(placements.map((placement) => placement.role)).toEqual(['title', 'subtitle']);
@@ -63,6 +94,20 @@ describe('layoutCaptions', () => {
     expect(bottom).toBe(8 + 13 + 13 * 1.25);
     expect(lines[0]?.y).toBe(300 - 10 - bottom + 8);
     expect((lines[1]?.y ?? 0) + 13).toBeLessThanOrEqual(300 - padding.bottom);
+  });
+
+  it('flows a bottom caption around an obstacle pinned to the bottom-right', () => {
+    const text = 'Site traffic by acquisition channel over the last twelve months';
+    const plain = layout(undefined, { text, position: 'bottom' });
+    const flowed = layout(undefined, { text, position: 'bottom' }, { x: 280, y: 250, width: 100, height: 40 });
+    // squeezed into the left gap, the same text needs an extra line
+    expect(flowed.placements[0]?.lines.length).toBeGreaterThan(plain.placements[0]?.lines.length ?? 0);
+    expect(flowed.bottom).toBeGreaterThan(plain.bottom);
+    for (const line of flowed.placements[0]?.lines ?? []) {
+      const overlapsLegend = line.y < 290 && line.y + 13 > 250;
+      // centred lines: x is the middle of the line
+      if (overlapsLegend) expect(line.x + measureText(line.text) / 2).toBeLessThanOrEqual(280);
+    }
   });
 
   it('skips disabled and empty captions', () => {

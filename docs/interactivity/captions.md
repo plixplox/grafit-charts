@@ -52,6 +52,14 @@ title: { text: 'Site traffic by acquisition channel\ntwelve months to August' },
 
 `wrap: false` keeps the text on a single line even when it overflows the chart — explicit `'\n'` breaks still apply.
 
-A left-aligned title pairs well with a [floating legend](/interactivity/legend#floating-placement) pinned to the opposite corner on the same level:
+## Flowing around a floating legend
+
+A [floating legend](/interactivity/legend#floating-placement) overlays the whole chart area, captions included. By default the captions flow around it: every line that is level with the legend box is laid out in the wider gap beside it, and lines below it use the full width again. So a long title pinned to the left and a `top-right` legend share the top zone without overlapping:
+
+::: chart-example caption-wrap
+
+Turn the behaviour off with `legend.avoidCaptions: false` — the captions then use the full chart width and the legend is drawn over them. When the legend leaves no usable gap on either side (a wide legend anchored in the middle), a line falls back to the full width as well.
+
+A short left-aligned title pairs well with a floating legend pinned to the opposite corner on the same level:
 
 ::: chart-example legend-floating

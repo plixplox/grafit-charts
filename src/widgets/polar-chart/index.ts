@@ -1,5 +1,5 @@
 import { renderBackground, type BackgroundOptions } from '@/entities/background';
-import { renderCaptions, type CaptionOptions } from '@/entities/caption';
+import { hasCaptions, renderCaptions, type CaptionOptions } from '@/entities/caption';
 import type { Legend, LegendApi, LegendOptions } from '@/entities/legend';
 import type { HighlightOptions } from '@/features/highlight';
 import type { ChartListeners, SelectedItem, SelectionOptions } from '@/features/selection';
@@ -141,8 +141,24 @@ export class PolarChart implements ChartWidget {
     renderBackground(backgroundLayer, this.inputs.background, this.theme, width, height);
 
     const padding = { ...DEFAULT_PADDING, ...this.inputs.padding };
+    const data = this.inputs.data ?? [];
+    for (const series of this.series) series.setData(data);
+
     const measureText = (text: string, font: string) => this.scene.measureText(text, font);
-    const captions = renderCaptions(captionLayer, this.inputs.title, this.inputs.subtitle, this.theme, width, height, padding, { measureText });
+    const legend = this.legend;
+    if (legend?.enabled) legend.setItems(this.series.flatMap((series) => series.legendItems()));
+    // a floating legend is anchored to the whole chart area (captions included) and reserves no space
+    const floatRect: LayoutRect | undefined =
+      legend?.enabled && legend.floating
+        ? { x: padding.left, y: padding.top, width: width - padding.left - padding.right, height: height - padding.top - padding.bottom }
+        : undefined;
+    // captions wrap around the floating legend box, so it has to be measured first
+    const obstacle =
+      floatRect && hasCaptions(this.inputs.title, this.inputs.subtitle) ? legend?.captionObstacle(floatRect, measureText) : undefined;
+    const captions = renderCaptions(captionLayer, this.inputs.title, this.inputs.subtitle, this.theme, width, height, padding, {
+      measureText,
+      obstacle,
+    });
 
     const avail: LayoutRect = {
       x: padding.left,
@@ -151,16 +167,7 @@ export class PolarChart implements ChartWidget {
       height: height - padding.top - captions.top - padding.bottom - captions.bottom,
     };
 
-    const data = this.inputs.data ?? [];
-    for (const series of this.series) series.setData(data);
-
-    const legend = this.legend;
     if (legend?.enabled) {
-      legend.setItems(this.series.flatMap((series) => series.legendItems()));
-      // a floating legend is anchored to the whole chart area (captions included) and reserves no space
-      const floatRect: LayoutRect | undefined = legend.floating
-        ? { x: padding.left, y: padding.top, width: width - padding.left - padding.right, height: height - padding.top - padding.bottom }
-        : undefined;
       const size = legend.measure(measureText, (floatRect ?? avail).width, (floatRect ?? avail).height);
       if (size.width > 0 && size.height > 0) {
         let legendRect: LayoutRect;
