@@ -1,5 +1,6 @@
-import { BaseAxis, type AxisBaseOptions } from '@/entities/axis/base';
+import { BaseAxis, DEFAULT_PADDING_OUTER, type AxisBaseOptions } from '@/entities/axis/base';
 import type { AxisModule, LayoutRect } from '@/shared/kernel';
+import type { Pixels } from '@/shared/options';
 import { BandScale, toTimestamp } from '@/shared/scale';
 import { formatValue } from '@/shared/util';
 
@@ -7,7 +8,12 @@ export interface OrdinalTimeAxisOptions extends AxisBaseOptions {
   type: 'ordinal-time';
   paddingInner?: number;
   paddingOuter?: number;
+  /** Gap between bands in px; takes precedence over `paddingInner`. */
+  gap?: Pixels;
 }
+
+/** Bands are tighter here than on a category axis: a candle series wants thin gaps. */
+const PADDING_INNER = 0.25;
 
 /**
  * Categorical time scale: each point is a band, so non-trading days
@@ -19,12 +25,12 @@ export class OrdinalTimeAxis extends BaseAxis<OrdinalTimeAxisOptions> {
 
   setDomain(domain: unknown[]): void {
     this.scale.domain = domain;
-    this.scale.paddingInner = this.options.paddingInner ?? 0.25;
-    this.scale.paddingOuter = this.options.paddingOuter ?? 0.1;
+    this.scale.paddingInner = this.options.paddingInner ?? PADDING_INNER;
+    this.scale.paddingOuter = this.options.paddingOuter ?? DEFAULT_PADDING_OUTER;
   }
 
   layout(plot: LayoutRect): void {
-    this.layoutBandScale(this.scale, plot, this.options.paddingInner);
+    this.layoutBandScale(this.scale, plot, this.options.paddingInner ?? PADDING_INNER, this.options.gap);
   }
 
   protected override formatTick(value: unknown, index: number): string {

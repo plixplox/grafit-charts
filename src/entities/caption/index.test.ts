@@ -6,6 +6,7 @@ const theme: ThemeContext = {
   backgroundColor: '#fff',
   foregroundColor: '#000',
   mutedColor: '#888',
+  axisColor: '#ddd',
   fontFamily: 'sans-serif',
   palette: { fills: [], strokes: [] },
 };

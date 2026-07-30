@@ -12,6 +12,7 @@ const env: SeriesEnv = {
     backgroundColor: '#fff',
     foregroundColor: '#111',
     mutedColor: '#888',
+    axisColor: '#ddd',
     fontFamily: 'sans-serif',
     palette: { fills: ['#3b82f6'], strokes: ['#1d4ed8'] },
   },

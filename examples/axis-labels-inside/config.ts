@@ -21,7 +21,7 @@ export function createOptions(): ChartOptions {
       {
         type: 'category',
         position: 'left',
-        label: { placement: 'inside', fontWeight: 'bold' },
+        label: { placement: 'inside', fontWeight: 'bold', insideSpacing: 0, insideGap: 4 },
         line: { enabled: false },
       },
       {

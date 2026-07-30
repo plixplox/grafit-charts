@@ -37,7 +37,7 @@ import type {
   ThemeContext,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { Datum, Padding, Switchable } from '@/shared/options';
+import { deepMerge, type Datum, type Padding, type Switchable } from '@/shared/options';
 import { BandScale, LinearScale, TimeScale } from '@/shared/scale';
 import { Group, Rect, Text, type Scene } from '@/shared/scene';
 
@@ -232,12 +232,18 @@ export class CartesianChart implements SyncMember {
             { type: xType, position: 'bottom' as const },
             { type: yType, position: 'left' as const },
           ]);
-    // heatmap-like series: labels only by default, no lines or ticks
+    // heatmap-like series: labels only, without a grid of their own
     const bareAxes = this.series.length > 0 && this.series.every((series) => series.prefersBareAxes?.() === true);
     this.axes = defs.map((rawOptions) => {
-      const axisOptions = bareAxes
-        ? { line: { enabled: false }, tick: { enabled: false }, gridLine: { enabled: false }, ...rawOptions }
-        : rawOptions;
+      const fallback: AxisPosition = rawOptions.type === 'number' && !swapped ? 'left' : 'bottom';
+      const position = rawOptions.position ?? fallback;
+      // the categories get the axis line, the values get the grid — and never both ways round
+      const alongCategories = this.alongCategories(position, swapped);
+      const defaults: Record<string, unknown> = {};
+      if (bareAxes || alongCategories) defaults.gridLine = { enabled: false };
+      if (bareAxes || !alongCategories) defaults.line = { enabled: false };
+      // defaults sit underneath the user's axis options
+      const axisOptions = deepMerge(defaults, rawOptions as never) as typeof rawOptions;
       const module = this.registry.getAxis(axisOptions.type);
       if (!module) {
         throw new Error(
@@ -245,12 +251,14 @@ export class CartesianChart implements SyncMember {
             `Import the module from 'grafit-charts/modules' and pass it to register() from 'grafit-charts/core'.`,
         );
       }
-      const fallback: AxisPosition = axisOptions.type === 'number' && !swapped ? 'left' : 'bottom';
-      return module.create(axisOptions, {
-        position: axisOptions.position ?? fallback,
-        theme: this.theme,
-      });
+      return module.create(axisOptions, { position, theme: this.theme });
     });
+  }
+
+  /** true — the axis runs along the categories (the X direction), not the values. */
+  private alongCategories(position: AxisPosition, swapped: boolean): boolean {
+    const horizontalAxis = position === 'bottom' || position === 'top';
+    return horizontalAxis ? !swapped : swapped;
   }
 
   private maybeAnimateEntrance(): void {
@@ -389,7 +397,7 @@ export class CartesianChart implements SyncMember {
     const swapped = this.swapped;
     for (const axis of this.axes) {
       const horizontalAxis = axis.position === 'bottom' || axis.position === 'top';
-      const isCategoryDirection = horizontalAxis ? !swapped : swapped;
+      const isCategoryDirection = this.alongCategories(axis.position, swapped);
       const window = horizontalAxis ? this.zoomX : this.zoomY;
       if (isCategoryDirection) {
         axis.setDomain(sliceDomain(categories, window));

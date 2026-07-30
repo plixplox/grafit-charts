@@ -11,6 +11,8 @@ export interface AxisLabelFormatterParams {
 
 export type AxisLabelPlacement = 'outside' | 'inside';
 
+export type AxisInsideLabelAlign = 'element' | 'gap';
+
 export interface AxisCrossLineOptions {
   type?: 'line' | 'range';
   value?: unknown;
@@ -30,6 +32,7 @@ export interface AxisBaseOptions {
   tick?: Switchable & { size?: Pixels; width?: Pixels; stroke?: ColorValue };
   label?: Switchable &
     FontOptions & {
+      /** Gap from the axis line (from the tick, when ticks are on). Outside labels only. */
       spacing?: Pixels;
       /**
        * 'outside' (default) — labels next to the axis line; 'inside' — inside
@@ -37,6 +40,16 @@ export interface AxisBaseOptions {
        * horizontal one along the inner edge. Inside labels reserve no space.
        */
       placement?: AxisLabelPlacement;
+      /** Inside placement: indent from the axis into the plot area. */
+      insideSpacing?: Pixels;
+      /** Inside placement: gap to the element the label belongs to (and to the one before it). */
+      insideGap?: Pixels;
+      /**
+       * Inside placement on a band axis: 'element' (default) — the label hugs its
+       * own element, `insideGap` away from it; 'gap' — the label is centred in the
+       * gap between elements.
+       */
+      insideAlign?: AxisInsideLabelAlign;
       /** Serializable format string (',.2f', '.0%', '%d %b'). */
       format?: string;
       formatter?: (params: AxisLabelFormatterParams) => string;
@@ -54,13 +67,21 @@ export interface AxisBaseOptions {
 }
 
 const TICK_SIZE = 6;
-const LABEL_SPACING = 4;
+const LABEL_SPACING = 8;
+/** Inside labels keep their own distances: they sit in the plot, not beside it. */
+const INSIDE_LABEL_SPACING = 4;
+const INSIDE_LABEL_GAP = 4;
 const TITLE_SPACING = 6;
 const LABEL_FONT_SIZE = 11;
 const TITLE_FONT_SIZE = 12;
 const MIN_LABEL_SPACING = 8;
-/** Bands never give up more than this share of the step to an inside label row. */
-const MAX_INSIDE_PADDING_INNER = 0.8;
+/** Grid lines are dashed by default — they read as a backdrop, not as data. */
+const GRID_DASH: Pixels[] = [4, 4];
+/** Bands never give up more than this share of the step to the gap between them. */
+const MAX_PADDING_INNER = 0.8;
+/** Band padding shared by the categorical axes. */
+export const DEFAULT_PADDING_INNER = 0.2;
+export const DEFAULT_PADDING_OUTER = 0.1;
 
 export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> implements CartesianAxisInstance {
   abstract readonly type: string;
@@ -85,42 +106,53 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     return label?.placement === 'inside' && label.enabled !== false;
   }
 
-  /** Ticks point at outside labels, so inside labels turn them off unless asked for. */
+  /** Ticks are off by default: the labels alone read the scale well enough. */
   protected get ticksVisible(): boolean {
-    return this.options.tick?.enabled ?? !this.labelsInside;
+    return this.options.tick?.enabled === true;
+  }
+
+  /** Indent of an inside label from the axis into the plot area. */
+  private get insideSpacing(): number {
+    return this.options.label?.insideSpacing ?? INSIDE_LABEL_SPACING;
+  }
+
+  /** Gap an inside label keeps from its own element and from the one before it. */
+  private get insideGap(): number {
+    return this.options.label?.insideGap ?? INSIDE_LABEL_GAP;
   }
 
   /** Vertical space one inside label needs: the glyph row plus a gap on both sides. */
   protected insideLabelSlot(): number {
-    const label = this.options.label;
-    return (label?.fontSize ?? LABEL_FONT_SIZE) + (label?.spacing ?? LABEL_SPACING) * 2;
+    return (this.options.label?.fontSize ?? LABEL_FONT_SIZE) + this.insideGap * 2;
   }
 
   /**
-   * Binds a band scale to the plot rect. Inside labels on a vertical axis get a
-   * row above every band: one slot is reserved above the first band, and — unless
-   * paddingInner is set explicitly — the gap between bands grows to fit the row.
+   * Binds a band scale to the plot rect and resolves the gap between bands:
+   * `gapPx` wins over the `paddingInner` fraction, and an inside label row is
+   * added on top of whichever was asked for — the requested gap keeps its meaning
+   * either way. A row is also reserved above the first band.
    */
-  protected layoutBandScale(scale: BandScale<unknown>, plot: LayoutRect, explicitPaddingInner?: number): void {
+  protected layoutBandScale(scale: BandScale<unknown>, plot: LayoutRect, paddingInner: number, gapPx?: Pixels): void {
+    // per-band label rows exist on a vertical axis only: a horizontal one runs its labels along the edge
+    const slot = !this.isHorizontal && this.labelsInside ? this.insideLabelSlot() : 0;
     // categories read left to right and top to bottom
-    if (this.isHorizontal) {
-      scale.range = [plot.x, plot.x + plot.width];
-      return;
-    }
-    if (!this.labelsInside) {
-      scale.range = [plot.y, plot.y + plot.height];
-      return;
-    }
-    const slot = this.insideLabelSlot();
-    const bottom = plot.y + plot.height;
-    scale.range = [Math.min(plot.y + slot, bottom), bottom];
-    if (explicitPaddingInner !== undefined) return;
-    const span = scale.range[1] - scale.range[0];
+    const start = this.isHorizontal ? plot.x : Math.min(plot.y + slot, plot.y + plot.height);
+    const end = this.isHorizontal ? plot.x + plot.width : plot.y + plot.height;
+    scale.range = [start, end];
+
+    const requested = Math.min(Math.max(paddingInner, 0), MAX_PADDING_INNER);
+    scale.paddingInner = requested;
+    const span = end - start;
     const count = scale.domain.length;
     if (count === 0 || span <= 0) return;
-    // gap = paddingInner · step, step = span / (count − paddingInner + 2 · paddingOuter)
-    const padding = (slot * (count + 2 * scale.paddingOuter)) / (span + slot);
-    scale.paddingInner = Math.min(padding, MAX_INSIDE_PADDING_INNER);
+    // step · paddingInner = slot + gap, step = span / (count − paddingInner + 2 · paddingOuter)
+    const step =
+      gapPx !== undefined
+        ? (span + slot + gapPx) / (count + 2 * scale.paddingOuter)
+        : (span + slot) / (count - requested + 2 * scale.paddingOuter);
+    if (step <= 0) return;
+    const gap = gapPx !== undefined ? Math.max(gapPx, 0) : requested * step;
+    scale.paddingInner = Math.min((slot + gap) / step, MAX_PADDING_INNER);
   }
 
   abstract setDomain(domain: unknown[]): void;
@@ -148,7 +180,9 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       ? explicit.map((value) => ({ value, coord: this.coordOf(value) })).filter(({ coord }) => !Number.isNaN(coord))
       : this.tickInfo();
     const ticks = raw.map((tick, index) => ({ ...tick, index }));
-    if (this.options.label?.avoidCollisions === false || !this.isHorizontal) return ticks;
+    if (this.options.label?.avoidCollisions === false) return ticks;
+    // a vertical axis only crowds when its labels sit inside, in a row per band
+    if (!this.isHorizontal) return this.labelsInside ? thin(ticks, this.insideLabelSlot()) : ticks;
 
     const font = this.labelFont();
     const minSpacing = this.options.interval?.minSpacing ?? MIN_LABEL_SPACING;
@@ -156,13 +190,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     for (const tick of ticks) {
       maxWidth = Math.max(maxWidth, this.measureWithCanvasFallback(this.formatTick(tick.value, tick.index), font));
     }
-    const first = ticks[0];
-    const second = ticks[1];
-    if (!first || !second) return ticks;
-    const stepPx = Math.abs(second.coord - first.coord);
-    if (stepPx <= 0) return ticks;
-    const stride = Math.max(1, Math.ceil((maxWidth + minSpacing) / stepPx));
-    return ticks.filter((_, index) => index % stride === 0);
+    return thin(ticks, maxWidth + minSpacing);
   }
 
   /** Coordinate of a value on the scale (for interval.values and crossLines). */
@@ -214,7 +242,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
         axisLine.y2 = plot.y + plot.height;
         axisLine.x1 = axisLine.x2 = edge;
       }
-      axisLine.stroke = lineOptions?.stroke ?? theme.mutedColor;
+      axisLine.stroke = lineOptions?.stroke ?? theme.axisColor;
       axisLine.strokeWidth = lineOptions?.width ?? 1;
       axisLayer.append(axisLine);
     }
@@ -232,10 +260,9 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
           grid.x1 = plot.x;
           grid.x2 = plot.x + plot.width;
         }
-        grid.stroke = gridOptions?.stroke ?? theme.mutedColor;
+        grid.stroke = gridOptions?.stroke ?? theme.axisColor;
         grid.strokeWidth = gridOptions?.width ?? 1;
-        grid.opacity = gridOptions?.stroke ? 1 : 0.18;
-        if (gridOptions?.lineDash) grid.lineDash = gridOptions.lineDash;
+        grid.lineDash = gridOptions?.lineDash ?? GRID_DASH;
         gridLayer.append(grid);
       }
     }
@@ -257,7 +284,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
           tick.x1 = edge;
           tick.x2 = edge + tickSize * direction;
         }
-        tick.stroke = tickOptions?.stroke ?? theme.mutedColor;
+        tick.stroke = tickOptions?.stroke ?? theme.axisColor;
         tick.strokeWidth = tickOptions?.width ?? 1;
         axisLayer.append(tick);
       }
@@ -341,22 +368,37 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
    * edge of the plot rect. Continuous scales fall back to the tick coordinate.
    */
   private renderInsideLabels(layer: Group, plot: LayoutRect, ticks: Array<{ value: unknown; coord: number; index: number }>): void {
-    const spacing = this.options.label?.spacing ?? LABEL_SPACING;
+    const spacing = this.insideSpacing;
     for (const { value, coord, index } of ticks) {
       const node = this.labelNode(this.formatTick(value, index));
       if (this.isHorizontal) {
+        // along the axis: only the indent from it, the label is centred on the band
         node.x = coord;
         node.textAlign = 'center';
         node.y = this.position === 'bottom' ? plot.y + plot.height - spacing : plot.y + spacing;
         node.textBaseline = this.position === 'bottom' ? 'bottom' : 'top';
       } else {
-        node.y = (this.bandStart(value) ?? coord) - spacing;
-        node.textBaseline = 'bottom';
+        // across the axis: hugging the band or centred in the gap; along it: the indent from the axis
+        const start = this.bandStart(value) ?? coord;
+        const gap = this.bandGap();
+        if (this.options.label?.insideAlign === 'gap' && gap !== undefined) {
+          node.y = start - gap / 2;
+          node.textBaseline = 'middle';
+        } else {
+          node.y = start - this.insideGap;
+          node.textBaseline = 'bottom';
+        }
         node.x = this.position === 'left' ? plot.x + spacing : plot.x + plot.width - spacing;
         node.textAlign = this.position === 'left' ? 'left' : 'right';
       }
       layer.append(node);
     }
+  }
+
+  /** Gap between two bands in px; undefined on a continuous scale. */
+  private bandGap(): number | undefined {
+    if (!(this.scale instanceof BandScale)) return undefined;
+    return this.scale.stepSize - this.scale.bandwidth;
   }
 
   /** Top (or left) edge of the band for a value; undefined on a continuous scale. */
@@ -470,6 +512,20 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
   private outwardSign(): 1 | -1 {
     return this.position === 'bottom' || this.position === 'right' ? 1 : -1;
   }
+}
+
+/**
+ * Keeps every k-th tick, where k is how many steps one label needs: the labels
+ * thin out instead of piling up on each other.
+ */
+function thin<T extends { coord: number }>(ticks: T[], labelExtent: number): T[] {
+  const first = ticks[0];
+  const second = ticks[1];
+  if (!first || !second) return ticks;
+  const stepPx = Math.abs(second.coord - first.coord);
+  if (stepPx <= 0) return ticks;
+  const stride = Math.max(1, Math.ceil(labelExtent / stepPx));
+  return stride === 1 ? ticks : ticks.filter((_, index) => index % stride === 0);
 }
 
 function formatNumber(value: number): string {

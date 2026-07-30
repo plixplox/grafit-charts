@@ -3,6 +3,20 @@
 Axis types: `category` (bands), `number`, `time`, `log`. Binding is by
 `position`: `bottom`/`top` — the X axis, `left`/`right` — the Y axis.
 
+## Default look
+
+Out of the box axes stay quiet, and the two directions split the work: the
+category axis keeps its line and has no grid, the value axis drops its line and
+is read off a dashed grid instead. Ticks are off on both. In a horizontal chart
+the value axis is the horizontal one, so the dashes turn vertical along with it.
+
+All of this chrome is light grey — the `axisColor` theme token, overridable per
+axis through `line.stroke`, `tick.stroke` and `gridLine.stroke`. The defaults sit
+underneath your options, so anything comes back on request:
+`tick: { enabled: true }`, `line: { enabled: true }`,
+`gridLine: { enabled: true, lineDash: [] }` for a solid grid along the
+categories.
+
 ## Time axis
 
 `time` accepts a `Date`, a timestamp or an ISO string; ticks snap to calendar
@@ -36,8 +50,12 @@ separators appears to the left of the item labels:
 axis stops reserving space for them. On a vertical category axis every label
 sits above its bar: a label row is reserved above the first band, and the gap
 between bands grows to fit it — set `paddingInner` explicitly to keep the bar
-thickness under your own control. Inside labels are drawn over the series, and
-ticks are off unless `tick.enabled: true` is set.
+thickness under your own control. Inside labels are drawn over the series.
+
+An inside label keeps two distances of its own, 4 px each: `label.insideSpacing`
+— the indent from the axis into the plot, and `label.insideGap` — the clearance to
+its own element and to the one before it (that gap is what sets the reserved row
+height). `label.spacing` is for outside labels only and does not reach here.
 
 ::: chart-example axis-labels-inside
 
@@ -66,54 +84,58 @@ Reference lines and ranges in axis coordinates — with labels:
 
 ### Full option list
 
-| Option                                                    | Type                                                                                | Default                     | Description                                  |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------- |
-| `type`                                                    | `'number' \| 'category' \| 'time' \| 'log' \| 'ordinal-time' \| 'grouped-category'` | based on series             | axis type                                    |
-| `position`                                                | `'bottom' \| 'left' \| 'top' \| 'right'`                                            | based on type               | axis side                                    |
-| `title.enabled`                                           | `boolean`                                                                           | `true` when `text` is set   | axis title                                   |
-| `title.text`                                              | `string`                                                                            | —                           | title text                                   |
-| `title.fontSize`                                          | `Pixels`                                                                            | `12`                        | title font size                              |
-| `title.color`                                             | `ColorValue`                                                                        | foreground                  | title color                                  |
-| `line.enabled`                                            | `boolean`                                                                           | `true` (heatmap — off)      | axis line                                    |
-| `line.stroke`                                             | `ColorValue`                                                                        | theme muted                 | line color                                   |
-| `line.width`                                              | `Pixels`                                                                            | `1`                         | line width                                   |
-| `tick.enabled`                                            | `boolean`                                                                           | `true` (heatmap — off)      | ticks                                        |
-| `tick.size`                                               | `Pixels`                                                                            | `6`                         | tick length                                  |
-| `tick.width`                                              | `Pixels`                                                                            | `1`                         | tick width                                   |
-| `tick.stroke`                                             | `ColorValue`                                                                        | theme muted                 | tick color                                   |
-| `label.enabled`                                           | `boolean`                                                                           | `true`                      | tick labels                                  |
-| `label.fontSize`                                          | `Pixels`                                                                            | `11`                        | label font size                              |
-| `label.fontFamily`                                        | `string`                                                                            | theme font                  | typeface                                     |
-| `label.color`                                             | `ColorValue`                                                                        | theme muted                 | label color                                  |
-| `label.spacing`                                           | `Pixels`                                                                            | `4`                         | gap between label and tick                   |
-| `label.placement`                                         | `'outside' \| 'inside'`                                                             | `'outside'`                 | labels beside the axis or inside the plot    |
-| `label.format`                                            | `string`                                                                            | —                           | format string (`',.2f'`, `'.0%'`, `'%d %b'`) |
-| `label.formatter`                                         | `({ value, index }) => string`                                                      | —                           | programmatic formatting                      |
-| `label.avoidCollisions`                                   | `boolean`                                                                           | `true`                      | skip overlapping labels                      |
-| `gridLine.enabled`                                        | `boolean`                                                                           | `true` (heatmap — off)      | grid lines                                   |
-| `gridLine.stroke`                                         | `ColorValue`                                                                        | theme grid                  | grid color                                   |
-| `gridLine.width`                                          | `Pixels`                                                                            | `1`                         | width                                        |
-| `gridLine.lineDash`                                       | `Pixels[]`                                                                          | —                           | grid dash pattern                            |
-| `interval.values`                                         | `unknown[]`                                                                         | auto                        | explicit tick values                         |
-| `interval.minSpacing`                                     | `Pixels`                                                                            | `8`                         | minimum label spacing                        |
-| `crossLines[].type`                                       | `'line' \| 'range'`                                                                 | `'line'`                    | line or range                                |
-| `crossLines[].value`                                      | value                                                                               | —                           | line coordinate                              |
-| `crossLines[].range`                                      | `[from, to]`                                                                        | —                           | fill range                                   |
-| `crossLines[].stroke`                                     | `ColorValue`                                                                        | theme muted                 | line color                                   |
-| `crossLines[].strokeWidth`                                | `Pixels`                                                                            | `1`                         | line width                                   |
-| `crossLines[].lineDash`                                   | `Pixels[]`                                                                          | —                           | dash pattern                                 |
-| `crossLines[].fill`                                       | `ColorValue`                                                                        | theme muted                 | range fill                                   |
-| `crossLines[].fillOpacity`                                | `Fraction`                                                                          | `0.12`                      | fill opacity                                 |
-| `crossLines[].label.text`                                 | `string`                                                                            | —                           | label text                                   |
-| `crossLines[].label.color`                                | `ColorValue`                                                                        | theme muted                 | label color                                  |
-| `crossLines[].label.fontSize`                             | `Pixels`                                                                            | `11`                        | label font size                              |
-| `min` (number, log)                                       | `number`                                                                            | data domain                 | lower bound                                  |
-| `max` (number, log)                                       | `number`                                                                            | data domain                 | upper bound                                  |
-| `nice (number)`                                           | `boolean`                                                                           | `true`                      | round the domain to “nice” bounds            |
-| `base (log)`                                              | `number`                                                                            | `10`                        | logarithm base                               |
-| `paddingInner` (category, grouped-category)               | `Fraction`                                                                          | `0.2` (ordinal-time `0.25`) | inner band padding                           |
-| `paddingOuter` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.1`                       | outer band padding                           |
-| `groupSpacing` (grouped-category)                         | `Pixels`                                                                            | `8`                         | gap between item labels and the group row    |
+| Option                                                    | Type                                                                                | Default                     | Description                                          |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------- |
+| `type`                                                    | `'number' \| 'category' \| 'time' \| 'log' \| 'ordinal-time' \| 'grouped-category'` | based on series             | axis type                                            |
+| `position`                                                | `'bottom' \| 'left' \| 'top' \| 'right'`                                            | based on type               | axis side                                            |
+| `title.enabled`                                           | `boolean`                                                                           | `true` when `text` is set   | axis title                                           |
+| `title.text`                                              | `string`                                                                            | —                           | title text                                           |
+| `title.fontSize`                                          | `Pixels`                                                                            | `12`                        | title font size                                      |
+| `title.color`                                             | `ColorValue`                                                                        | foreground                  | title color                                          |
+| `line.enabled`                                            | `boolean`                                                                           | category axis only          | axis line                                            |
+| `line.stroke`                                             | `ColorValue`                                                                        | theme axis (light grey)     | line color                                           |
+| `line.width`                                              | `Pixels`                                                                            | `1`                         | line width                                           |
+| `tick.enabled`                                            | `boolean`                                                                           | `false`                     | ticks                                                |
+| `tick.size`                                               | `Pixels`                                                                            | `6`                         | tick length                                          |
+| `tick.width`                                              | `Pixels`                                                                            | `1`                         | tick width                                           |
+| `tick.stroke`                                             | `ColorValue`                                                                        | theme axis (light grey)     | tick color                                           |
+| `label.enabled`                                           | `boolean`                                                                           | `true`                      | tick labels                                          |
+| `label.fontSize`                                          | `Pixels`                                                                            | `11`                        | label font size                                      |
+| `label.fontFamily`                                        | `string`                                                                            | theme font                  | typeface                                             |
+| `label.color`                                             | `ColorValue`                                                                        | theme muted                 | label color                                          |
+| `label.spacing`                                           | `Pixels`                                                                            | `8`                         | outside labels: gap from the tick or the axis        |
+| `label.insideSpacing`                                     | `Pixels`                                                                            | `4`                         | inside labels: indent from the axis                  |
+| `label.insideAlign`                                       | `'element' \| 'gap'`                                                                | `'element'`                 | inside labels: hug the element or centre in the gap  |
+| `label.insideGap`                                         | `Pixels`                                                                            | `4`                         | inside labels: clearance to their element            |
+| `label.placement`                                         | `'outside' \| 'inside'`                                                             | `'outside'`                 | labels beside the axis or inside the plot            |
+| `label.format`                                            | `string`                                                                            | —                           | format string (`',.2f'`, `'.0%'`, `'%d %b'`)         |
+| `label.formatter`                                         | `({ value, index }) => string`                                                      | —                           | programmatic formatting                              |
+| `label.avoidCollisions`                                   | `boolean`                                                                           | `true`                      | skip overlapping labels                              |
+| `gridLine.enabled`                                        | `boolean`                                                                           | value axis only             | grid lines                                           |
+| `gridLine.stroke`                                         | `ColorValue`                                                                        | theme axis (light grey)     | grid color                                           |
+| `gridLine.width`                                          | `Pixels`                                                                            | `1`                         | width                                                |
+| `gridLine.lineDash`                                       | `Pixels[]`                                                                          | `[4, 4]`                    | grid dash pattern                                    |
+| `interval.values`                                         | `unknown[]`                                                                         | auto                        | explicit tick values                                 |
+| `interval.minSpacing`                                     | `Pixels`                                                                            | `8`                         | minimum label spacing                                |
+| `crossLines[].type`                                       | `'line' \| 'range'`                                                                 | `'line'`                    | line or range                                        |
+| `crossLines[].value`                                      | value                                                                               | —                           | line coordinate                                      |
+| `crossLines[].range`                                      | `[from, to]`                                                                        | —                           | fill range                                           |
+| `crossLines[].stroke`                                     | `ColorValue`                                                                        | theme muted                 | line color                                           |
+| `crossLines[].strokeWidth`                                | `Pixels`                                                                            | `1`                         | line width                                           |
+| `crossLines[].lineDash`                                   | `Pixels[]`                                                                          | —                           | dash pattern                                         |
+| `crossLines[].fill`                                       | `ColorValue`                                                                        | theme muted                 | range fill                                           |
+| `crossLines[].fillOpacity`                                | `Fraction`                                                                          | `0.12`                      | fill opacity                                         |
+| `crossLines[].label.text`                                 | `string`                                                                            | —                           | label text                                           |
+| `crossLines[].label.color`                                | `ColorValue`                                                                        | theme muted                 | label color                                          |
+| `crossLines[].label.fontSize`                             | `Pixels`                                                                            | `11`                        | label font size                                      |
+| `min` (number, log)                                       | `number`                                                                            | data domain                 | lower bound                                          |
+| `max` (number, log)                                       | `number`                                                                            | data domain                 | upper bound                                          |
+| `nice (number)`                                           | `boolean`                                                                           | `true`                      | round the domain to “nice” bounds                    |
+| `base (log)`                                              | `number`                                                                            | `10`                        | logarithm base                                       |
+| `paddingInner` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.2` (ordinal-time `0.25`) | gap between elements, share of the step              |
+| `gap` (category, ordinal-time, grouped-category)          | `Pixels`                                                                            | —                           | gap between elements in px; wins over `paddingInner` |
+| `paddingOuter` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.1`                       | outer band padding                                   |
+| `groupSpacing` (grouped-category)                         | `Pixels`                                                                            | `8`                         | gap between item labels and the group row            |
 
 Horizontal axis labels are automatically thinned out when crowded
 (`label.avoidCollisions: false` disables this).

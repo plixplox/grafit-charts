@@ -16,6 +16,8 @@ export interface ThemeOptions {
   params?: {
     backgroundColor?: ColorValue;
     foregroundColor?: ColorValue;
+    /** Axis lines, ticks and grid — light grey by default. */
+    axisColor?: ColorValue;
     fontFamily?: string;
   };
   /**
@@ -62,6 +64,8 @@ export interface ResolvedTheme {
   backgroundColor: ColorValue;
   foregroundColor: ColorValue;
   mutedColor: ColorValue;
+  /** Axis chrome: the axis line, ticks and grid lines. */
+  axisColor: ColorValue;
   fontFamily: string;
   palette: {
     fills: ColorValue[];
@@ -76,6 +80,7 @@ const BUILT_IN: Record<ThemeName, ResolvedTheme> = {
     backgroundColor: '#ffffff',
     foregroundColor: '#1f2733',
     mutedColor: '#7a8190',
+    axisColor: '#d9dde3',
     fontFamily: 'system-ui, sans-serif',
     palette: { fills: FILLS, strokes: FILLS },
   },
@@ -83,6 +88,7 @@ const BUILT_IN: Record<ThemeName, ResolvedTheme> = {
     backgroundColor: '#15181c',
     foregroundColor: '#e8eaed',
     mutedColor: '#8b919c',
+    axisColor: '#343a43',
     fontFamily: 'system-ui, sans-serif',
     palette: { fills: FILLS, strokes: FILLS },
   },
@@ -97,6 +103,7 @@ export function resolveTheme(theme?: ThemeName | ThemeOptions): ResolvedTheme {
     backgroundColor: theme.params?.backgroundColor ?? base.backgroundColor,
     foregroundColor: theme.params?.foregroundColor ?? base.foregroundColor,
     mutedColor: base.mutedColor,
+    axisColor: theme.params?.axisColor ?? base.axisColor,
     fontFamily: theme.params?.fontFamily ?? base.fontFamily,
     palette: {
       fills: theme.palette?.fills ?? base.palette.fills,

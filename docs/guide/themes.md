@@ -47,6 +47,7 @@ Precedence: library defaults < `overrides.common` <
 | `palette.strokes`               | `ColorValue[]`              | stroke colors (defaults to fills)      |
 | `params.backgroundColor`        | `ColorValue`                | chart background                       |
 | `params.foregroundColor`        | `ColorValue`                | primary text color                     |
+| `params.axisColor`              | `ColorValue`                | axis lines, ticks and grid             |
 | `params.fontFamily`             | `string`                  | font for all text                      |
 | `overrides.common`              | `Record<string, unknown>` | chart-level blocks for all charts      |
 | `overrides.<seriesType>.series` | `Record<string, unknown>` | defaults for series of a specific type |

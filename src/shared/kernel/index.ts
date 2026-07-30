@@ -20,6 +20,8 @@ export interface ThemeContext {
   backgroundColor: ColorValue;
   foregroundColor: ColorValue;
   mutedColor: ColorValue;
+  /** Axis chrome: the axis line, ticks and grid lines. */
+  axisColor: ColorValue;
   fontFamily: string;
   palette: { fills: ColorValue[]; strokes: ColorValue[] };
 }

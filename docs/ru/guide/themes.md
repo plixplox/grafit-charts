@@ -46,6 +46,7 @@
 | `palette.strokes`               | `ColorValue[]`              | цвета обводки (по умолчанию = fills)  |
 | `params.backgroundColor`        | `ColorValue`                | фон чарта                             |
 | `params.foregroundColor`        | `ColorValue`                | основной цвет текста                  |
+| `params.axisColor`              | `ColorValue`                | линии осей, тики и сетка              |
 | `params.fontFamily`             | `string`                  | шрифт всех надписей                   |
 | `overrides.common`              | `Record<string, unknown>` | chart-блоки для всех чартов           |
 | `overrides.<seriesType>.series` | `Record<string, unknown>` | дефолты серий конкретного типа        |
