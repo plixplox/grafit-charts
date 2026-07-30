@@ -1,10 +1,25 @@
-import { CartesianSeries, placeRectLabel, type RectLabelPlacement, type SeriesBaseOptions } from '@/entities/series/base';
+import {
+  CartesianSeries,
+  labelFont,
+  placeRectLabel,
+  rectLabelOverflow,
+  type RectLabelPlacement,
+  type SeriesBaseOptions,
+} from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
-import type { CartesianRenderContext, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
+import type {
+  CartesianGeometry,
+  CartesianRenderContext,
+  Insets,
+  LabelOverflowContext,
+  SeriesModule,
+  SeriesPick,
+  TooltipContentData,
+} from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, FontOptions, Switchable } from '@/shared/options';
 import { BandScale, LinearScale } from '@/shared/scale';
 import { Group, Line, Rect, Text } from '@/shared/scene';
-import { contrastTextColor } from '@/shared/util';
+import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
 
 export interface WaterfallSeriesOptions extends SeriesBaseOptions {
   type: 'waterfall';
@@ -79,50 +94,79 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
     return [min, max];
   }
 
-  update(ctx: CartesianRenderContext): void {
-    this.lastCtx = ctx;
-    this.bars = [];
-    if (!this.visible) return;
+  /** Bars in plot coordinates; shared by rendering and label measurement (t = 1 there). */
+  private layoutBars(ctx: CartesianGeometry, t: number): BarGeometry[] {
     const bandScale = ctx.xScale;
     const valueScale = ctx.yScale;
     if (!(bandScale instanceof BandScale) || !(valueScale instanceof LinearScale)) {
       throw new Error('grafit: waterfall requires a category X axis and a numeric Y axis');
     }
     const steps = this.cumulative(ctx.data);
-    const t = ctx.animationT ?? 1;
-    const positiveFill = this.options.item?.positive?.fill ?? this.env.colors.fill;
-    const negativeFill = this.options.item?.negative?.fill ?? NEGATIVE_FALLBACK;
-    const totalFill = this.options.item?.total?.fill ?? this.env.theme.mutedColor;
-    const group = new Group();
-
-    let prev: BarGeometry | undefined;
+    const bars: BarGeometry[] = [];
     ctx.data.forEach((datum, index) => {
       const step = steps[index];
       if (!step) return;
       const bandStart = bandScale.convert(datum[this.options.xField]);
       if (Number.isNaN(bandStart)) return;
-      const width = bandScale.bandwidth;
       const mid = (step.start + step.end) / 2;
       const p0 = valueScale.convert(mid + (step.start - mid) * Math.max(t, 0.001));
       const p1 = valueScale.convert(mid + (step.end - mid) * Math.max(t, 0.001));
-      const bar: BarGeometry = {
+      bars.push({
         index,
         x: bandStart,
         y: Math.min(p0, p1),
-        width,
+        width: bandScale.bandwidth,
         height: Math.max(1, Math.abs(p1 - p0)),
         start: step.start,
         end: step.end,
         isTotal: step.isTotal,
-      };
-      this.bars.push(bar);
+      });
+    });
+    return bars;
+  }
+
+  /** Label text of a bar: the step delta, or the running total for a subtotal. */
+  private labelTextFor(bar: BarGeometry, data: Datum[]): string {
+    const value = bar.isTotal ? bar.end : bar.end - bar.start;
+    const datum = data[bar.index];
+    const formatter = this.options.label?.formatter;
+    return formatter && datum ? formatter({ value, isTotal: bar.isTotal, datum }) : String(Math.round(value * 100) / 100);
+  }
+
+  override labelOverflow(ctx: LabelOverflowContext): Insets {
+    if (!this.visible || this.options.label?.enabled !== true) return NO_OVERFLOW;
+    const marks = this.layoutBars(ctx, 1).map((bar) => ({ rect: bar, text: this.labelTextFor(bar, ctx.data) }));
+    return rectLabelOverflow(
+      marks,
+      this.options.label.placement ?? 'top',
+      labelFont(this.options.label, this.env.theme.fontFamily),
+      ctx.plot,
+      ctx.measureText,
+    );
+  }
+
+  update(ctx: CartesianRenderContext): void {
+    this.lastCtx = ctx;
+    this.bars = [];
+    if (!this.visible) return;
+    const positiveFill = this.options.item?.positive?.fill ?? this.env.colors.fill;
+    const negativeFill = this.options.item?.negative?.fill ?? NEGATIVE_FALLBACK;
+    const totalFill = this.options.item?.total?.fill ?? this.env.theme.mutedColor;
+    const group = new Group();
+
+    this.bars = this.layoutBars(ctx, ctx.animationT ?? 1);
+    // the scales were checked while laying the bars out
+    const valueScale = ctx.yScale as LinearScale;
+    let prev: BarGeometry | undefined;
+    this.bars.forEach((bar) => {
+      const index = bar.index;
 
       if (this.options.line?.enabled !== false && prev) {
         const connector = new Line();
         connector.x1 = prev.x + prev.width;
         connector.y1 = valueScale.convert(prev.end);
         connector.x2 = bar.x;
-        connector.y2 = valueScale.convert(step.isTotal ? step.end : step.start);
+        connector.y2 = valueScale.convert(bar.isTotal ? bar.end : bar.start);
         connector.stroke = this.options.line?.stroke ?? this.env.theme.mutedColor;
         connector.lineDash = [3, 3];
         group.append(connector);
@@ -133,7 +177,7 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
       node.y = bar.y;
       node.width = bar.width;
       node.height = bar.height;
-      node.fill = step.isTotal ? totalFill : step.end >= step.start ? positiveFill : negativeFill;
+      node.fill = bar.isTotal ? totalFill : bar.end >= bar.start ? positiveFill : negativeFill;
       node.cornerRadius = this.options.cornerRadius ?? 2;
       if (ctx.selected?.has(index)) {
         node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
@@ -146,20 +190,17 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
 
       if (this.options.label?.enabled === true) {
         const labelOptions = this.options.label;
-        const rect = { x: bar.x, y: bar.y, width: bar.width, height: bar.height };
-        const placed = placeRectLabel(labelOptions.placement ?? 'top', rect);
-        const labelValue = step.isTotal ? step.end : step.end - step.start;
+        const placed = placeRectLabel(labelOptions.placement ?? 'top', bar);
+        const font = labelFont(labelOptions, this.env.theme.fontFamily);
         const text = new Text();
-        text.text = labelOptions.formatter
-          ? labelOptions.formatter({ value: labelValue, isTotal: step.isTotal, datum })
-          : String(Math.round(labelValue * 100) / 100);
+        text.text = this.labelTextFor(bar, ctx.data);
         text.x = placed.x;
         text.y = placed.y;
         text.textAlign = placed.align;
         text.textBaseline = placed.baseline;
-        text.fontSize = labelOptions.fontSize ?? 11;
-        text.fontWeight = labelOptions.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
-        text.fontFamily = labelOptions.fontFamily ?? this.env.theme.fontFamily;
+        text.fontSize = font.size;
+        text.fontWeight = font.weight;
+        text.fontFamily = font.family;
         const elementFill = node.fill ?? this.env.colors.fill;
         text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = elementFill;

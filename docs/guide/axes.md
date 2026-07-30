@@ -44,6 +44,34 @@ separators appears to the left of the item labels:
 
 ::: chart-example axis-grouped-horizontal
 
+## Labels always fit
+
+Labels are placed by an anchor: a tick label is centred on its tick, a value
+label hangs off its bar. Both therefore reach past the plot rect — by half the
+width of the outermost tick label, by the whole width of a label sitting to the
+right of the longest bar. The layout measures that reach and takes it off the
+plot, so nothing is ever clipped by the edge of the canvas: the plot gives way
+to the labels rather than the other way round.
+
+That room is shared with the axis zones instead of being added to them — a label
+hanging 12 px over the left edge costs nothing when the Y axis already reserves
+40 px there. Which is why the effect only shows up where it is needed: a
+percentage axis whose last tick sits on the right edge, a horizontal bar chart
+whose value labels follow the bars out.
+
+The area the chart is fitted into is the one left after `padding`, the
+title/subtitle and the legend, so your padding stays yours — labels do not creep
+into it.
+
+::: chart-example bar-labels
+
+Polar charts are fitted the same way: the grid radius is chosen so that the
+category names around the rim stay inside the area, and a long name on one side
+only slides the centre across instead of shrinking the whole web. Where the
+spokes crowd together, labels that would collide are dropped while the grid
+itself stays whole (see [Radar](/series/radar)). For pie and donut, outside
+callout labels cap the radius the same way.
+
 ## Labels inside the plot
 
 `label.placement: 'inside'` moves the tick labels into the plot area, and the

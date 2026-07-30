@@ -30,7 +30,9 @@ import type {
   ColorScaleInfo,
   CartesianSeriesInstance,
   HighlightState,
+  Insets,
   LayoutRect,
+  MeasureText,
   ModuleRegistry,
   SeriesPick,
   StackSegment,
@@ -40,6 +42,7 @@ import type {
 import { deepMerge, type Datum, type Padding, type Switchable } from '@/shared/options';
 import { BandScale, LinearScale, TimeScale } from '@/shared/scale';
 import { Group, Rect, Text, type Scene } from '@/shared/scene';
+import { maxOverflow, NO_OVERFLOW } from '@/shared/util';
 
 /**
  * Input contract of the widget. The public typed ChartOptions
@@ -83,6 +86,9 @@ const LEGEND_GAP = 12;
 const NAVIGATOR_GAP = 10;
 const DEFAULT_PICK_RANGE = 30;
 const DEFAULT_ANIMATION_MS = 600;
+/** Axis zones, labels and the plot rect settle on each other in this many passes. */
+const LAYOUT_PASSES = 3;
+const SIDES = ['top', 'right', 'bottom', 'left'] as const;
 
 type DragMode = 'pan' | 'select' | 'data-select' | 'annotation' | 'nav-window' | 'nav-handle-start' | 'nav-handle-end';
 
@@ -429,22 +435,31 @@ export class CartesianChart implements SyncMember {
     // axis-less series (funnel) get the whole area
     const barePlot = visibleSeries.length > 0 && visibleSeries.every((series) => series.hidesAxes?.() === true);
 
+    const xAxis = this.axes.find((axis) => axis.position === 'bottom' || axis.position === 'top');
+    const yAxis = this.axes.find((axis) => axis.position === 'left' || axis.position === 'right');
+    const slots = this.assignBandSlots(visibleSeries);
+
     // iterative layout: axis thickness depends on labels, labels depend on range
     let plot: LayoutRect = { ...avail };
-    if (!barePlot)
-      for (let pass = 0; pass < 2; pass++) {
-        for (const axis of this.axes) axis.layout(plot);
-        const inset = { top: 0, right: 0, bottom: 0, left: 0 };
+    for (let pass = 0; pass < LAYOUT_PASSES; pass++) {
+      for (const axis of this.axes) axis.layout(plot);
+      const inset = { top: 0, right: 0, bottom: 0, left: 0 };
+      // an axis-less chart reserves no axis zones, but its labels still need room
+      if (!barePlot) {
         for (const axis of this.axes) {
           inset[axis.position] = Math.max(inset[axis.position], axis.measure(measureText));
         }
-        plot = {
-          x: avail.x + inset.left,
-          y: avail.y + inset.top,
-          width: Math.max(0, avail.width - inset.left - inset.right),
-          height: Math.max(0, avail.height - inset.top - inset.bottom),
-        };
       }
+      // labels hanging over the plot edges want the same room as the axis zones do
+      const overflow = this.labelOverflow(plot, measureText, { data, xAxis, yAxis, swapped, stacks, slots, barePlot });
+      for (const side of SIDES) inset[side] = Math.max(inset[side], Math.ceil(overflow[side]));
+      plot = {
+        x: avail.x + inset.left,
+        y: avail.y + inset.top,
+        width: Math.max(0, avail.width - inset.left - inset.right),
+        height: Math.max(0, avail.height - inset.top - inset.bottom),
+      };
+    }
     for (const axis of this.axes) axis.layout(plot);
     this.plot = plot;
 
@@ -452,9 +467,6 @@ export class CartesianChart implements SyncMember {
       for (const axis of this.axes) axis.render(axisLayer, gridLayer, plot, axisForegroundLayer);
     }
 
-    // series
-    const xAxis = this.axes.find((axis) => axis.position === 'bottom' || axis.position === 'top');
-    const yAxis = this.axes.find((axis) => axis.position === 'left' || axis.position === 'right');
     if (legend && legendRect) legend.render(legendLayer, legendRect);
 
     this.renderCache = {
@@ -464,12 +476,58 @@ export class CartesianChart implements SyncMember {
       yAxis,
       swapped,
       stacks,
-      slots: this.assignBandSlots(visibleSeries),
+      slots,
       navigatorRect,
       colorInfo,
     };
     this.scene.markDirty();
     this.renderDynamicLayers();
+  }
+
+  /**
+   * Room the labels need outside the plot rect: tick labels hang over the ends
+   * of their axis, value labels sit beside their marks. Both are measured
+   * against the plot the current pass produced, so the layout converges on a
+   * rect where every label still fits the chart area.
+   */
+  private labelOverflow(
+    plot: LayoutRect,
+    measureText: MeasureText,
+    cache: {
+      data: Datum[];
+      xAxis: CartesianAxisInstance | undefined;
+      yAxis: CartesianAxisInstance | undefined;
+      swapped: boolean;
+      stacks: Map<string, StackSegment>;
+      slots: Map<string, { index: number; count: number }>;
+      barePlot: boolean;
+    },
+  ): Insets {
+    let overflow = NO_OVERFLOW;
+    if (!cache.barePlot) {
+      for (const axis of this.axes) {
+        overflow = maxOverflow(overflow, axis.labelOverflow?.(measureText, plot) ?? NO_OVERFLOW);
+      }
+    }
+    const { xAxis, yAxis } = cache;
+    if (!xAxis || !yAxis) return overflow;
+    for (const series of this.series) {
+      if (!series.visible || !series.labelOverflow) continue;
+      overflow = maxOverflow(
+        overflow,
+        series.labelOverflow({
+          data: cache.data,
+          xScale: xAxis.scale,
+          yScale: yAxis.scale,
+          swapped: cache.swapped,
+          plot,
+          stack: cache.stacks.get(series.id),
+          group: cache.slots.get(series.id),
+          measureText,
+        }),
+      );
+    }
+    return overflow;
   }
 
   private renderCache:

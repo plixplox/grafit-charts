@@ -1,4 +1,6 @@
-import type { Pixels } from '@/shared/options';
+import type { Insets, LayoutRect, MeasureText } from '@/shared/kernel';
+import type { FontOptions, Pixels } from '@/shared/options';
+import { maxOverflow, overflowOutside, textBounds, NO_OVERFLOW } from '@/shared/util';
 
 /** Label placements relative to a rectangle (bar, histogram, waterfall…). */
 export type RectLabelPlacement =
@@ -26,6 +28,46 @@ export interface PlacedRectLabel {
   align: CanvasTextAlign;
   baseline: CanvasTextBaseline;
   inside: boolean;
+}
+
+/** Font of a value label: series options over the theme default. */
+export interface LabelFont {
+  size: number;
+  weight: string;
+  family: string;
+}
+
+export const DEFAULT_LABEL_FONT_SIZE = 11;
+
+export function labelFont(options: FontOptions | undefined, themeFontFamily: string): LabelFont {
+  return {
+    size: options?.fontSize ?? DEFAULT_LABEL_FONT_SIZE,
+    weight: options?.fontWeight !== undefined ? String(options.fontWeight) : 'normal',
+    family: options?.fontFamily ?? themeFontFamily,
+  };
+}
+
+/**
+ * Room the labels of rectangular marks ask for outside the plot rect. Labels
+ * placed inside their rectangle never reach further than the mark itself, so
+ * only the outer placements count.
+ */
+export function rectLabelOverflow(
+  marks: Array<{ rect: LayoutRect; text: string }>,
+  placement: RectLabelPlacement,
+  font: LabelFont,
+  plot: LayoutRect,
+  measureText: MeasureText,
+): Insets {
+  if (placement === 'center' || placement.startsWith('inner-')) return NO_OVERFLOW;
+  const fontSpec = `${font.weight} ${font.size}px ${font.family}`;
+  let overflow = NO_OVERFLOW;
+  for (const { rect, text } of marks) {
+    const placed = placeRectLabel(placement, rect);
+    const bounds = textBounds(placed.x, placed.y, measureText(text, fontSpec), font.size, placed.align, placed.baseline);
+    overflow = maxOverflow(overflow, overflowOutside(bounds, plot));
+  }
+  return overflow;
 }
 
 /** Label coordinates and alignment; center and inner-… are inside the rectangle. */

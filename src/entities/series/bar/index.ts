@@ -1,11 +1,26 @@
-import { CartesianSeries, placeRectLabel, type RectLabelPlacement, type SeriesBaseOptions } from '@/entities/series/base';
+import {
+  CartesianSeries,
+  labelFont,
+  placeRectLabel,
+  rectLabelOverflow,
+  type RectLabelPlacement,
+  type SeriesBaseOptions,
+} from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
-import type { CartesianRenderContext, SeriesModule, SeriesPick, StackSegment } from '@/shared/kernel';
+import type {
+  CartesianGeometry,
+  CartesianRenderContext,
+  Insets,
+  LabelOverflowContext,
+  SeriesModule,
+  SeriesPick,
+  StackSegment,
+} from '@/shared/kernel';
 import type { ColorValue, Datum, FontOptions, Pixels, Fraction, Switchable } from '@/shared/options';
 import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
-import { contrastTextColor } from '@/shared/util';
+import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
 import { extent } from '@/shared/util';
 
 export interface BarSeriesOptions extends SeriesBaseOptions {
@@ -40,6 +55,7 @@ export type BarLabelPlacement = RectLabelPlacement;
 
 interface BarRect {
   index: number;
+  value: number;
   x: number;
   y: number;
   width: number;
@@ -74,11 +90,12 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
     return true;
   }
 
-  update(ctx: CartesianRenderContext): void {
-    this.lastCtx = ctx;
-    this.rects = [];
-    if (!this.visible) return;
-
+  /**
+   * Bars in plot coordinates. The same geometry serves rendering and the
+   * measurement of value labels during layout, where t is always 1 — the room
+   * a label needs is the room it needs once the bar has grown.
+   */
+  private layoutBars(ctx: CartesianGeometry, t: number): BarRect[] {
     const { data, swapped } = ctx;
     const bandScale = swapped ? ctx.yScale : ctx.xScale;
     const valueScale = swapped ? ctx.xScale : ctx.yScale;
@@ -88,8 +105,8 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
 
     const slot = groupSlot(bandScale.bandwidth, ctx.group, this.options.groupGap);
     const values = numericValues(data, this.options.yField);
-
-    const group = new Group();
+    const zero = valueScale.convert(0);
+    const rects: BarRect[] = [];
 
     data.forEach((datum, index) => {
       const value = values[index];
@@ -99,28 +116,51 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
 
       const v0 = ctx.stack ? (ctx.stack.y0[index] ?? 0) : 0;
       const v1 = ctx.stack ? (ctx.stack.y1[index] ?? 0) : value;
-      const t = ctx.animationT ?? 1;
-      const zero = valueScale.convert(0);
       const p0 = zero + (valueScale.convert(v0) - zero) * t;
       const p1 = zero + (valueScale.convert(v1) - zero) * t;
       const along = bandStart + slot.start;
 
-      const rect: BarRect = swapped
-        ? {
-            index,
-            x: Math.min(p0, p1),
-            y: along,
-            width: Math.abs(p1 - p0),
-            height: slot.size,
-          }
-        : {
-            index,
-            x: along,
-            y: Math.min(p0, p1),
-            width: slot.size,
-            height: Math.abs(p1 - p0),
-          };
-      this.rects.push(rect);
+      rects.push(
+        swapped
+          ? { index, value, x: Math.min(p0, p1), y: along, width: Math.abs(p1 - p0), height: slot.size }
+          : { index, value, x: along, y: Math.min(p0, p1), width: slot.size, height: Math.abs(p1 - p0) },
+      );
+    });
+    return rects;
+  }
+
+  /** Label text of a bar: the formatter over the raw value. */
+  private labelTextFor(rect: BarRect, data: Datum[]): string {
+    const datum = data[rect.index];
+    const formatter = this.options.label?.formatter;
+    return formatter && datum ? formatter({ value: rect.value, datum }) : String(rect.value);
+  }
+
+  override labelOverflow(ctx: LabelOverflowContext): Insets {
+    if (!this.visible || this.options.label?.enabled !== true) return NO_OVERFLOW;
+    const marks = this.layoutBars(ctx, 1).map((rect) => ({ rect, text: this.labelTextFor(rect, ctx.data) }));
+    return rectLabelOverflow(
+      marks,
+      this.options.label.placement ?? 'top',
+      labelFont(this.options.label, this.env.theme.fontFamily),
+      ctx.plot,
+      ctx.measureText,
+    );
+  }
+
+  update(ctx: CartesianRenderContext): void {
+    this.lastCtx = ctx;
+    this.rects = [];
+    if (!this.visible) return;
+
+    const { data } = ctx;
+    const group = new Group();
+
+    this.rects = this.layoutBars(ctx, ctx.animationT ?? 1);
+    this.rects.forEach((rect) => {
+      const index = rect.index;
+      const datum = data[index];
+      if (!datum) return;
 
       const node = new Rect();
       node.x = rect.x;
@@ -144,17 +184,17 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
 
       if (this.options.label?.enabled === true) {
         const labelOptions = this.options.label;
-        const value = Number(datum[this.options.yField]);
         const placed = placeRectLabel(labelOptions.placement ?? 'top', rect);
+        const font = labelFont(labelOptions, this.env.theme.fontFamily);
         const text = new Text();
-        text.text = labelOptions.formatter ? labelOptions.formatter({ value, datum }) : String(value);
+        text.text = this.labelTextFor(rect, data);
         text.x = placed.x;
         text.y = placed.y;
         text.textAlign = placed.align;
         text.textBaseline = placed.baseline;
-        text.fontSize = labelOptions.fontSize ?? 11;
-        text.fontWeight = labelOptions.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
-        text.fontFamily = labelOptions.fontFamily ?? this.env.theme.fontFamily;
+        text.fontSize = font.size;
+        text.fontWeight = font.weight;
+        text.fontFamily = font.family;
         const barFill = node.fill ?? this.mainColor();
         text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(barFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = barFill;

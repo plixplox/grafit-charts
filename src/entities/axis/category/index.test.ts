@@ -187,6 +187,30 @@ describe('category axis with inside labels', () => {
   });
 });
 
+describe('labels hanging over the ends of the axis', () => {
+  const none = { top: 0, right: 0, bottom: 0, left: 0 };
+
+  it('stays at zero while every band centre is far enough from the ends', () => {
+    // a band label is centred on its band, and half a band is wider than half a name here
+    expect(axis({}, 'bottom').labelOverflow(measureText, plot)).toEqual(none);
+  });
+
+  it('asks for the part of a long name that sticks out past the plot', () => {
+    const wide = axis({}, 'bottom', ['Alfa', 'Bravo Charlie Delta Echo']);
+    const overflow = wide.labelOverflow(measureText, plot);
+    const last = wide.scale.center('Bravo Charlie Delta Echo');
+    expect(overflow.right).toBeCloseTo(measureText('Bravo Charlie Delta Echo') / 2 - (plot.x + plot.width - last), 6);
+    // across the axis its own zone already covers the labels
+    expect(overflow.top).toBe(0);
+    expect(overflow.bottom).toBe(0);
+  });
+
+  it('asks for nothing when the labels are off or drawn inside the plot', () => {
+    expect(axis({ label: { enabled: false } }, 'bottom', ['Bravo Charlie Delta Echo']).labelOverflow(measureText, plot)).toEqual(none);
+    expect(axis({ label: { placement: 'inside' } }, 'bottom', ['Bravo Charlie Delta Echo']).labelOverflow(measureText, plot)).toEqual(none);
+  });
+});
+
 describe('gap between categories in px', () => {
   it('holds the gap exactly, whatever the count', () => {
     for (const count of [3, 6]) {

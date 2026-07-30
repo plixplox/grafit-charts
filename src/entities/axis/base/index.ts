@@ -1,8 +1,8 @@
-import type { AxisEnv, AxisPosition, CartesianAxisInstance, LayoutRect } from '@/shared/kernel';
+import type { AxisEnv, AxisPosition, CartesianAxisInstance, Insets, LayoutRect, MeasureText } from '@/shared/kernel';
 import type { ColorValue, FontOptions, Pixels, Switchable } from '@/shared/options';
 import { BandScale, type AnyScale } from '@/shared/scale';
 import { Group, Line, Rect, Text } from '@/shared/scene';
-import { formatValue } from '@/shared/util';
+import { formatValue, maxOverflow, overflowOutside, NO_OVERFLOW } from '@/shared/util';
 
 export interface AxisLabelFormatterParams {
   value: unknown;
@@ -200,7 +200,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     return (this.scale as { convert: (v: number) => number }).convert(Number(value));
   }
 
-  measure(measureText: (text: string, font: string) => number): number {
+  measure(measureText: MeasureText): number {
     let thickness = 0;
     const tick = this.options.tick;
     if (this.ticksVisible) thickness += tick?.size ?? TICK_SIZE;
@@ -223,6 +223,27 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       thickness += (title.fontSize ?? TITLE_FONT_SIZE) + TITLE_SPACING;
     }
     return Math.ceil(thickness);
+  }
+
+  /**
+   * A tick label is centred on its tick, so the outermost ones hang over the
+   * ends of the plot rect — by half their width on a horizontal axis, by half
+   * a line on a vertical one. That is the room the layout has to find for them.
+   */
+  labelOverflow(measureText: MeasureText, plot: LayoutRect): Insets {
+    if (this.options.label?.enabled === false || this.labelsInside) return NO_OVERFLOW;
+    const font = this.labelFont();
+    const fontSize = this.options.label?.fontSize ?? LABEL_FONT_SIZE;
+    let overflow = NO_OVERFLOW;
+    for (const { value, coord, index } of this.displayTicks()) {
+      const half = this.isHorizontal ? measureText(this.formatTick(value, index), font) / 2 : fontSize / 2;
+      // across the axis the labels stay in the zone measure() reserved — only the ends matter here
+      const bounds = this.isHorizontal
+        ? { left: coord - half, right: coord + half, top: plot.y, bottom: plot.y + plot.height }
+        : { left: plot.x, right: plot.x + plot.width, top: coord - half, bottom: coord + half };
+      overflow = maxOverflow(overflow, overflowOutside(bounds, plot));
+    }
+    return overflow;
   }
 
   render(axisLayer: Group, gridLayer: Group, plot: LayoutRect, foregroundLayer?: Group): void {

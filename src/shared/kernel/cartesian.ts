@@ -13,6 +13,16 @@ export interface LayoutRect {
   height: number;
 }
 
+/** Free space a piece of chrome asks for outside a rect, side by side. */
+export interface Insets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export type MeasureText = (text: string, font: string) => number;
+
 export type AxisPosition = 'top' | 'right' | 'bottom' | 'left';
 
 /** Zoom window as fractions of the full domain. */
@@ -109,19 +119,31 @@ export interface StackSegment {
   y1: number[];
 }
 
-export interface CartesianRenderContext {
+/**
+ * Where a series puts its marks: the same geometry serves rendering and the
+ * measurement of labels during layout, before there is anything to render.
+ */
+export interface CartesianGeometry {
   data: Datum[];
   xScale: AnyScale;
   yScale: AnyScale;
   /** true — the category is on the vertical axis (horizontal bars). */
   swapped: boolean;
   plot: LayoutRect;
-  layer: Group;
-  highlight?: HighlightState;
   /** For stacked series: the precomputed stack segment. */
   stack?: StackSegment;
   /** For grouped series: position within the group. */
   group?: { index: number; count: number };
+}
+
+/** Layout-time query: how far do the value labels reach outside the plot rect. */
+export interface LabelOverflowContext extends CartesianGeometry {
+  measureText: MeasureText;
+}
+
+export interface CartesianRenderContext extends CartesianGeometry {
+  layer: Group;
+  highlight?: HighlightState;
   /** Entry animation factor 0..1 (1 — no animation). */
   animationT?: number;
   /** Opacity of the other series while highlighting (highlight.dimOpacity). */
@@ -178,6 +200,12 @@ export interface CartesianSeriesInstance {
   occupiesBandSlot(): boolean;
   update(ctx: CartesianRenderContext): void;
   /**
+   * How far the value labels reach outside the plot rect — the layout keeps
+   * that much room for them. Without the method the series is assumed to draw
+   * everything inside the plot.
+   */
+  labelOverflow?(ctx: LabelOverflowContext): Insets;
+  /**
    * Finds the node under the cursor; called after update.
    * searchRadius: 0 — exact hit only, Infinity — nearest with no limit.
    */
@@ -202,7 +230,13 @@ export interface CartesianAxisInstance {
   /** Binds the scale range to the plot rect (orientation per position/type). */
   layout(plot: LayoutRect): void;
   /** Thickness of the axis zone (labels + ticks + title); call after layout. */
-  measure(measureText: (text: string, font: string) => number): number;
+  measure(measureText: MeasureText): number;
+  /**
+   * How far the labels reach past the ends of the plot rect: half of the
+   * outermost label on a horizontal axis, half a line on a vertical one.
+   * Call after layout.
+   */
+  labelOverflow?(measureText: MeasureText, plot: LayoutRect): Insets;
   /**
    * Renders the axis into axisLayer and grid lines into gridLayer;
    * foregroundLayer sits above the series and carries inside labels.

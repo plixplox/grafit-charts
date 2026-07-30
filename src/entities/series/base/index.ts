@@ -8,4 +8,13 @@ export { RadialSectorSeries, type RadialSectorSeriesBaseOptions } from './radial
 export { FunnelSeriesBase, type FunnelSeriesBaseOptions } from './funnel-series';
 export { OhlcSeriesBase, type OhlcSeriesBaseOptions, type CandleGeometry, UP_COLOR, DOWN_COLOR } from './ohlc-series';
 export { StandaloneSeries, type StandaloneSeriesBaseOptions } from './standalone-series';
-export { placeRectLabel, type RectLabelPlacement, type PlacedRectLabel } from './rect-label';
+export { placePointLabel, pointLabelOverflow, POINT_LABEL_GAP, type PointLabelPlacement, type PlacedPointLabel } from './point-label';
+export {
+  placeRectLabel,
+  rectLabelOverflow,
+  labelFont,
+  DEFAULT_LABEL_FONT_SIZE,
+  type RectLabelPlacement,
+  type PlacedRectLabel,
+  type LabelFont,
+} from './rect-label';

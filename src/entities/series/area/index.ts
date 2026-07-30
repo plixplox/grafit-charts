@@ -1,11 +1,26 @@
-import { CartesianSeries, type SeriesBaseOptions } from '@/entities/series/base';
+import {
+  CartesianSeries,
+  labelFont,
+  placePointLabel,
+  pointLabelOverflow,
+  POINT_LABEL_GAP,
+  type SeriesBaseOptions,
+} from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
-import type { CartesianRenderContext, SeriesModule, SeriesPick, StackSegment } from '@/shared/kernel';
+import type {
+  CartesianGeometry,
+  CartesianRenderContext,
+  Insets,
+  LabelOverflowContext,
+  SeriesModule,
+  SeriesPick,
+  StackSegment,
+} from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction, Switchable, FontOptions } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
 import { Group, Marker, Path, type MarkerShape, Text } from '@/shared/scene';
-import { extent } from '@/shared/util';
+import { extent, NO_OVERFLOW } from '@/shared/util';
 
 export interface AreaSeriesOptions extends SeriesBaseOptions {
   type: 'area';
@@ -34,6 +49,8 @@ export interface AreaSeriesOptions extends SeriesBaseOptions {
 }
 
 const PICK_RANGE = 30;
+const DEFAULT_MARKER_SIZE = 7;
+
 interface AreaPoint {
   index: number;
   x: number;
@@ -65,16 +82,14 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
     };
   }
 
-  update(ctx: CartesianRenderContext): void {
-    this.lastCtx = ctx;
-    this.points = [];
-    if (!this.visible) return;
-
+  /** Points of the area in plot coordinates; y0 is the baseline the fill drops to. */
+  private layoutPoints(ctx: CartesianGeometry): AreaPoint[] {
     const { data, xScale, yScale } = ctx;
     if (!(yScale instanceof LinearScale)) {
       throw new Error('grafit: area series requires a numeric value axis');
     }
     const values = numericValues(data, this.options.yField);
+    const points: AreaPoint[] = [];
     data.forEach((datum, index) => {
       const value = values[index];
       if (value === undefined || Number.isNaN(value)) return;
@@ -82,8 +97,34 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
       if (Number.isNaN(x)) return;
       const v1 = ctx.stack ? (ctx.stack.y1[index] ?? 0) : value;
       const v0 = ctx.stack ? (ctx.stack.y0[index] ?? 0) : 0;
-      this.points.push({ index, x, y: yScale.convert(v1), y0: yScale.convert(v0) });
+      points.push({ index, x, y: yScale.convert(v1), y0: yScale.convert(v0) });
     });
+    return points;
+  }
+
+  private labelTextFor(datum: Datum): string {
+    const value = Number(datum[this.options.yField]);
+    const formatter = this.options.label?.formatter;
+    return formatter ? formatter({ value, datum }) : String(value);
+  }
+
+  override labelOverflow(ctx: LabelOverflowContext): Insets {
+    const label = this.options.label;
+    if (!this.visible || label?.enabled !== true) return NO_OVERFLOW;
+    const offset = (this.options.marker?.size ?? DEFAULT_MARKER_SIZE) / 2 + POINT_LABEL_GAP;
+    const marks = this.layoutPoints(ctx).flatMap((point) => {
+      const datum = ctx.data[point.index];
+      return datum ? [{ x: point.x, y: point.y, text: this.labelTextFor(datum), offset }] : [];
+    });
+    return pointLabelOverflow(marks, label.placement ?? 'top', labelFont(label, this.env.theme.fontFamily), ctx.plot, ctx.measureText);
+  }
+
+  update(ctx: CartesianRenderContext): void {
+    this.lastCtx = ctx;
+    this.points = [];
+    if (!this.visible) return;
+
+    this.points = this.layoutPoints(ctx);
     if (this.points.length === 0) return;
 
     const group = new Group();
@@ -150,20 +191,21 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
     if (this.options.label?.enabled === true) {
       const labelOptions = this.options.label;
       const placement = labelOptions.placement ?? 'top';
-      const offset = (markerOptions?.size ?? 7) / 2 + 5;
+      const offset = (markerOptions?.size ?? DEFAULT_MARKER_SIZE) / 2 + POINT_LABEL_GAP;
+      const font = labelFont(labelOptions, this.env.theme.fontFamily);
       for (const point of this.points) {
         const datum = ctx.data[point.index];
         if (!datum) continue;
-        const value = Number(datum[this.options.yField]);
+        const placed = placePointLabel(point.x, point.y, placement, offset);
         const label = new Text();
-        label.text = labelOptions.formatter ? labelOptions.formatter({ value, datum }) : String(value);
-        label.x = point.x + (placement === 'left' ? -offset : placement === 'right' ? offset : 0);
-        label.y = point.y + (placement === 'top' ? -offset : placement === 'bottom' ? offset : 0);
-        label.textAlign = placement === 'left' ? 'right' : placement === 'right' ? 'left' : 'center';
-        label.textBaseline = placement === 'top' ? 'bottom' : placement === 'bottom' ? 'top' : 'middle';
-        label.fontSize = labelOptions.fontSize ?? 11;
-        label.fontWeight = labelOptions.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
-        label.fontFamily = labelOptions.fontFamily ?? this.env.theme.fontFamily;
+        label.text = this.labelTextFor(datum);
+        label.x = placed.x;
+        label.y = placed.y;
+        label.textAlign = placed.align;
+        label.textBaseline = placed.baseline;
+        label.fontSize = font.size;
+        label.fontWeight = font.weight;
+        label.fontFamily = font.family;
         label.fill = labelOptions.color ?? this.env.theme.foregroundColor;
         label.outline = this.env.theme.backgroundColor;
         group.append(label);

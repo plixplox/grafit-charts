@@ -1,11 +1,26 @@
-import { CartesianSeries, placeRectLabel, type RectLabelPlacement, type SeriesBaseOptions } from '@/entities/series/base';
+import {
+  CartesianSeries,
+  labelFont,
+  placeRectLabel,
+  rectLabelOverflow,
+  type RectLabelPlacement,
+  type SeriesBaseOptions,
+} from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
-import type { CartesianRenderContext, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
+import type {
+  CartesianGeometry,
+  CartesianRenderContext,
+  Insets,
+  LabelOverflowContext,
+  SeriesModule,
+  SeriesPick,
+  TooltipContentData,
+} from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction, FontOptions, Switchable } from '@/shared/options';
 import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
-import { extent, contrastTextColor } from '@/shared/util';
+import { extent, contrastTextColor, NO_OVERFLOW } from '@/shared/util';
 
 export interface RangeBarSeriesOptions extends Omit<SeriesBaseOptions, 'yField' | 'name'> {
   type: 'range-bar';
@@ -37,6 +52,8 @@ export type RangeBarFillFn = (params: { low: number; high: number; datum: Datum;
 
 interface BarRect {
   index: number;
+  low: number;
+  high: number;
   x: number;
   y: number;
   width: number;
@@ -49,12 +66,12 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
 
   protected mainColor(): ColorValue {
     // legend/tooltip fall back to the theme colour when fill is a per-datum callback
-    return typeof this.options.fill === 'function' ? this.env.colors.fill : this.options.fill ?? this.env.colors.fill;
+    return typeof this.options.fill === 'function' ? this.env.colors.fill : (this.options.fill ?? this.env.colors.fill);
   }
 
   private fillFor(params: { low: number; high: number; datum: Datum; index: number }): ColorValue {
     const fill = this.options.fill;
-    return typeof fill === 'function' ? fill(params) : fill ?? this.env.colors.fill;
+    return typeof fill === 'function' ? fill(params) : (fill ?? this.env.colors.fill);
   }
 
   protected override get seriesName(): string {
@@ -69,10 +86,8 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
     return extent([...numericValues(data, this.options.yLowField), ...numericValues(data, this.options.yHighField)]);
   }
 
-  update(ctx: CartesianRenderContext): void {
-    this.lastCtx = ctx;
-    this.rects = [];
-    if (!this.visible) return;
+  /** Bars in plot coordinates; shared by rendering and label measurement (t = 1 there). */
+  private layoutBars(ctx: CartesianGeometry, t: number): BarRect[] {
     const bandScale = ctx.swapped ? ctx.yScale : ctx.xScale;
     const valueScale = ctx.swapped ? ctx.xScale : ctx.yScale;
     if (!(bandScale instanceof BandScale) || !(valueScale instanceof LinearScale)) {
@@ -81,8 +96,7 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
     const lows = numericValues(ctx.data, this.options.yLowField);
     const highs = numericValues(ctx.data, this.options.yHighField);
     const slot = groupSlot(bandScale.bandwidth, ctx.group, this.options.groupGap);
-    const t = ctx.animationT ?? 1;
-    const group = new Group();
+    const rects: BarRect[] = [];
 
     ctx.data.forEach((datum, index) => {
       const low = lows[index];
@@ -94,10 +108,45 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
       const p0 = valueScale.convert(mid + (low - mid) * t);
       const p1 = valueScale.convert(mid + (high - mid) * t);
       const along = bandStart + slot.start;
-      const rect: BarRect = ctx.swapped
-        ? { index, x: Math.min(p0, p1), y: along, width: Math.abs(p1 - p0), height: slot.size }
-        : { index, x: along, y: Math.min(p0, p1), width: slot.size, height: Math.abs(p1 - p0) };
-      this.rects.push(rect);
+      rects.push(
+        ctx.swapped
+          ? { index, low, high, x: Math.min(p0, p1), y: along, width: Math.abs(p1 - p0), height: slot.size }
+          : { index, low, high, x: along, y: Math.min(p0, p1), width: slot.size, height: Math.abs(p1 - p0) },
+      );
+    });
+    return rects;
+  }
+
+  /** Label text of a bar: the formatter over the raw "low – high". */
+  private labelTextFor(rect: BarRect, data: Datum[]): string {
+    const datum = data[rect.index];
+    const formatter = this.options.label?.formatter;
+    return formatter && datum ? formatter({ low: rect.low, high: rect.high, datum }) : `${rect.low} – ${rect.high}`;
+  }
+
+  override labelOverflow(ctx: LabelOverflowContext): Insets {
+    if (!this.visible || this.options.label?.enabled !== true) return NO_OVERFLOW;
+    const marks = this.layoutBars(ctx, 1).map((rect) => ({ rect, text: this.labelTextFor(rect, ctx.data) }));
+    return rectLabelOverflow(
+      marks,
+      this.options.label.placement ?? 'top',
+      labelFont(this.options.label, this.env.theme.fontFamily),
+      ctx.plot,
+      ctx.measureText,
+    );
+  }
+
+  update(ctx: CartesianRenderContext): void {
+    this.lastCtx = ctx;
+    this.rects = [];
+    if (!this.visible) return;
+    const group = new Group();
+
+    this.rects = this.layoutBars(ctx, ctx.animationT ?? 1);
+    this.rects.forEach((rect) => {
+      const { index, low, high } = rect;
+      const datum = ctx.data[index];
+      if (!datum) return;
 
       const node = new Rect();
       node.x = rect.x;
@@ -119,16 +168,16 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
       if (this.options.label?.enabled === true) {
         const labelOptions = this.options.label;
         const placed = placeRectLabel(labelOptions.placement ?? 'top', rect);
+        const font = labelFont(labelOptions, this.env.theme.fontFamily);
         const text = new Text();
-        const labelValue = `${low} – ${high}`;
-        text.text = labelOptions.formatter ? labelOptions.formatter({ low, high, datum }) : String(labelValue);
+        text.text = this.labelTextFor(rect, ctx.data);
         text.x = placed.x;
         text.y = placed.y;
         text.textAlign = placed.align;
         text.textBaseline = placed.baseline;
-        text.fontSize = labelOptions.fontSize ?? 11;
-        text.fontWeight = labelOptions.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
-        text.fontFamily = labelOptions.fontFamily ?? this.env.theme.fontFamily;
+        text.fontSize = font.size;
+        text.fontWeight = font.weight;
+        text.fontFamily = font.family;
         const elementFill = node.fill ?? this.mainColor();
         text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = elementFill;

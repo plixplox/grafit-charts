@@ -27,7 +27,6 @@ export function createOptions(): ChartOptions {
       {
         type: 'number',
         position: 'bottom',
-        max: 1,
         label: { format: '.0%' },
         gridLine: { lineDash: [2, 3] },
       },

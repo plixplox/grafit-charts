@@ -1,11 +1,26 @@
-import { CartesianSeries, placeRectLabel, type RectLabelPlacement, type SeriesBaseOptions } from '@/entities/series/base';
+import {
+  CartesianSeries,
+  labelFont,
+  placeRectLabel,
+  rectLabelOverflow,
+  type RectLabelPlacement,
+  type SeriesBaseOptions,
+} from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
-import type { CartesianRenderContext, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
+import type {
+  CartesianGeometry,
+  CartesianRenderContext,
+  Insets,
+  LabelOverflowContext,
+  SeriesModule,
+  SeriesPick,
+  TooltipContentData,
+} from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction, FontOptions, Switchable } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
-import { extent, contrastTextColor } from '@/shared/util';
+import { extent, contrastTextColor, NO_OVERFLOW } from '@/shared/util';
 
 export interface HistogramSeriesOptions extends Omit<SeriesBaseOptions, 'yField' | 'name'> {
   type: 'histogram';
@@ -103,30 +118,60 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
     return [Math.min(0, domain[0]), Math.max(0, domain[1])];
   }
 
-  update(ctx: CartesianRenderContext): void {
-    this.lastCtx = ctx;
-    this.rects = [];
-    if (!this.visible) return;
+  /** Bin rectangles in plot coordinates; shared by rendering and label measurement. */
+  private layoutBins(ctx: CartesianGeometry, bins: HistogramBin[]): BinRect[] {
     const { xScale, yScale } = ctx;
     if (!(xScale instanceof LinearScale) || !(yScale instanceof LinearScale)) {
       throw new Error('grafit: histogram requires numeric axes');
     }
-    this.bins = this.computeBins(ctx.data);
-    const group = new Group();
     const zero = yScale.convert(0);
-
-    this.bins.forEach((bin, binIndex) => {
+    return bins.map((bin, binIndex) => {
       const x0 = xScale.convert(bin.x0);
       const x1 = xScale.convert(bin.x1);
       const y = yScale.convert(bin.value);
-      const rect: BinRect = {
+      return {
         binIndex,
         x: Math.min(x0, x1),
         y: Math.min(y, zero),
         width: Math.abs(x1 - x0),
         height: Math.abs(zero - y),
       };
-      this.rects.push(rect);
+    });
+  }
+
+  private labelTextFor(bin: HistogramBin): string {
+    const formatter = this.options.label?.formatter;
+    return formatter ? formatter({ value: bin.value, x0: bin.x0, x1: bin.x1 }) : String(bin.value);
+  }
+
+  override labelOverflow(ctx: LabelOverflowContext): Insets {
+    if (!this.visible || this.options.label?.enabled !== true) return NO_OVERFLOW;
+    const bins = this.computeBins(ctx.data);
+    const marks = this.layoutBins(ctx, bins).flatMap((rect) => {
+      const bin = bins[rect.binIndex];
+      return bin ? [{ rect, text: this.labelTextFor(bin) }] : [];
+    });
+    return rectLabelOverflow(
+      marks,
+      this.options.label.placement ?? 'top',
+      labelFont(this.options.label, this.env.theme.fontFamily),
+      ctx.plot,
+      ctx.measureText,
+    );
+  }
+
+  update(ctx: CartesianRenderContext): void {
+    this.lastCtx = ctx;
+    this.rects = [];
+    if (!this.visible) return;
+    this.bins = this.computeBins(ctx.data);
+    const group = new Group();
+
+    this.rects = this.layoutBins(ctx, this.bins);
+    this.rects.forEach((rect) => {
+      const binIndex = rect.binIndex;
+      const bin = this.bins[binIndex];
+      if (!bin) return;
 
       const node = new Rect();
       node.x = rect.x;
@@ -149,16 +194,16 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
       if (this.options.label?.enabled === true) {
         const labelOptions = this.options.label;
         const placed = placeRectLabel(labelOptions.placement ?? 'top', rect);
+        const font = labelFont(labelOptions, this.env.theme.fontFamily);
         const text = new Text();
-        const labelValue = bin.value;
-        text.text = labelOptions.formatter ? labelOptions.formatter({ value: bin.value, x0: bin.x0, x1: bin.x1 }) : String(labelValue);
+        text.text = this.labelTextFor(bin);
         text.x = placed.x;
         text.y = placed.y;
         text.textAlign = placed.align;
         text.textBaseline = placed.baseline;
-        text.fontSize = labelOptions.fontSize ?? 11;
-        text.fontWeight = labelOptions.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
-        text.fontFamily = labelOptions.fontFamily ?? this.env.theme.fontFamily;
+        text.fontSize = font.size;
+        text.fontWeight = font.weight;
+        text.fontFamily = font.family;
         const elementFill = node.fill ?? this.mainColor();
         text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = elementFill;

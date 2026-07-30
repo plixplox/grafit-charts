@@ -1,5 +1,13 @@
 /** Contracts of the polar family (pie/donut/radar/radial). */
-import type { HighlightState, LegendItemDescriptor, SelectionStyleContext, SeriesPick, TooltipContentData } from './cartesian';
+import type {
+  HighlightState,
+  LayoutRect,
+  LegendItemDescriptor,
+  MeasureText,
+  SelectionStyleContext,
+  SeriesPick,
+  TooltipContentData,
+} from './cartesian';
 import type { Datum } from '@/shared/options';
 import type { BandScale, LinearScale } from '@/shared/scale';
 import type { Group } from '@/shared/scene';
@@ -10,6 +18,9 @@ export interface PolarRenderContext {
   centerY: number;
   /** Available outer radius. */
   radius: number;
+  /** Area the chart may cover, labels included — the rim has to stay inside it. */
+  area: LayoutRect;
+  measureText: MeasureText;
   layer: Group;
   highlight?: HighlightState;
   animationT?: number;

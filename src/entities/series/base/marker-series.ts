@@ -1,10 +1,19 @@
 import { CartesianSeries, type SeriesBaseOptions } from './cartesian-series';
+import { placePointLabel, pointLabelOverflow, POINT_LABEL_GAP } from './point-label';
+import { labelFont } from './rect-label';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
-import type { CartesianRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
+import type {
+  CartesianGeometry,
+  CartesianRenderContext,
+  Insets,
+  LabelOverflowContext,
+  SeriesPick,
+  TooltipContentData,
+} from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction, Styler, FontOptions, Switchable } from '@/shared/options';
 import { Group, Marker, Text, type MarkerShape } from '@/shared/scene';
-import { contrastTextColor } from '@/shared/util';
+import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
 
 export interface MarkerItemStylerParams {
   datum: Datum;
@@ -66,7 +75,45 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
   }
 
   /** Hook before iterating the data (bubble computes the size domain). */
-  protected prepare(_ctx: CartesianRenderContext): void {}
+  protected prepare(_ctx: CartesianGeometry): void {}
+
+  /** Marker positions in plot coordinates; shared by rendering and label measurement. */
+  protected layoutPoints(ctx: CartesianGeometry): MarkerPoint[] {
+    const { data, xScale, yScale } = ctx;
+    const values = numericValues(data, this.options.yField);
+    const points: MarkerPoint[] = [];
+    data.forEach((datum, index) => {
+      const value = values[index];
+      if (value === undefined || Number.isNaN(value)) return;
+      const x = CartesianSeries.positionOn(xScale, datum[this.options.xField]);
+      const y = CartesianSeries.positionOn(yScale, value);
+      if (Number.isNaN(x) || Number.isNaN(y)) return;
+      points.push({ index, x, y });
+    });
+    return points;
+  }
+
+  /** Distance from the point to its label: the marker radius plus the gap. */
+  private labelOffset(index: number): number {
+    return this.sizeFor(index) / 2 + POINT_LABEL_GAP;
+  }
+
+  private labelTextFor(datum: Datum): string {
+    const value = Number(datum[this.options.yField]);
+    const formatter = this.options.label?.formatter;
+    return formatter ? formatter({ value, datum }) : String(value);
+  }
+
+  override labelOverflow(ctx: LabelOverflowContext): Insets {
+    const label = this.options.label;
+    if (!this.visible || label?.enabled !== true) return NO_OVERFLOW;
+    this.prepare(ctx);
+    const marks = this.layoutPoints(ctx).flatMap((point) => {
+      const datum = ctx.data[point.index];
+      return datum ? [{ x: point.x, y: point.y, text: this.labelTextFor(datum), offset: this.labelOffset(point.index) }] : [];
+    });
+    return pointLabelOverflow(marks, label.placement ?? 'top', labelFont(label, this.env.theme.fontFamily), ctx.plot, ctx.measureText);
+  }
 
   override tooltipFor(datumIndex: number, mode?: 'single' | 'shared'): TooltipContentData {
     if (this.options.tooltip?.renderer || mode === 'shared') return super.tooltipFor(datumIndex);
@@ -89,19 +136,16 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
     if (!this.visible) return;
     this.prepare(ctx);
 
-    const { data, xScale, yScale } = ctx;
-    const values = numericValues(data, this.options.yField);
+    const { data } = ctx;
     const group = new Group();
     const highlighted =
       ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
 
-    data.forEach((datum, index) => {
-      const value = values[index];
-      if (value === undefined || Number.isNaN(value)) return;
-      const x = CartesianSeries.positionOn(xScale, datum[this.options.xField]);
-      const y = CartesianSeries.positionOn(yScale, value);
-      if (Number.isNaN(x) || Number.isNaN(y)) return;
-      this.points.push({ index, x, y });
+    this.points = this.layoutPoints(ctx);
+    this.points.forEach((point) => {
+      const { index, x, y } = point;
+      const datum = data[index];
+      if (!datum) return;
 
       const isHighlighted = index === highlighted;
       const isSelected = ctx.selected?.has(index) === true;
@@ -141,20 +185,20 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
     if (this.options.label?.enabled === true) {
       const labelOptions = this.options.label;
       const placement = labelOptions.placement ?? 'top';
+      const font = labelFont(labelOptions, this.env.theme.fontFamily);
       for (const point of this.points) {
         const datum = ctx.data[point.index];
         if (!datum) continue;
-        const offset = this.sizeFor(point.index) / 2 + 5;
-        const value = Number(datum[this.options.yField]);
+        const placed = placePointLabel(point.x, point.y, placement, this.labelOffset(point.index));
         const label = new Text();
-        label.text = labelOptions.formatter ? labelOptions.formatter({ value, datum }) : String(value);
-        label.x = point.x + (placement === 'left' ? -offset : placement === 'right' ? offset : 0);
-        label.y = point.y + (placement === 'top' ? -offset : placement === 'bottom' ? offset : 0);
-        label.textAlign = placement === 'left' ? 'right' : placement === 'right' ? 'left' : 'center';
-        label.textBaseline = placement === 'top' ? 'bottom' : placement === 'bottom' ? 'top' : 'middle';
-        label.fontSize = labelOptions.fontSize ?? 11;
-        label.fontWeight = labelOptions.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
-        label.fontFamily = labelOptions.fontFamily ?? this.env.theme.fontFamily;
+        label.text = this.labelTextFor(datum);
+        label.x = placed.x;
+        label.y = placed.y;
+        label.textAlign = placed.align;
+        label.textBaseline = placed.baseline;
+        label.fontSize = font.size;
+        label.fontWeight = font.weight;
+        label.fontFamily = font.family;
         if (placement === 'inside') {
           label.fill = labelOptions.color ?? contrastTextColor(this.mainColor());
           label.outline = this.mainColor();

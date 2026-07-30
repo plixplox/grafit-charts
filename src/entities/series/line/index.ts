@@ -1,9 +1,17 @@
-import { CartesianSeries, type SeriesBaseOptions } from '@/entities/series/base';
+import {
+  CartesianSeries,
+  labelFont,
+  placePointLabel,
+  pointLabelOverflow,
+  POINT_LABEL_GAP,
+  type SeriesBaseOptions,
+} from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
-import type { CartesianRenderContext, SeriesModule, SeriesPick } from '@/shared/kernel';
+import type { CartesianGeometry, CartesianRenderContext, Insets, LabelOverflowContext, SeriesModule, SeriesPick } from '@/shared/kernel';
 import type { ColorValue, Datum, FontOptions, Pixels, Switchable } from '@/shared/options';
 import { Group, Marker, Path, Text, type MarkerShape } from '@/shared/scene';
+import { NO_OVERFLOW } from '@/shared/util';
 
 export interface LineSeriesOptions extends SeriesBaseOptions {
   type: 'line';
@@ -26,10 +34,14 @@ export interface LineSeriesOptions extends SeriesBaseOptions {
 }
 
 const PICK_RANGE = 30;
+const DEFAULT_MARKER_SIZE = 7;
+
 interface LinePoint {
   index: number;
   x: number;
   y: number;
+  /** The pen was lifted before this point: a missing value broke the line. */
+  gapBefore: boolean;
 }
 
 export class LineSeries extends CartesianSeries<LineSeriesOptions> {
@@ -40,41 +52,67 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
     return this.options.stroke ?? this.env.colors.stroke;
   }
 
-  update(ctx: CartesianRenderContext): void {
-    this.lastCtx = ctx;
-    this.points = [];
-    if (!this.visible) return;
-
+  /**
+   * Points of the line in plot coordinates. gapBefore marks where the pen was
+   * lifted — a missing value breaks the line instead of bridging it.
+   */
+  private layoutPoints(ctx: CartesianGeometry): LinePoint[] {
     const { data, xScale, yScale, swapped } = ctx;
     const values = numericValues(data, this.options.yField);
-    const group = new Group();
-    const path = new Path();
-    path.stroke = this.mainColor();
-    path.strokeWidth = this.options.strokeWidth ?? 2;
-    if (this.options.lineDash) path.lineDash = this.options.lineDash;
-
-    let penDown = false;
+    const points: LinePoint[] = [];
+    let broken = true;
     data.forEach((datum, index) => {
       const value = values[index];
       if (value === undefined || Number.isNaN(value)) {
-        penDown = false;
+        broken = true;
         return;
       }
       const category = datum[this.options.xField];
       const x = swapped ? xScale.convert(value) : CartesianSeries.positionOn(xScale, category);
       const y = swapped ? CartesianSeries.positionOn(yScale, category) : yScale.convert(value);
       if (Number.isNaN(x) || Number.isNaN(y)) {
-        penDown = false;
+        broken = true;
         return;
       }
-      if (penDown) {
-        path.lineTo(x, y);
-      } else {
-        path.moveTo(x, y);
-        penDown = true;
-      }
-      this.points.push({ index, x, y });
+      points.push({ index, x, y, gapBefore: broken });
+      broken = false;
     });
+    return points;
+  }
+
+  private labelTextFor(datum: Datum): string {
+    const value = Number(datum[this.options.yField]);
+    const formatter = this.options.label?.formatter;
+    return formatter ? formatter({ value, datum }) : String(value);
+  }
+
+  override labelOverflow(ctx: LabelOverflowContext): Insets {
+    const label = this.options.label;
+    if (!this.visible || label?.enabled !== true) return NO_OVERFLOW;
+    const offset = (this.options.marker?.size ?? DEFAULT_MARKER_SIZE) / 2 + POINT_LABEL_GAP;
+    const marks = this.layoutPoints(ctx).flatMap((point) => {
+      const datum = ctx.data[point.index];
+      return datum ? [{ x: point.x, y: point.y, text: this.labelTextFor(datum), offset }] : [];
+    });
+    return pointLabelOverflow(marks, label.placement ?? 'top', labelFont(label, this.env.theme.fontFamily), ctx.plot, ctx.measureText);
+  }
+
+  update(ctx: CartesianRenderContext): void {
+    this.lastCtx = ctx;
+    this.points = [];
+    if (!this.visible) return;
+
+    const group = new Group();
+    const path = new Path();
+    path.stroke = this.mainColor();
+    path.strokeWidth = this.options.strokeWidth ?? 2;
+    if (this.options.lineDash) path.lineDash = this.options.lineDash;
+
+    this.points = this.layoutPoints(ctx);
+    for (const point of this.points) {
+      if (point.gapBefore) path.moveTo(point.x, point.y);
+      else path.lineTo(point.x, point.y);
+    }
     group.append(path);
 
     const markerOptions = this.options.marker;
@@ -86,7 +124,7 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
         marker.x = point.x;
         marker.y = point.y;
         marker.shape = markerOptions?.shape ?? 'circle';
-        const baseSize = markerOptions?.size ?? 7;
+        const baseSize = markerOptions?.size ?? DEFAULT_MARKER_SIZE;
         const style = ctx.selectionStyle;
         const isSelected = ctx.selected?.has(point.index) === true;
         marker.size = isSelected ? baseSize * (style?.sizeRatio ?? 1.5) : point.index === highlighted ? baseSize * 1.5 : baseSize;
@@ -103,20 +141,21 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
     if (this.options.label?.enabled === true) {
       const labelOptions = this.options.label;
       const placement = labelOptions.placement ?? 'top';
-      const offset = (markerOptions?.size ?? 7) / 2 + 5;
+      const offset = (markerOptions?.size ?? DEFAULT_MARKER_SIZE) / 2 + POINT_LABEL_GAP;
+      const font = labelFont(labelOptions, this.env.theme.fontFamily);
       for (const point of this.points) {
         const datum = ctx.data[point.index];
         if (!datum) continue;
-        const value = Number(datum[this.options.yField]);
+        const placed = placePointLabel(point.x, point.y, placement, offset);
         const label = new Text();
-        label.text = labelOptions.formatter ? labelOptions.formatter({ value, datum }) : String(value);
-        label.x = point.x + (placement === 'left' ? -offset : placement === 'right' ? offset : 0);
-        label.y = point.y + (placement === 'top' ? -offset : placement === 'bottom' ? offset : 0);
-        label.textAlign = placement === 'left' ? 'right' : placement === 'right' ? 'left' : 'center';
-        label.textBaseline = placement === 'top' ? 'bottom' : placement === 'bottom' ? 'top' : 'middle';
-        label.fontSize = labelOptions.fontSize ?? 11;
-        label.fontWeight = labelOptions.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
-        label.fontFamily = labelOptions.fontFamily ?? this.env.theme.fontFamily;
+        label.text = this.labelTextFor(datum);
+        label.x = placed.x;
+        label.y = placed.y;
+        label.textAlign = placed.align;
+        label.textBaseline = placed.baseline;
+        label.fontSize = font.size;
+        label.fontWeight = font.weight;
+        label.fontFamily = font.family;
         label.fill = labelOptions.color ?? this.env.theme.foregroundColor;
         label.outline = this.env.theme.backgroundColor;
         group.append(label);

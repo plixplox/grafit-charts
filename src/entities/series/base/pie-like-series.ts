@@ -72,6 +72,15 @@ interface SectorGeometry {
 const HIGHLIGHT_POP = 6;
 const CALLOUT_LENGTH = 20;
 const CALLOUT_TAIL = 20;
+const CALLOUT_FONT_SIZE = 11;
+/** Gap between the sector edge and the start of the callout line. */
+const CALLOUT_SECTOR_GAP = 2;
+/** Gap between the end of the tail and the text. */
+const CALLOUT_TEXT_GAP = 3;
+/** Sectors narrower than this get no callout label. */
+const CALLOUT_MIN_SWEEP = 0.12;
+/** However long the labels are, the pie keeps this share of the free radius. */
+const MIN_CALLOUT_RADIUS_RATIO = 0.35;
 
 /** Shared pie/donut implementation; the difference is innerRadiusRatio and center labels. */
 export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeriesOptions> extends PolarSeries<O> {
@@ -120,8 +129,11 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     if (total <= 0) return;
 
     const calloutEnabled = this.options.calloutLabel?.enabled !== false && this.options.labelField !== undefined;
-    // outer radius does not depend on labels: 85% of free space by default
-    const outerRadius = ctx.radius * (this.options.outerRadiusRatio ?? 0.85);
+    // 85% of the free space by default, less when the callout labels need the room
+    const outerRadius = Math.min(
+      ctx.radius * (this.options.outerRadiusRatio ?? 0.85),
+      calloutEnabled ? this.calloutFittedRadius(ctx, values, total) : Infinity,
+    );
     const innerRadius = outerRadius * this.innerRadiusRatio();
     const t = ctx.animationT ?? 1;
     const rotation = ((this.options.rotation ?? 0) * Math.PI) / 180;
@@ -209,6 +221,46 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     this.lastAngles = renderedAngles;
     this.renderCallouts(group, callouts, centerX, centerY);
     layer.append(group);
+  }
+
+  /**
+   * Callout labels read outwards from the pie, so a long name on the side eats
+   * into the circle: this is the largest radius at which every label still
+   * clears the area. Angles are taken from the finished layout — a radius tied
+   * to the entrance animation would make the pie breathe while it grows.
+   */
+  private calloutFittedRadius(ctx: PolarRenderContext, values: number[], total: number): number {
+    const { area, centerX, centerY } = ctx;
+    const radial = this.options.calloutLine?.radial?.length ?? CALLOUT_LENGTH;
+    const tail = this.options.calloutLine?.horizontal?.length ?? CALLOUT_TAIL;
+    const fontSize = this.options.calloutLabel?.fontSize ?? CALLOUT_FONT_SIZE;
+    const font = `normal ${fontSize}px ${this.options.calloutLabel?.fontFamily ?? this.env.theme.fontFamily}`;
+    const rotation = ((this.options.rotation ?? 0) * Math.PI) / 180;
+    // the label starts where the radial and the tail segments end
+    const stem = CALLOUT_SECTOR_GAP + radial;
+
+    let fitted = Infinity;
+    let cursor = rotation;
+    values.forEach((value, index) => {
+      const sweep = (value / total) * Math.PI * 2;
+      const midAngle = cursor + sweep / 2;
+      cursor += sweep;
+      if (value <= 0 || sweep <= CALLOUT_MIN_SWEEP) return;
+      const width = ctx.measureText(this.labelFor(this.data[index], index), font);
+      const sin = Math.sin(midAngle);
+      const cos = Math.cos(midAngle);
+      // horizontal: the stem, the tail and the text share the room on their side
+      const sideways = sin >= 0 ? area.x + area.width - centerX : centerX - area.x;
+      if (Math.abs(sin) > 0.001) {
+        fitted = Math.min(fitted, (sideways - tail - CALLOUT_TEXT_GAP - width) / Math.abs(sin) - stem);
+      }
+      // vertical: the label row itself, at whatever height the elbow sits
+      const upright = cos >= 0 ? centerY - area.y : area.y + area.height - centerY;
+      if (Math.abs(cos) > 0.001) {
+        fitted = Math.min(fitted, (upright - fontSize / 2) / Math.abs(cos) - stem);
+      }
+    });
+    return Math.max(fitted, ctx.radius * MIN_CALLOUT_RADIUS_RATIO);
   }
 
   /**

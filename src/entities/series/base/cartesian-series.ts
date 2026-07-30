@@ -2,6 +2,8 @@ import { numericValues } from '@/shared/data';
 import type {
   CartesianRenderContext,
   CartesianSeriesInstance,
+  Insets,
+  LabelOverflowContext,
   LegendItemDescriptor,
   SeriesEnv,
   SeriesPick,
@@ -10,7 +12,7 @@ import type {
 } from '@/shared/kernel';
 import type { ColorValue, Datum, Switchable, Showable } from '@/shared/options';
 import { BandScale, TimeScale, toTimestamp, type AnyScale } from '@/shared/scale';
-import { extent } from '@/shared/util';
+import { extent, NO_OVERFLOW } from '@/shared/util';
 
 export interface SeriesTooltipRendererParams {
   datum: Datum;
@@ -75,6 +77,11 @@ export abstract class CartesianSeries<O extends SeriesBaseOptions = SeriesBaseOp
 
   abstract update(ctx: CartesianRenderContext): void;
   abstract pick(x: number, y: number): SeriesPick | undefined;
+
+  /** Everything a series draws stays inside the plot rect until it says otherwise. */
+  labelOverflow(_ctx: LabelOverflowContext): Insets {
+    return NO_OVERFLOW;
+  }
 
   tooltipFor(datumIndex: number): TooltipContentData {
     const ctx = this.lastCtx;
