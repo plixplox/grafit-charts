@@ -78,5 +78,6 @@ export type {
 } from '@/app/chart-factory';
 export { buildSparklineOptions } from '@/app/chart-factory';
 export type { FinancialChartOptions, GaugeOptions, SparklineOptions } from '@/app/chart-factory';
-export type { ThemeName, ThemeOptions } from '@/app/themes';
+export type { ThemeName, ThemeOptions, ThemeParams, ThemeAxisOptions, ResolvedTheme } from '@/app/themes';
+export { THEME_NAMES, resolveTheme } from '@/app/themes';
 export type * from '@/shared/options/primitives';

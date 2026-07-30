@@ -112,7 +112,7 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
       const datum = ctx.data[point.index];
       return datum ? [{ x: point.x, y: point.y, text: this.labelTextFor(datum), offset: this.labelOffset(point.index) }] : [];
     });
-    return pointLabelOverflow(marks, label.placement ?? 'top', labelFont(label, this.env.theme.fontFamily), ctx.plot, ctx.measureText);
+    return pointLabelOverflow(marks, label.placement ?? 'top', labelFont(label, this.env.theme), ctx.plot, ctx.measureText);
   }
 
   override tooltipFor(datumIndex: number, mode?: 'single' | 'shared'): TooltipContentData {
@@ -170,10 +170,11 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
       marker.shape = this.options.shape ?? 'circle';
       marker.size = size;
       marker.fill = fill;
-      marker.opacity = this.options.fillOpacity ?? 0.85;
+      marker.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.85;
       marker.stroke = stroke ?? this.env.theme.backgroundColor;
       marker.strokeWidth = strokeWidth;
-      if (ctx.selectionActive && !isSelected) marker.opacity = (this.options.fillOpacity ?? 0.85) * (style?.inactiveOpacity ?? 0.45);
+      if (ctx.selectionActive && !isSelected)
+        marker.opacity = (this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.85) * (style?.inactiveOpacity ?? 0.45);
       group.append(marker);
     });
 
@@ -185,7 +186,7 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
     if (this.options.label?.enabled === true) {
       const labelOptions = this.options.label;
       const placement = labelOptions.placement ?? 'top';
-      const font = labelFont(labelOptions, this.env.theme.fontFamily);
+      const font = labelFont(labelOptions, this.env.theme);
       for (const point of this.points) {
         const datum = ctx.data[point.index];
         if (!datum) continue;

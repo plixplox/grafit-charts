@@ -1,4 +1,5 @@
 import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { SeriesModule, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
 import type { Pixels, Switchable } from '@/shared/options';
 import { Group, Line, Rect, Text } from '@/shared/scene';
@@ -83,7 +84,7 @@ export class LinearGaugeSeries extends StandaloneSeries<LinearGaugeSeriesOptions
       tick.y = y + thickness + 6;
       tick.textAlign = align;
       tick.textBaseline = 'top';
-      tick.fontSize = 11;
+      tick.fontSize = themeFont(this.env.theme, FONT_STEP.label);
       tick.fontFamily = this.env.theme.fontFamily;
       tick.fill = this.env.theme.mutedColor;
       group.append(tick);

@@ -6,7 +6,7 @@ import type { HighlightOptions } from '@/features/highlight';
 import type { ChartListeners, SelectedItem, SelectionOptions } from '@/features/selection';
 import type { HtmlTooltip, TooltipApi, TooltipOptions } from '@/features/tooltip';
 import { Animator, type AnimationOptions } from '@/shared/animation';
-import { DEFAULT_DIM_OPACITY, warnMissingFeature, type ChartWidgetModule } from '@/shared/kernel';
+import { DEFAULT_DIM_OPACITY, FONT_STEP, themeFont, warnMissingFeature, type ChartWidgetModule } from '@/shared/kernel';
 import type {
   ChartState,
   ChartWidget,
@@ -48,8 +48,6 @@ const PLOT_INSET = 4;
 const MIN_RADIUS = 10;
 /** Clearance between the outermost ring and the labels around it. */
 const RIM_LABEL_GAP = 10;
-const CATEGORY_LABEL_FONT_SIZE = 11;
-const RING_LABEL_FONT_SIZE = 10;
 /** Ring values sit just right of the vertical and just above their ring. */
 const RING_LABEL_GAP = 4;
 const RING_LABEL_LIFT = 2;
@@ -329,11 +327,21 @@ export class PolarChart implements ChartWidget {
       note.y = centerY;
       note.textAlign = 'center';
       note.textBaseline = 'middle';
-      note.fontSize = 13;
+      note.fontSize = themeFont(this.theme, FONT_STEP.subtitle);
       note.fontFamily = this.theme.fontFamily;
       note.fill = this.theme.mutedColor;
       seriesLayer.append(note);
     }
+  }
+
+  /** Category names around the rim. */
+  private get categoryLabelSize(): number {
+    return themeFont(this.theme, FONT_STEP.label);
+  }
+
+  /** Ring values — a step smaller than the categories they sit among. */
+  private get ringLabelSize(): number {
+    return themeFont(this.theme, FONT_STEP.small);
   }
 
   /** Font of the labels around the rim — the same one renderPolarGrid draws with. */
@@ -343,7 +351,7 @@ export class PolarChart implements ChartWidget {
 
   /** Category labels around the rim: text, its spoke angle and its measured width. */
   private rimLabels(categories: unknown[], angleScale: BandScale<unknown>, measureText: MeasureText): RimLabel[] {
-    const font = this.rimLabelFont(CATEGORY_LABEL_FONT_SIZE);
+    const font = this.rimLabelFont(this.categoryLabelSize);
     return categories.map((category) => {
       const text = String(category);
       return { text, angle: angleScale.center(category), width: measureText(text, font) };
@@ -354,7 +362,7 @@ export class PolarChart implements ChartWidget {
   private rimLabelBounds(labels: RimLabel[], centerX: number, centerY: number, radius: number): Bounds[] {
     return labels.map((label) => {
       const placed = placeRimLabel(centerX, centerY, radius + RIM_LABEL_GAP, label.angle);
-      return textBounds(placed.x, placed.y, label.width, CATEGORY_LABEL_FONT_SIZE, placed.align, placed.baseline);
+      return textBounds(placed.x, placed.y, label.width, this.categoryLabelSize, placed.align, placed.baseline);
     });
   }
 
@@ -374,8 +382,8 @@ export class PolarChart implements ChartWidget {
     angleValueScale: LinearScale,
     measureText: MeasureText,
   ): PolarFit {
-    const categoryFont = this.rimLabelFont(CATEGORY_LABEL_FONT_SIZE);
-    const tickFont = this.rimLabelFont(RING_LABEL_FONT_SIZE);
+    const categoryFont = this.rimLabelFont(this.categoryLabelSize);
+    const tickFont = this.rimLabelFont(this.ringLabelSize);
     const names = categories.map((category) => measureText(String(category), categoryFont));
     const ticks = angleValueScale
       .ticks(4)
@@ -383,12 +391,10 @@ export class PolarChart implements ChartWidget {
       .map((tick) => ({ angle: angleValueScale.convert(tick), width: measureText(String(tick), tickFont) }));
     return fitPolarGrid(area, startRadius, (centerX, centerY, radius) => [
       // the widest category name, measured from the innermost ring it can sit on
-      ...names.map((width) =>
-        textBounds(centerX - INVERSE_LABEL_GAP, centerY - radius, width, CATEGORY_LABEL_FONT_SIZE, 'right', 'middle'),
-      ),
+      ...names.map((width) => textBounds(centerX - INVERSE_LABEL_GAP, centerY - radius, width, this.categoryLabelSize, 'right', 'middle')),
       ...ticks.map((tick) => {
         const at = placeRimLabel(centerX, centerY, radius + RIM_LABEL_GAP, tick.angle);
-        return textBounds(at.x, at.y, tick.width, RING_LABEL_FONT_SIZE, 'center', 'middle');
+        return textBounds(at.x, at.y, tick.width, this.ringLabelSize, 'center', 'middle');
       }),
     ]);
   }
@@ -410,42 +416,48 @@ export class PolarChart implements ChartWidget {
     const maxRadius = radiusScale.range[1];
     const ticks = radiusScale.ticks(GRID_RING_COUNT).filter((tick) => tick > 0);
 
-    for (const tick of ticks) {
-      const r = radiusScale.convert(tick);
-      if (polygonal && categories.length > 2) {
-        const ring = new Path();
-        categories.forEach((category, index) => {
-          const angle = angleScale.center(category);
-          const point = pointAt(centerX, centerY, angle, r);
-          if (index === 0) ring.moveTo(point.x, point.y);
-          else ring.lineTo(point.x, point.y);
-        });
-        ring.closePath();
-        ring.stroke = theme.mutedColor;
-        ring.opacity = 0.3;
-        layer.append(ring);
-      } else {
-        const ring = new Circle();
-        ring.x = centerX;
-        ring.y = centerY;
-        ring.radius = r;
-        ring.stroke = theme.mutedColor;
-        ring.opacity = 0.3;
-        layer.append(ring);
+    // the web is this chart's grid — the theme switch silences it, the rim labels stay
+    if (theme.axis.gridLine) {
+      for (const tick of ticks) {
+        const r = radiusScale.convert(tick);
+        if (polygonal && categories.length > 2) {
+          const ring = new Path();
+          categories.forEach((category, index) => {
+            const angle = angleScale.center(category);
+            const point = pointAt(centerX, centerY, angle, r);
+            if (index === 0) ring.moveTo(point.x, point.y);
+            else ring.lineTo(point.x, point.y);
+          });
+          ring.closePath();
+          ring.stroke = theme.mutedColor;
+          ring.strokeWidth = theme.axis.strokeWidth;
+          ring.opacity = 0.3;
+          layer.append(ring);
+        } else {
+          const ring = new Circle();
+          ring.x = centerX;
+          ring.y = centerY;
+          ring.radius = r;
+          ring.stroke = theme.mutedColor;
+          ring.strokeWidth = theme.axis.strokeWidth;
+          ring.opacity = 0.3;
+          layer.append(ring);
+        }
       }
-    }
 
-    // a spoke per category — the web stays whole even where a label was dropped
-    for (const category of categories) {
-      const end = pointAt(centerX, centerY, angleScale.center(category), maxRadius);
-      const spoke = new Line();
-      spoke.x1 = centerX;
-      spoke.y1 = centerY;
-      spoke.x2 = end.x;
-      spoke.y2 = end.y;
-      spoke.stroke = theme.mutedColor;
-      spoke.opacity = 0.3;
-      layer.append(spoke);
+      // a spoke per category — the web stays whole even where a label was dropped
+      for (const category of categories) {
+        const end = pointAt(centerX, centerY, angleScale.center(category), maxRadius);
+        const spoke = new Line();
+        spoke.x1 = centerX;
+        spoke.y1 = centerY;
+        spoke.x2 = end.x;
+        spoke.y2 = end.y;
+        spoke.stroke = theme.mutedColor;
+        spoke.strokeWidth = theme.axis.strokeWidth;
+        spoke.opacity = 0.3;
+        layer.append(spoke);
+      }
     }
 
     const rimBounds = rimLabels.map((rimLabel) => {
@@ -454,23 +466,23 @@ export class PolarChart implements ChartWidget {
       label.text = rimLabel.text;
       label.x = placed.x;
       label.y = placed.y;
-      label.fontSize = CATEGORY_LABEL_FONT_SIZE;
+      label.fontSize = this.categoryLabelSize;
       label.fontFamily = theme.fontFamily;
       label.fill = theme.mutedColor;
       label.textAlign = placed.align;
       label.textBaseline = placed.baseline;
       layer.append(label);
-      return textBounds(placed.x, placed.y, rimLabel.width, CATEGORY_LABEL_FONT_SIZE, placed.align, placed.baseline);
+      return textBounds(placed.x, placed.y, rimLabel.width, this.categoryLabelSize, placed.align, placed.baseline);
     });
 
     // ring values climb the vertical at twelve o'clock, where the category
     // label of the first spoke already is: the outermost one gives way to it
-    const ringFont = this.rimLabelFont(RING_LABEL_FONT_SIZE);
+    const ringFont = this.rimLabelFont(this.ringLabelSize);
     const ringLabels = ticks.map((tick) => {
       const text = String(tick);
       const x = centerX + RING_LABEL_GAP;
       const y = centerY - radiusScale.convert(tick) - RING_LABEL_LIFT;
-      return { text, x, y, bounds: textBounds(x, y, measureText(text, ringFont), RING_LABEL_FONT_SIZE, 'left', 'alphabetic') };
+      return { text, x, y, bounds: textBounds(x, y, measureText(text, ringFont), this.ringLabelSize, 'left', 'alphabetic') };
     });
     for (const index of keepClearOf(
       ringLabels.map((ring) => ring.bounds),
@@ -482,7 +494,7 @@ export class PolarChart implements ChartWidget {
       label.text = ring.text;
       label.x = ring.x;
       label.y = ring.y;
-      label.fontSize = RING_LABEL_FONT_SIZE;
+      label.fontSize = this.ringLabelSize;
       label.fontFamily = theme.fontFamily;
       label.fill = theme.mutedColor;
       layer.append(label);
@@ -500,14 +512,17 @@ export class PolarChart implements ChartWidget {
   ): void {
     const theme = this.theme;
     const categories = radiusBandScale.domain;
-    for (const category of categories) {
-      const ring = new Circle();
-      ring.x = centerX;
-      ring.y = centerY;
-      ring.radius = radiusBandScale.center(category);
-      ring.stroke = theme.mutedColor;
-      ring.opacity = 0.2;
-      layer.append(ring);
+    if (theme.axis.gridLine) {
+      for (const category of categories) {
+        const ring = new Circle();
+        ring.x = centerX;
+        ring.y = centerY;
+        ring.radius = radiusBandScale.center(category);
+        ring.stroke = theme.mutedColor;
+        ring.strokeWidth = theme.axis.strokeWidth;
+        ring.opacity = 0.2;
+        layer.append(ring);
+      }
     }
 
     // names stack up the left side, a ring apart; close rings share a row, so
@@ -516,8 +531,8 @@ export class PolarChart implements ChartWidget {
       textBounds(
         centerX - INVERSE_LABEL_GAP,
         centerY - radiusBandScale.center(category),
-        measureText(String(category), this.rimLabelFont(CATEGORY_LABEL_FONT_SIZE)),
-        CATEGORY_LABEL_FONT_SIZE,
+        measureText(String(category), this.rimLabelFont(this.categoryLabelSize)),
+        this.categoryLabelSize,
         'right',
         'middle',
       ),
@@ -531,7 +546,7 @@ export class PolarChart implements ChartWidget {
       label.y = centerY - radiusBandScale.center(category);
       label.textAlign = 'right';
       label.textBaseline = 'middle';
-      label.fontSize = CATEGORY_LABEL_FONT_SIZE;
+      label.fontSize = this.categoryLabelSize;
       label.fontFamily = theme.fontFamily;
       label.fill = theme.mutedColor;
       layer.append(label);
@@ -541,14 +556,17 @@ export class PolarChart implements ChartWidget {
       if (tick <= 0) continue;
       const angle = angleValueScale.convert(tick);
       const end = { x: centerX + Math.sin(angle) * maxRadius, y: centerY - Math.cos(angle) * maxRadius };
-      const spoke = new Line();
-      spoke.x1 = centerX;
-      spoke.y1 = centerY;
-      spoke.x2 = end.x;
-      spoke.y2 = end.y;
-      spoke.stroke = theme.mutedColor;
-      spoke.opacity = 0.2;
-      layer.append(spoke);
+      if (theme.axis.gridLine) {
+        const spoke = new Line();
+        spoke.x1 = centerX;
+        spoke.y1 = centerY;
+        spoke.x2 = end.x;
+        spoke.y2 = end.y;
+        spoke.stroke = theme.mutedColor;
+        spoke.strokeWidth = theme.axis.strokeWidth;
+        spoke.opacity = 0.2;
+        layer.append(spoke);
+      }
       const at = placeRimLabel(centerX, centerY, maxRadius + RIM_LABEL_GAP, angle);
       const label = new Text();
       label.text = String(tick);
@@ -556,7 +574,7 @@ export class PolarChart implements ChartWidget {
       label.y = at.y;
       label.textAlign = 'center';
       label.textBaseline = 'middle';
-      label.fontSize = RING_LABEL_FONT_SIZE;
+      label.fontSize = this.ringLabelSize;
       label.fontFamily = theme.fontFamily;
       label.fill = theme.mutedColor;
       layer.append(label);

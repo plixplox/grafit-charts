@@ -1,4 +1,5 @@
 import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LegendItemDescriptor, SeriesModule, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
 import type { Datum, FontOptions, Pixels, Switchable } from '@/shared/options';
 import { Group, Rect, Text } from '@/shared/scene';
@@ -150,7 +151,7 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
           title.x = inner.x + 5;
           title.y = inner.y + header.height / 2;
           title.textBaseline = 'middle';
-          title.fontSize = 11;
+          title.fontSize = themeFont(this.env.theme, FONT_STEP.label);
           title.fontWeight = 'bold';
           title.fontFamily = this.env.theme.fontFamily;
           title.fill = this.env.theme.backgroundColor;
@@ -192,7 +193,7 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
               vertical === 'top' ? inner.y + inset : vertical === 'bottom' ? inner.y + inner.height - inset : inner.y + inner.height / 2;
             label.textAlign = horizontal;
             label.textBaseline = vertical;
-            label.fontSize = labelOptions?.fontSize ?? 11;
+            label.fontSize = labelOptions?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
             label.fontWeight = labelOptions?.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
             label.fontFamily = labelOptions?.fontFamily ?? this.env.theme.fontFamily;
             label.fill = labelOptions?.color ?? contrastTextColor(tileNode.fill ?? '#000');

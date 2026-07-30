@@ -1,6 +1,7 @@
 import { CartesianSeries } from './cartesian-series';
 import type { LabelFont } from './rect-label';
 import { numericValues } from '@/shared/data';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type {
   CartesianGeometry,
   CartesianRenderContext,
@@ -53,7 +54,6 @@ interface StageLayout extends StageGeometry {
   text: string;
 }
 
-const LABEL_FONT_SIZE = 12;
 const DEFAULT_WIDTH_RATIO = 0.62;
 const CALLOUT_LENGTH = 14;
 /** Gap between the shape edge and the callout line. */
@@ -104,7 +104,7 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
   private labelFontOf(): LabelFont {
     const label = this.options.label;
     return {
-      size: label?.fontSize ?? LABEL_FONT_SIZE,
+      size: label?.fontSize ?? themeFont(this.env.theme, FONT_STEP.heading),
       weight: label?.fontWeight !== undefined ? String(label.fontWeight) : 'normal',
       family: label?.fontFamily ?? this.env.theme.fontFamily,
     };

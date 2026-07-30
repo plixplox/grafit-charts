@@ -1,3 +1,4 @@
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { ThemeContext, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, FontOptions, Pixels, Switchable } from '@/shared/options';
 
@@ -62,11 +63,11 @@ export class HtmlTooltip {
     this.element.style.color = options?.color ?? theme.foregroundColor;
     const borderWidth = options?.borderWidth ?? 1;
     this.element.style.border = borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${options?.borderColor ?? theme.mutedColor}`;
-    this.element.style.borderRadius = `${options?.borderRadius ?? 6}px`;
+    this.element.style.borderRadius = `${options?.borderRadius ?? theme.cornerRadius ?? 6}px`;
     this.element.style.boxShadow = options?.shadow === false ? 'none' : (options?.shadow ?? '0 2px 8px rgba(0, 0, 0, 0.25)');
     if (options?.padding !== undefined) this.element.style.padding = options.padding;
-    if (options?.fontSize !== undefined) this.element.style.fontSize = `${options.fontSize}px`;
-    if (options?.fontFamily !== undefined) this.element.style.fontFamily = options.fontFamily;
+    this.element.style.fontSize = `${options?.fontSize ?? themeFont(theme, FONT_STEP.heading)}px`;
+    this.element.style.fontFamily = options?.fontFamily ?? theme.fontFamily;
     if (options?.fontWeight !== undefined) this.element.style.fontWeight = String(options.fontWeight);
     if (options?.fontStyle !== undefined) this.element.style.fontStyle = options.fontStyle;
     this.element.replaceChildren(...this.buildContent(content, theme));

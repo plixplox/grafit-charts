@@ -1,3 +1,4 @@
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { ColorScaleInfo, LayoutRect, ThemeContext } from '@/shared/kernel';
 import type { Pixels, Switchable } from '@/shared/options';
 import { ColorScale } from '@/shared/scale';
@@ -53,7 +54,7 @@ export function renderGradientLegend(
       node.y = rect.y + thickness / 2;
       node.textAlign = align;
       node.textBaseline = 'middle';
-      node.fontSize = 10;
+      node.fontSize = themeFont(theme, FONT_STEP.small);
       node.fontFamily = theme.fontFamily;
       node.fill = theme.mutedColor;
       layer.append(node);
@@ -84,7 +85,7 @@ export function renderGradientLegend(
     node.x = rect.x + thickness + 5;
     node.y = y;
     node.textBaseline = 'middle';
-    node.fontSize = 10;
+    node.fontSize = themeFont(theme, FONT_STEP.small);
     node.fontFamily = theme.fontFamily;
     node.fill = theme.mutedColor;
     layer.append(node);

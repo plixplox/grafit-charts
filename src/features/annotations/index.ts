@@ -1,3 +1,4 @@
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LayoutRect, ThemeContext } from '@/shared/kernel';
 import type { ColorValue, FontOptions, Pixels } from '@/shared/options';
 import { BandScale, TimeScale, toTimestamp, type AnyScale } from '@/shared/scale';
@@ -120,7 +121,7 @@ export function renderAnnotations(annotations: AnnotationOptions[], args: Annota
         node.y = y;
         node.textAlign = 'center';
         node.textBaseline = 'bottom';
-        node.fontSize = annotation.fontSize ?? 12;
+        node.fontSize = annotation.fontSize ?? themeFont(theme, FONT_STEP.heading);
         node.fontFamily = theme.fontFamily;
         node.fill = annotation.color ?? theme.foregroundColor;
         layer.append(node);
@@ -177,7 +178,7 @@ function appendLabel(
   node.y = y;
   node.textAlign = align;
   node.textBaseline = 'bottom';
-  node.fontSize = label.fontSize ?? 11;
+  node.fontSize = label.fontSize ?? themeFont(theme, FONT_STEP.label);
   node.fontFamily = label.fontFamily ?? theme.fontFamily;
   node.fill = label.color ?? accent ?? theme.foregroundColor;
   layer.append(node);

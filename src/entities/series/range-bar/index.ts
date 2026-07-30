@@ -130,7 +130,7 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
     return rectLabelOverflow(
       marks,
       this.options.label.placement ?? 'top',
-      labelFont(this.options.label, this.env.theme.fontFamily),
+      labelFont(this.options.label, this.env.theme),
       ctx.plot,
       ctx.measureText,
     );
@@ -154,8 +154,8 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
       node.width = rect.width;
       node.height = rect.height;
       node.fill = this.fillFor({ low, high, datum, index });
-      node.opacity = this.options.fillOpacity ?? 0.9;
-      node.cornerRadius = this.options.cornerRadius ?? 3;
+      node.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.9;
+      node.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 3;
       if (ctx.selected?.has(index)) {
         node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
         node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
@@ -168,7 +168,7 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
       if (this.options.label?.enabled === true) {
         const labelOptions = this.options.label;
         const placed = placeRectLabel(labelOptions.placement ?? 'top', rect);
-        const font = labelFont(labelOptions, this.env.theme.fontFamily);
+        const font = labelFont(labelOptions, this.env.theme);
         const text = new Text();
         text.text = this.labelTextFor(rect, ctx.data);
         text.x = placed.x;

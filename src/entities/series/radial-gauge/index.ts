@@ -1,4 +1,5 @@
 import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { SeriesModule, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Degrees, Pixels, Switchable } from '@/shared/options';
 import { Circle, Group, Line, Sector, Text } from '@/shared/scene';
@@ -125,7 +126,7 @@ export class RadialGaugeSeries extends StandaloneSeries<RadialGaugeSeriesOptions
       tickLabel.y = centerY - Math.cos(angle) * (radius + 10);
       tickLabel.textAlign = 'center';
       tickLabel.textBaseline = 'top';
-      tickLabel.fontSize = 11;
+      tickLabel.fontSize = themeFont(this.env.theme, FONT_STEP.label);
       tickLabel.fontFamily = this.env.theme.fontFamily;
       tickLabel.fill = this.env.theme.mutedColor;
       group.append(tickLabel);

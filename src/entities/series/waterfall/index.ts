@@ -52,8 +52,6 @@ interface BarGeometry {
   isTotal: boolean;
 }
 
-const NEGATIVE_FALLBACK = '#e5484d';
-
 export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
   readonly type = 'waterfall';
   private bars: BarGeometry[] = [];
@@ -139,7 +137,7 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
     return rectLabelOverflow(
       marks,
       this.options.label.placement ?? 'top',
-      labelFont(this.options.label, this.env.theme.fontFamily),
+      labelFont(this.options.label, this.env.theme),
       ctx.plot,
       ctx.measureText,
     );
@@ -150,7 +148,7 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
     this.bars = [];
     if (!this.visible) return;
     const positiveFill = this.options.item?.positive?.fill ?? this.env.colors.fill;
-    const negativeFill = this.options.item?.negative?.fill ?? NEGATIVE_FALLBACK;
+    const negativeFill = this.options.item?.negative?.fill ?? this.env.theme.negativeColor;
     const totalFill = this.options.item?.total?.fill ?? this.env.theme.mutedColor;
     const group = new Group();
 
@@ -178,7 +176,7 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
       node.width = bar.width;
       node.height = bar.height;
       node.fill = bar.isTotal ? totalFill : bar.end >= bar.start ? positiveFill : negativeFill;
-      node.cornerRadius = this.options.cornerRadius ?? 2;
+      node.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 2;
       if (ctx.selected?.has(index)) {
         node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
         node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
@@ -191,7 +189,7 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
       if (this.options.label?.enabled === true) {
         const labelOptions = this.options.label;
         const placed = placeRectLabel(labelOptions.placement ?? 'top', bar);
-        const font = labelFont(labelOptions, this.env.theme.fontFamily);
+        const font = labelFont(labelOptions, this.env.theme);
         const text = new Text();
         text.text = this.labelTextFor(bar, ctx.data);
         text.x = placed.x;
@@ -229,7 +227,7 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
       ? (this.options.item?.total?.fill ?? this.env.theme.mutedColor)
       : delta >= 0
         ? (this.options.item?.positive?.fill ?? this.env.colors.fill)
-        : (this.options.item?.negative?.fill ?? NEGATIVE_FALLBACK);
+        : (this.options.item?.negative?.fill ?? this.env.theme.negativeColor);
     return {
       heading: String(datum[this.options.xField]),
       rows: bar.isTotal

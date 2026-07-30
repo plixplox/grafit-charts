@@ -1,4 +1,5 @@
-import type { Insets, LayoutRect, MeasureText } from '@/shared/kernel';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
+import type { Insets, LayoutRect, MeasureText, ThemeContext } from '@/shared/kernel';
 import type { FontOptions, Pixels } from '@/shared/options';
 import { maxOverflow, overflowOutside, textBounds, NO_OVERFLOW } from '@/shared/util';
 
@@ -37,13 +38,11 @@ export interface LabelFont {
   family: string;
 }
 
-export const DEFAULT_LABEL_FONT_SIZE = 11;
-
-export function labelFont(options: FontOptions | undefined, themeFontFamily: string): LabelFont {
+export function labelFont(options: FontOptions | undefined, theme: ThemeContext): LabelFont {
   return {
-    size: options?.fontSize ?? DEFAULT_LABEL_FONT_SIZE,
+    size: options?.fontSize ?? themeFont(theme, FONT_STEP.label),
     weight: options?.fontWeight !== undefined ? String(options.fontWeight) : 'normal',
-    family: options?.fontFamily ?? themeFontFamily,
+    family: options?.fontFamily ?? theme.fontFamily,
   };
 }
 

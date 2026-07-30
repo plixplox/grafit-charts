@@ -9,7 +9,12 @@ const theme: ThemeContext = {
   mutedColor: '#888',
   axisColor: '#ddd',
   fontFamily: 'sans-serif',
-  palette: { fills: [], strokes: [] },
+  fontSize: 11,
+  strokeWidth: 2,
+  positiveColor: '#21a06c',
+  negativeColor: '#e5484d',
+  palette: { fills: [], strokes: [], sequential: ['#dbe6ff', '#1d4fd7'] },
+  axis: { line: true, tick: false, gridLine: true, strokeWidth: 1, gridDash: [4, 4] },
 };
 
 const plot: LayoutRect = { x: 40, y: 20, width: 400, height: 300 };
@@ -17,8 +22,13 @@ const domain = ['Alfa', 'Bravo', 'Charlie', 'Delta'];
 /** 10px per character — keeps the expectations arithmetic. */
 const measureText = (text: string) => text.length * 10;
 
-function axis(options: Partial<CategoryAxisOptions>, position: AxisPosition = 'left', values: unknown[] = domain): CategoryAxis {
-  const env: AxisEnv = { position, theme };
+function axis(
+  options: Partial<CategoryAxisOptions>,
+  position: AxisPosition = 'left',
+  values: unknown[] = domain,
+  chrome?: Partial<ThemeContext['axis']>,
+): CategoryAxis {
+  const env: AxisEnv = { position, theme: chrome ? { ...theme, axis: { ...theme.axis, ...chrome } } : theme };
   const instance = new CategoryAxis({ type: 'category', ...options }, env);
   instance.setDomain(values);
   instance.layout(plot);
@@ -81,6 +91,55 @@ describe('default axis look', () => {
       expect(grid.stroke).toBe(theme.axisColor);
       expect(grid.lineDash).toEqual([4, 4]);
     }
+  });
+});
+
+describe('axis chrome from the theme', () => {
+  it('turns ticks on without any per-axis option', () => {
+    const axisLayer = captureLines();
+    axis({}, 'bottom', domain, { tick: true }).render(axisLayer.layer, new Group(), plot);
+
+    expect(axisLayer.lines).toHaveLength(1 + domain.length);
+  });
+
+  it('lets a per-axis option win over the theme switch', () => {
+    const axisLayer = captureLines();
+    axis({ tick: { enabled: false } }, 'bottom', domain, { tick: true }).render(axisLayer.layer, new Group(), plot);
+
+    expect(axisLayer.lines).toHaveLength(1);
+  });
+
+  it('silences the axis line and the grid', () => {
+    const axisLayer = captureLines();
+    const gridLayer = captureLines();
+    axis({}, 'bottom', domain, { line: false, gridLine: false }).render(axisLayer.layer, gridLayer.layer, plot);
+
+    expect(axisLayer.lines).toHaveLength(0);
+    expect(gridLayer.lines).toHaveLength(0);
+  });
+
+  it('carries the thickness and the dash pattern through', () => {
+    const axisLayer = captureLines();
+    const gridLayer = captureLines();
+    axis({}, 'bottom', domain, { strokeWidth: 2.5, gridDash: [] }).render(axisLayer.layer, gridLayer.layer, plot);
+
+    expect(axisLayer.lines[0]?.strokeWidth).toBe(2.5);
+    expect(gridLayer.lines[0]?.strokeWidth).toBe(2.5);
+    expect(gridLayer.lines[0]?.lineDash).toEqual([]);
+  });
+
+  it('splits the line, the grid and the ticks apart when the theme asks', () => {
+    const axisLayer = captureLines();
+    const gridLayer = captureLines();
+    axis({}, 'bottom', domain, { tick: true, color: '#111111', gridColor: '#222222', tickColor: '#333333' }).render(
+      axisLayer.layer,
+      gridLayer.layer,
+      plot,
+    );
+
+    expect(axisLayer.lines[0]?.stroke).toBe('#111111');
+    expect(gridLayer.lines[0]?.stroke).toBe('#222222');
+    for (const tick of axisLayer.lines.slice(1)) expect(tick.stroke).toBe('#333333');
   });
 });
 

@@ -49,7 +49,7 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
   protected abstract renderCandle(geometry: CandleGeometry, highlighted: boolean, selected: boolean): SceneNode[];
 
   protected mainColor(): ColorValue {
-    return this.options.item?.up?.fill ?? UP_COLOR;
+    return this.options.item?.up?.fill ?? this.env.theme.positiveColor;
   }
 
   protected override get seriesName(): string {
@@ -63,14 +63,16 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
 
   protected upStyle(): Required<OhlcItemStyle> {
     const up = this.options.item?.up;
-    return { fill: up?.fill ?? UP_COLOR, stroke: up?.stroke ?? up?.fill ?? UP_COLOR, strokeWidth: up?.strokeWidth ?? 1.4 };
+    const color = this.env.theme.positiveColor;
+    return { fill: up?.fill ?? color, stroke: up?.stroke ?? up?.fill ?? color, strokeWidth: up?.strokeWidth ?? 1.4 };
   }
 
   protected downStyle(): Required<OhlcItemStyle> {
     const down = this.options.item?.down;
+    const color = this.env.theme.negativeColor;
     return {
-      fill: down?.fill ?? DOWN_COLOR,
-      stroke: down?.stroke ?? down?.fill ?? DOWN_COLOR,
+      fill: down?.fill ?? color,
+      stroke: down?.stroke ?? down?.fill ?? color,
       strokeWidth: down?.strokeWidth ?? 1.4,
     };
   }

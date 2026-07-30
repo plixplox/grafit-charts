@@ -1,6 +1,6 @@
 import type { ChartOptions } from './options';
 import { defaultRegistry } from '@/app/registry';
-import { applyThemeOverrides, resolveTheme } from '@/app/themes';
+import { applyThemeOverrides, resolveTheme, type ResolvedTheme } from '@/app/themes';
 import type { ChartState } from '@/features/chart-state';
 import type { ContextMenuApi, ContextMenuItem } from '@/features/context-menu';
 import { canvasDataUrl, downloadCanvas, type DownloadOptions } from '@/features/export';
@@ -115,7 +115,7 @@ export function createChart(options: ChartOptions): ChartInstance {
           items.push({ label: localize(currentOptions.locale, 'resetZoom'), action: () => widget.resetZoom() });
         }
         items.push(...(menuOptions.extraItems ?? []));
-        contextMenu.show(items, event.x, event.y);
+        contextMenu.show(items, event.x, event.y, currentTheme);
         break;
       }
     }
@@ -123,11 +123,14 @@ export function createChart(options: ChartOptions): ChartInstance {
 
   let previousData: ChartOptions['data'];
   const dataTransition = new Animator();
+  // the DOM chrome (context menu) is drawn outside applyOptions and needs the live theme
+  let currentTheme: ResolvedTheme = resolveTheme(options.theme);
 
   function applyOptions(): Promise<void> {
     const effective = applyThemeOverrides(currentOptions);
     validateSeriesOptions(effective);
     const theme = resolveTheme(effective.theme);
+    currentTheme = theme;
     const oldData = previousData;
     previousData = effective.data;
 
@@ -143,7 +146,7 @@ export function createChart(options: ChartOptions): ChartInstance {
       const target = effective.data;
       dataTransition.play(effective.animation?.duration ?? 450, (t) => {
         const frame = target.map((datum, index) => lerpDatum(oldData[index] ?? datum, datum, t));
-        widget.setOptions({ ...effective, data: frame, animation: { enabled: false } } as never, theme as never);
+        widget.setOptions({ ...effective, data: frame, animation: { enabled: false } } as never, theme);
         widget.layoutAndRender();
         requestRender();
       });
@@ -151,7 +154,7 @@ export function createChart(options: ChartOptions): ChartInstance {
     }
 
     dataTransition.stop();
-    widget.setOptions(effective as never, theme as never);
+    widget.setOptions(effective as never, theme);
     widget.layoutAndRender();
     return scheduler.schedule();
   }

@@ -1,6 +1,7 @@
 import { PolarSeries, type PolarSeriesBaseOptions } from './polar-series';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LegendItemDescriptor, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { Datum, ColorValue, Degrees, FontOptions, Pixels, Fraction, Switchable } from '@/shared/options';
 import { Group, Line, Sector, Text } from '@/shared/scene';
@@ -72,7 +73,6 @@ interface SectorGeometry {
 const HIGHLIGHT_POP = 6;
 const CALLOUT_LENGTH = 20;
 const CALLOUT_TAIL = 20;
-const CALLOUT_FONT_SIZE = 11;
 /** Gap between the sector edge and the start of the callout line. */
 const CALLOUT_SECTOR_GAP = 2;
 /** Gap between the end of the tail and the text. */
@@ -180,8 +180,10 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       node.endAngle = geometry.endAngle;
       node.fill = this.colorFor(index);
       node.stroke = isSelected ? (ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor) : this.options.stroke;
-      node.strokeWidth = isSelected ? (ctx.selectionStyle?.strokeWidth ?? 1.5) : (this.options.strokeWidth ?? 1.5);
-      node.cornerRadius = this.options.cornerRadius ?? 0;
+      node.strokeWidth = isSelected
+        ? (ctx.selectionStyle?.strokeWidth ?? 1.5)
+        : (this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1.5);
+      node.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 0;
       node.edgeInset = (this.options.sectorSpacing ?? 0) / 2;
       if (ctx.selectionActive && !isSelected) {
         node.opacity = ctx.selectionStyle?.inactiveOpacity ?? 0.45;
@@ -211,7 +213,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
         label.y = at.y;
         label.textAlign = 'center';
         label.textBaseline = 'middle';
-        label.fontSize = this.options.sectorLabel.fontSize ?? 11;
+        label.fontSize = this.options.sectorLabel.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
         label.fontFamily = this.options.sectorLabel.fontFamily ?? this.env.theme.fontFamily;
         label.fill = this.options.sectorLabel.color ?? contrastTextColor(this.colorFor(index));
         label.outline = this.colorFor(index);
@@ -233,7 +235,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     const { area, centerX, centerY } = ctx;
     const radial = this.options.calloutLine?.radial?.length ?? CALLOUT_LENGTH;
     const tail = this.options.calloutLine?.horizontal?.length ?? CALLOUT_TAIL;
-    const fontSize = this.options.calloutLabel?.fontSize ?? CALLOUT_FONT_SIZE;
+    const fontSize = this.options.calloutLabel?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
     const font = `normal ${fontSize}px ${this.options.calloutLabel?.fontFamily ?? this.env.theme.fontFamily}`;
     const rotation = ((this.options.rotation ?? 0) * Math.PI) / 180;
     // the label starts where the radial and the tail segments end
@@ -276,7 +278,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     if (callouts.length === 0) return;
     const radial = this.options.calloutLine?.radial;
     const horizontal = this.options.calloutLine?.horizontal;
-    const fontSize = this.options.calloutLabel?.fontSize ?? 11;
+    const fontSize = this.options.calloutLabel?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
     const minGap = fontSize + 6;
 
     const entries = callouts.map((callout) => {

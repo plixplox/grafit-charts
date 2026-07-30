@@ -8,7 +8,12 @@ const theme: ThemeContext = {
   mutedColor: '#888',
   axisColor: '#ddd',
   fontFamily: 'sans-serif',
-  palette: { fills: [], strokes: [] },
+  fontSize: 11,
+  strokeWidth: 2,
+  positiveColor: '#21a06c',
+  negativeColor: '#e5484d',
+  palette: { fills: [], strokes: [], sequential: ['#dbe6ff', '#1d4fd7'] },
+  axis: { line: true, tick: false, gridLine: true, strokeWidth: 1, gridDash: [4, 4] },
 };
 
 const padding = { top: 10, right: 20, bottom: 10, left: 20 };
@@ -55,7 +60,11 @@ describe('layoutCaptions', () => {
   it('flows lines around an obstacle in the top-right corner', () => {
     // legend box: x 280..380, y 10..50 — lines level with it get the 250px gap on its left
     const obstacle = { x: 280, y: 10, width: 100, height: 40 };
-    const { placements } = layout({ text: 'Site traffic by acquisition channel over the last twelve months', textAlign: 'left' }, undefined, obstacle);
+    const { placements } = layout(
+      { text: 'Site traffic by acquisition channel over the last twelve months', textAlign: 'left' },
+      undefined,
+      obstacle,
+    );
     const lines = placements[0]?.lines ?? [];
     expect(lines.map((line) => line.text)).toEqual(['Site traffic by', 'acquisition channel over', 'the last twelve months']);
     // the first two lines overlap the legend vertically and stop before it

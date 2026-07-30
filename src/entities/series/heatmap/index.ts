@@ -1,5 +1,6 @@
 import { CartesianSeries, type SeriesBaseOptions } from '@/entities/series/base';
 import { numericValues, uniqueValues } from '@/shared/data';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { CartesianRenderContext, ColorScaleInfo, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, FontOptions, Pixels, Switchable } from '@/shared/options';
 import { BandScale, ColorScale } from '@/shared/scale';
@@ -44,7 +45,7 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
   private scale = new ColorScale();
 
   protected mainColor(): ColorValue {
-    return this.options.colorRange?.[0] ?? DEFAULT_RANGE[1]!;
+    return this.options.colorRange?.[0] ?? this.env.theme.palette.sequential[1] ?? DEFAULT_RANGE[1]!;
   }
 
   preferredXAxisType(): 'category' {
@@ -71,7 +72,7 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
     const values = numericValues(this.lastData, this.options.colorField);
     const domain = extent(values);
     if (!domain) return undefined;
-    return { min: domain[0], max: domain[1], colors: this.options.colorRange ?? DEFAULT_RANGE };
+    return { min: domain[0], max: domain[1], colors: this.options.colorRange ?? this.env.theme.palette.sequential };
   }
 
   private lastData: Datum[] = [];
@@ -95,7 +96,7 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
     }
     const values = numericValues(data, this.options.colorField);
     const domain = extent(values.filter((value) => !Number.isNaN(value))) ?? [0, 1];
-    this.scale = new ColorScale(domain, this.options.colorRange ?? DEFAULT_RANGE);
+    this.scale = new ColorScale(domain, this.options.colorRange ?? this.env.theme.palette.sequential);
     const pad = this.options.itemPadding ?? 2;
     const group = new Group();
 
@@ -122,7 +123,7 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
       node.width = cell.width;
       node.height = cell.height;
       node.fill = this.scale.convert(value);
-      node.cornerRadius = this.options.cornerRadius ?? 5;
+      node.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 5;
       if (ctx.selected?.has(index)) {
         node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
         node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
@@ -143,7 +144,7 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
         label.y = vertical === 'top' ? cell.y + inset : vertical === 'bottom' ? cell.y + cell.height - inset : cell.y + cell.height / 2;
         label.textAlign = horizontal;
         label.textBaseline = vertical;
-        label.fontSize = this.options.label.fontSize ?? 11;
+        label.fontSize = this.options.label.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
         label.fontWeight = this.options.label.fontWeight !== undefined ? String(this.options.label.fontWeight) : 'normal';
         label.fontFamily = this.options.label.fontFamily ?? this.env.theme.fontFamily;
         label.fill = this.options.label.color ?? contrastTextColor(node.fill ?? '#000');

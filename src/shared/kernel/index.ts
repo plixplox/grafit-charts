@@ -6,7 +6,7 @@
 import type { AxisPosition, CartesianAxisInstance, CartesianSeriesInstance, ChartWidget, SeriesColors } from './cartesian';
 import type { PolarSeriesInstance } from './polar';
 import type { StandaloneSeriesInstance } from './standalone';
-import type { ColorValue } from '@/shared/options';
+import type { ColorValue, Fraction, Pixels } from '@/shared/options';
 import type { Scene } from '@/shared/scene';
 
 export * from './cartesian';
@@ -15,7 +15,41 @@ export * from './standalone';
 
 export type ChartKind = 'cartesian' | 'polar' | 'hierarchy' | 'flow';
 
-/** The theme as modules see it. */
+/**
+ * Axis chrome as modules see it. The switches and the shared metrics are always
+ * resolved; the rest is optional and falls back at the point of use — to
+ * `axisColor` for the strokes, `mutedColor` for the labels, `foregroundColor`
+ * for the title. That keeps `params.axisColor` in charge unless a theme
+ * deliberately splits the three apart.
+ */
+export interface ThemeAxisContext {
+  line: boolean;
+  tick: boolean;
+  gridLine: boolean;
+  strokeWidth: Pixels;
+  /** Grid dash pattern; an empty array draws a solid line. */
+  gridDash: Pixels[];
+  /** The axis line, separately from the grid and the ticks. */
+  color?: ColorValue;
+  /** Dash pattern of the axis line itself; solid by default. */
+  lineDash?: Pixels[];
+  gridColor?: ColorValue;
+  tickColor?: ColorValue;
+  /** Length of a tick mark, px. */
+  tickSize?: Pixels;
+  labelColor?: ColorValue;
+  labelSize?: Pixels;
+  /** Gap between the axis line and its labels, px. */
+  labelSpacing?: Pixels;
+  titleColor?: ColorValue;
+  titleSize?: Pixels;
+}
+
+/**
+ * The theme with every token resolved — the single definition, re-exported by
+ * app/themes as ResolvedTheme. It lives here because shared cannot import app,
+ * while app may import shared.
+ */
 export interface ThemeContext {
   backgroundColor: ColorValue;
   foregroundColor: ColorValue;
@@ -23,7 +57,58 @@ export interface ThemeContext {
   /** Axis chrome: the axis line, ticks and grid lines. */
   axisColor: ColorValue;
   fontFamily: string;
-  palette: { fills: ColorValue[]; strokes: ColorValue[] };
+  /** Base label size; component sizes are this plus a fixed FONT_STEP offset. */
+  fontSize: Pixels;
+  /** Data line width — line/area/radar strokes, never a shape outline. */
+  strokeWidth: Pixels;
+  /**
+   * Nudge tokens: undefined leaves every mark with its own default, a value
+   * overrides them all at once. The per-mark defaults differ on purpose
+   * (a bar is square, a range bar is rounded), so there is no single literal
+   * these could default to.
+   */
+  cornerRadius?: Pixels;
+  fillOpacity?: Fraction;
+  /** Outline width of filled marks — bars, sectors, boxes. Not a data line. */
+  markStrokeWidth?: Pixels;
+  /** Dash pattern of data lines; solid unless a theme or a series says otherwise. */
+  lineDash?: Pixels[];
+  /** Growth and decline: candlesticks, OHLC bars, falling waterfall columns. */
+  positiveColor: ColorValue;
+  negativeColor: ColorValue;
+  palette: {
+    fills: ColorValue[];
+    strokes: ColorValue[];
+    /** Continuous ramp for colorField series (heatmap) and gradient legends. */
+    sequential: ColorValue[];
+  };
+  /** The one block theme overrides cannot express: ChartOptions.axes is an array. */
+  axis: ThemeAxisContext;
+}
+
+/**
+ * Component label sizes as offsets from ThemeContext.fontSize. Every hardcoded
+ * size in the library sits within −1..+6 of the base, so the offsets reproduce
+ * the built-in design exactly and scale together when the base moves.
+ */
+export const FONT_STEP = {
+  /** 10 — polar ring labels, gradient legend. */
+  small: -1,
+  /** 11 — axis labels, series labels, callouts. */
+  label: 0,
+  /** 12 — axis title, legend, tooltip. */
+  heading: 1,
+  /** 13 — subtitle, empty-state overlay. */
+  subtitle: 2,
+  /** 14 — donut center label. */
+  emphasis: 3,
+  /** 17 — chart title. */
+  title: 6,
+} as const;
+
+/** Resolved size of a label role. */
+export function themeFont(theme: ThemeContext, step: number): Pixels {
+  return Math.max(1, theme.fontSize + step);
 }
 
 export interface SeriesEnv {
@@ -67,7 +152,7 @@ export interface ChartWidgetModule {
     registry: ModuleRegistry,
     requestRender: () => void,
     container?: HTMLElement,
-  ): ChartWidget & { setOptions(inputs: never, theme: never): void };
+  ): ChartWidget & { setOptions(inputs: never, theme: ThemeContext): void };
 }
 
 /**

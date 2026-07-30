@@ -1,3 +1,5 @@
+import { FONT_STEP, themeFont } from '@/shared/kernel';
+import type { ThemeContext } from '@/shared/kernel';
 import type { Switchable } from '@/shared/options';
 
 export interface ContextMenuItem {
@@ -17,7 +19,7 @@ export class HtmlContextMenu {
 
   constructor(private readonly container: HTMLElement) {}
 
-  show(items: ContextMenuItem[], x: number, y: number): void {
+  show(items: ContextMenuItem[], x: number, y: number, theme: ThemeContext): void {
     this.hide();
     if (items.length === 0) return;
     const menu = document.createElement('div');
@@ -26,15 +28,17 @@ export class HtmlContextMenu {
       left: `${x}px`,
       top: `${y}px`,
       zIndex: '20',
-      background: '#fff',
-      color: '#1f2733',
-      border: '1px solid rgba(0, 0, 0, 0.15)',
-      borderRadius: '6px',
+      background: theme.backgroundColor,
+      color: theme.foregroundColor,
+      border: `1px solid ${theme.axisColor}`,
+      borderRadius: `${theme.cornerRadius ?? 6}px`,
       boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
-      font: '13px system-ui, sans-serif',
+      font: `${themeFont(theme, FONT_STEP.subtitle)}px ${theme.fontFamily}`,
       padding: '4px',
       minWidth: '160px',
     } satisfies Partial<CSSStyleDeclaration>);
+    // a solid highlight rather than a tint: alpha over an unknown surface is unreliable
+    const hover = theme.palette.fills[0] ?? theme.foregroundColor;
     for (const item of items) {
       const row = document.createElement('div');
       row.textContent = item.label;
@@ -43,8 +47,14 @@ export class HtmlContextMenu {
         borderRadius: '4px',
         cursor: 'pointer',
       } satisfies Partial<CSSStyleDeclaration>);
-      row.addEventListener('mouseenter', () => (row.style.background = 'rgba(67, 111, 244, 0.12)'));
-      row.addEventListener('mouseleave', () => (row.style.background = 'transparent'));
+      row.addEventListener('mouseenter', () => {
+        row.style.background = hover;
+        row.style.color = theme.backgroundColor;
+      });
+      row.addEventListener('mouseleave', () => {
+        row.style.background = 'transparent';
+        row.style.color = '';
+      });
       row.addEventListener('click', () => {
         this.hide();
         item.action();

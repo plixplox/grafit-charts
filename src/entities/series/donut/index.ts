@@ -1,4 +1,5 @@
 import { PieLikeSeries, type PieLikeSeriesOptions } from '@/entities/series/base';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { PolarRenderContext, SeriesModule } from '@/shared/kernel';
 import type { ColorValue, FontOptions, Fraction } from '@/shared/options';
 import { Text } from '@/shared/scene';
@@ -28,10 +29,13 @@ export class DonutSeries extends PieLikeSeries<DonutSeriesOptions> {
     const labels = this.options.innerLabels;
     if (!this.visible || !labels?.length) return;
     const lineHeight = 1.3;
-    const totalHeight = labels.reduce((sum, label) => sum + (label.fontSize ?? 14) * lineHeight, 0);
+    const totalHeight = labels.reduce(
+      (sum, label) => sum + (label.fontSize ?? themeFont(this.env.theme, FONT_STEP.emphasis)) * lineHeight,
+      0,
+    );
     let y = ctx.centerY - totalHeight / 2;
     for (const label of labels) {
-      const fontSize = label.fontSize ?? 14;
+      const fontSize = label.fontSize ?? themeFont(this.env.theme, FONT_STEP.emphasis);
       const node = new Text();
       node.text = label.text;
       node.x = ctx.centerX;

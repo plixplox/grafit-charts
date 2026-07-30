@@ -1,3 +1,4 @@
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { AxisPosition, LegendItemDescriptor, LayoutRect, ThemeContext } from '@/shared/kernel';
 import type { ColorValue, FontOptions, FontWeight, Padding, Pixels, Switchable } from '@/shared/options';
 import { Group, Rect, Text } from '@/shared/scene';
@@ -73,7 +74,6 @@ const MARKER_GAP = 6;
 const ITEM_GAP_X = 18;
 const VALUE_GAP = 14;
 const ITEM_GAP_Y = 8;
-const FONT_SIZE = 12;
 const DISABLED_OPACITY = 0.4;
 
 /** A legend entry ready for layout: a series descriptor as-is, or a resolved custom `data` entry. */
@@ -187,7 +187,7 @@ export class Legend {
   }
 
   private get fontSize(): number {
-    return this.options?.item?.label?.fontSize ?? FONT_SIZE;
+    return this.options?.item?.label?.fontSize ?? themeFont(this.theme, FONT_STEP.heading);
   }
 
   private get markerSize(): number {
@@ -251,7 +251,10 @@ export class Legend {
     const widths = items.map((item) => {
       const font = this.itemFont(item);
       return (
-        this.itemMarkerSize(item) + MARKER_GAP + measureText(item.label, font) + (item.value ? VALUE_GAP + measureText(item.value, font) : 0)
+        this.itemMarkerSize(item) +
+        MARKER_GAP +
+        measureText(item.label, font) +
+        (item.value ? VALUE_GAP + measureText(item.value, font) : 0)
       );
     });
 
@@ -329,7 +332,7 @@ export class Legend {
       panel.y = box.y;
       panel.width = this.size.width;
       panel.height = this.size.height;
-      panel.cornerRadius = background.cornerRadius ?? 4;
+      panel.cornerRadius = background.cornerRadius ?? this.theme.cornerRadius ?? 4;
       panel.fill = background.fill;
       panel.stroke = background.stroke;
       panel.strokeWidth = background.strokeWidth ?? 1;
@@ -401,7 +404,7 @@ export class Legend {
       pageLabel.y = pagerY + 6;
       pageLabel.textAlign = 'center';
       pageLabel.textBaseline = 'middle';
-      pageLabel.fontSize = 10;
+      pageLabel.fontSize = themeFont(this.theme, FONT_STEP.small);
       pageLabel.fontFamily = this.theme.fontFamily;
       pageLabel.fill = this.theme.mutedColor;
       layer.append(pageLabel);
@@ -412,7 +415,7 @@ export class Legend {
         arrow.y = pagerY + 6;
         arrow.textAlign = 'center';
         arrow.textBaseline = 'middle';
-        arrow.fontSize = 14;
+        arrow.fontSize = themeFont(this.theme, FONT_STEP.emphasis);
         arrow.fontFamily = this.theme.fontFamily;
         arrow.fill = this.theme.foregroundColor;
         layer.append(arrow);

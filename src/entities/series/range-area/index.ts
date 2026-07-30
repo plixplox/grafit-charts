@@ -65,7 +65,7 @@ export class RangeAreaSeries extends CartesianSeries<RangeAreaSeriesOptions & { 
     const group = new Group();
     const fill = new Path();
     fill.fill = this.mainColor();
-    fill.opacity = this.options.fillOpacity ?? 0.3;
+    fill.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.3;
     this.points.forEach((point, i) => {
       if (i === 0) fill.moveTo(point.x, point.yHigh);
       else fill.lineTo(point.x, point.yHigh);
@@ -80,7 +80,7 @@ export class RangeAreaSeries extends CartesianSeries<RangeAreaSeriesOptions & { 
     for (const key of ['yHigh', 'yLow'] as const) {
       const line = new Path();
       line.stroke = this.options.stroke ?? this.mainColor();
-      line.strokeWidth = this.options.strokeWidth ?? 1.5;
+      line.strokeWidth = this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1.5;
       this.points.forEach((point, i) => {
         if (i === 0) line.moveTo(point.x, point[key]);
         else line.lineTo(point.x, point[key]);

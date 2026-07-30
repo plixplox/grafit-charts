@@ -1,5 +1,6 @@
 import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LegendItemDescriptor, SeriesModule, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, FontOptions, Pixels, Switchable } from '@/shared/options';
 import { Group, Line, Path, Text } from '@/shared/scene';
@@ -86,7 +87,7 @@ export class PyramidSeries extends StandaloneSeries<PyramidSeriesOptions> {
           label.y = (yTop + yBottom) / 2;
           label.textAlign = 'center';
           label.textBaseline = 'middle';
-          label.fontSize = labelOpts?.fontSize ?? 12;
+          label.fontSize = labelOpts?.fontSize ?? themeFont(this.env.theme, FONT_STEP.heading);
           label.fontWeight = labelOpts?.fontWeight !== undefined ? String(labelOpts.fontWeight) : 'normal';
           label.fontFamily = labelOpts?.fontFamily ?? this.env.theme.fontFamily;
           label.fill = labelOpts?.color ?? contrastTextColor(this.colorFor(index));
@@ -106,7 +107,7 @@ export class PyramidSeries extends StandaloneSeries<PyramidSeriesOptions> {
 
     // outside labels: vertical spreading, the line tilts toward the shifted label
     const labelOptions = this.options.label;
-    const fontSize = labelOptions?.fontSize ?? 12;
+    const fontSize = labelOptions?.fontSize ?? themeFont(this.env.theme, FONT_STEP.heading);
     const minGap = fontSize + 5;
     let previousY = -Infinity;
     for (const entry of outsideLabels) {

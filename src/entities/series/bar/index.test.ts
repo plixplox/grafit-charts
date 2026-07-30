@@ -12,7 +12,12 @@ const env: SeriesEnv = {
     mutedColor: '#888',
     axisColor: '#ddd',
     fontFamily: 'sans-serif',
-    palette: { fills: ['#436ff4'], strokes: ['#2f56cc'] },
+    fontSize: 11,
+    strokeWidth: 2,
+    positiveColor: '#21a06c',
+    negativeColor: '#e5484d',
+    palette: { fills: ['#436ff4'], strokes: ['#2f56cc'], sequential: ['#dbe6ff', '#1d4fd7'] },
+    axis: { line: true, tick: false, gridLine: true, strokeWidth: 1, gridDash: [4, 4] },
   },
 };
 

@@ -1,3 +1,4 @@
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LayoutRect, ThemeContext } from '@/shared/kernel';
 import type { FontOptions, Pixels, Switchable } from '@/shared/options';
 import { Group, Text } from '@/shared/scene';
@@ -23,15 +24,15 @@ export interface CaptionOptions extends Switchable, FontOptions {
 }
 
 interface CaptionRole {
-  fontSize: number;
+  fontStep: number;
   fontWeight: string;
   muted: boolean;
   spacing: number;
 }
 
 const ROLES: Record<'title' | 'subtitle', CaptionRole> = {
-  title: { fontSize: 17, fontWeight: 'bold', muted: false, spacing: 8 },
-  subtitle: { fontSize: 13, fontWeight: 'normal', muted: true, spacing: 8 },
+  title: { fontStep: FONT_STEP.title, fontWeight: 'bold', muted: false, spacing: 8 },
+  subtitle: { fontStep: FONT_STEP.subtitle, fontWeight: 'normal', muted: true, spacing: 8 },
 };
 
 /** Baseline-to-baseline step of a wrapped caption, as a multiple of the font size. */
@@ -73,15 +74,23 @@ interface CaptionPlacement {
   lines: CaptionLine[];
 }
 
-function captionMetrics(role: 'title' | 'subtitle', options: CaptionOptions | undefined): { fontSize: number; spacing: number } | undefined {
-  if (!options?.text || options.enabled === false) return undefined;
+function captionShown(options: CaptionOptions | undefined): boolean {
+  return Boolean(options?.text) && options?.enabled !== false;
+}
+
+function captionMetrics(
+  role: 'title' | 'subtitle',
+  options: CaptionOptions | undefined,
+  theme: ThemeContext,
+): { fontSize: number; spacing: number } | undefined {
+  if (!captionShown(options) || !options) return undefined;
   const config = ROLES[role];
-  return { fontSize: options.fontSize ?? config.fontSize, spacing: options.spacing ?? config.spacing };
+  return { fontSize: options.fontSize ?? themeFont(theme, config.fontStep), spacing: options.spacing ?? config.spacing };
 }
 
 /** Whether anything will be drawn at all — lets callers skip preparing the layout context. */
 export function hasCaptions(title: CaptionOptions | undefined, subtitle: CaptionOptions | undefined): boolean {
-  return captionMetrics('title', title) !== undefined || captionMetrics('subtitle', subtitle) !== undefined;
+  return captionShown(title) || captionShown(subtitle);
 }
 
 /** Room for a line spanning [top, bottom): the full width, or the wider side of the obstacle. */
@@ -139,7 +148,7 @@ function layoutCaption(
   spacingSide: 'before' | 'after',
   context: CaptionLayoutContext,
 ): CaptionPlacement | undefined {
-  const metrics = captionMetrics(role, options);
+  const metrics = captionMetrics(role, options, theme);
   if (!metrics || !options) return undefined;
   const config = ROLES[role];
   const { fontSize, spacing } = metrics;

@@ -94,7 +94,7 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
       const datum = ctx.data[point.index];
       return datum ? [{ x: point.x, y: point.y, text: this.labelTextFor(datum), offset }] : [];
     });
-    return pointLabelOverflow(marks, label.placement ?? 'top', labelFont(label, this.env.theme.fontFamily), ctx.plot, ctx.measureText);
+    return pointLabelOverflow(marks, label.placement ?? 'top', labelFont(label, this.env.theme), ctx.plot, ctx.measureText);
   }
 
   update(ctx: CartesianRenderContext): void {
@@ -105,8 +105,9 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
     const group = new Group();
     const path = new Path();
     path.stroke = this.mainColor();
-    path.strokeWidth = this.options.strokeWidth ?? 2;
-    if (this.options.lineDash) path.lineDash = this.options.lineDash;
+    path.strokeWidth = this.options.strokeWidth ?? this.env.theme.strokeWidth;
+    const dash = this.options.lineDash ?? this.env.theme.lineDash;
+    if (dash?.length) path.lineDash = dash;
 
     this.points = this.layoutPoints(ctx);
     for (const point of this.points) {
@@ -142,7 +143,7 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
       const labelOptions = this.options.label;
       const placement = labelOptions.placement ?? 'top';
       const offset = (markerOptions?.size ?? DEFAULT_MARKER_SIZE) / 2 + POINT_LABEL_GAP;
-      const font = labelFont(labelOptions, this.env.theme.fontFamily);
+      const font = labelFont(labelOptions, this.env.theme);
       for (const point of this.points) {
         const datum = ctx.data[point.index];
         if (!datum) continue;

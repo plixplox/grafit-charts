@@ -88,14 +88,14 @@ export class RadialBarSeries extends PolarSeries<RadialBarSeriesOptions> {
       node.startAngle = 0;
       node.endAngle = sweep;
       node.fill = this.mainColor();
-      node.opacity = this.options.fillOpacity ?? 0.9;
+      node.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.9;
       const isSelected = ctx.selected?.has(index) === true;
       node.stroke = isSelected ? (ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor) : this.options.stroke;
       node.strokeWidth = isSelected
         ? (ctx.selectionStyle?.strokeWidth ?? 1.5)
         : index === highlighted
           ? 1.5
-          : (this.options.strokeWidth ?? 1);
+          : (this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1);
       if (ctx.selectionActive && !isSelected) node.opacity *= ctx.selectionStyle?.inactiveOpacity ?? 0.45;
       group.append(node);
     });

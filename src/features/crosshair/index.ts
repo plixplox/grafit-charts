@@ -1,3 +1,4 @@
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LayoutRect, ThemeContext } from '@/shared/kernel';
 import type { ColorValue, Pixels, Switchable } from '@/shared/options';
 import { Group, Line, Rect, Text } from '@/shared/scene';
@@ -21,7 +22,6 @@ export interface CrosshairRenderArgs {
   yLabel?: string;
 }
 
-const LABEL_FONT_SIZE = 11;
 const LABEL_PAD = 4;
 
 export function renderCrosshair(options: CrosshairOptions | undefined, args: CrosshairRenderArgs): void {
@@ -68,8 +68,8 @@ function appendLabel(
   align: CanvasTextAlign,
   baseline: CanvasTextBaseline,
 ): void {
-  const width = text.length * LABEL_FONT_SIZE * 0.62 + LABEL_PAD * 2;
-  const height = LABEL_FONT_SIZE + LABEL_PAD * 2;
+  const width = text.length * themeFont(theme, FONT_STEP.label) * 0.62 + LABEL_PAD * 2;
+  const height = themeFont(theme, FONT_STEP.label) + LABEL_PAD * 2;
   const rect = new Rect();
   rect.width = width;
   rect.height = height;
@@ -85,7 +85,7 @@ function appendLabel(
   node.y = rect.y + height / 2;
   node.textAlign = 'center';
   node.textBaseline = 'middle';
-  node.fontSize = LABEL_FONT_SIZE;
+  node.fontSize = themeFont(theme, FONT_STEP.label);
   node.fontFamily = theme.fontFamily;
   node.fill = theme.backgroundColor;
   layer.append(node);

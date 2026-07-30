@@ -23,7 +23,7 @@ import {
 } from '@/features/zoom';
 import { Animator, type AnimationOptions } from '@/shared/animation';
 import { computeStacks, numericValues, type StackSeriesDef } from '@/shared/data';
-import { DEFAULT_DIM_OPACITY, warnMissingFeature, type ChartWidgetModule } from '@/shared/kernel';
+import { DEFAULT_DIM_OPACITY, FONT_STEP, themeFont, warnMissingFeature, type ChartWidgetModule } from '@/shared/kernel';
 import type {
   AxisPosition,
   CartesianAxisInstance,
@@ -245,9 +245,11 @@ export class CartesianChart implements SyncMember {
       const position = rawOptions.position ?? fallback;
       // the categories get the axis line, the values get the grid — and never both ways round
       const alongCategories = this.alongCategories(position, swapped);
+      // the theme switches gate the directional rule: it can silence the chrome
+      // everywhere, but never revive what the rule above turned off
       const defaults: Record<string, unknown> = {};
-      if (bareAxes || alongCategories) defaults.gridLine = { enabled: false };
-      if (bareAxes || !alongCategories) defaults.line = { enabled: false };
+      if (bareAxes || alongCategories || !this.theme.axis.gridLine) defaults.gridLine = { enabled: false };
+      if (bareAxes || !alongCategories || !this.theme.axis.line) defaults.line = { enabled: false };
       // defaults sit underneath the user's axis options
       const axisOptions = deepMerge(defaults, rawOptions as never) as typeof rawOptions;
       const module = this.registry.getAxis(axisOptions.type);
@@ -696,7 +698,7 @@ export class CartesianChart implements SyncMember {
     text.y = plot.y + plot.height / 2;
     text.textAlign = 'center';
     text.textBaseline = 'middle';
-    text.fontSize = 13;
+    text.fontSize = themeFont(this.theme, FONT_STEP.subtitle);
     text.fontFamily = this.theme.fontFamily;
     text.fill = this.theme.mutedColor;
     layer.append(text);

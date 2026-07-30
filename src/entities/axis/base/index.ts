@@ -1,3 +1,4 @@
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { AxisEnv, AxisPosition, CartesianAxisInstance, Insets, LayoutRect, MeasureText } from '@/shared/kernel';
 import type { ColorValue, FontOptions, Pixels, Switchable } from '@/shared/options';
 import { BandScale, type AnyScale } from '@/shared/scale';
@@ -72,11 +73,7 @@ const LABEL_SPACING = 8;
 const INSIDE_LABEL_SPACING = 4;
 const INSIDE_LABEL_GAP = 4;
 const TITLE_SPACING = 6;
-const LABEL_FONT_SIZE = 11;
-const TITLE_FONT_SIZE = 12;
 const MIN_LABEL_SPACING = 8;
-/** Grid lines are dashed by default — they read as a backdrop, not as data. */
-const GRID_DASH: Pixels[] = [4, 4];
 /** Bands never give up more than this share of the step to the gap between them. */
 const MAX_PADDING_INNER = 0.8;
 /** Band padding shared by the categorical axes. */
@@ -106,9 +103,19 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     return label?.placement === 'inside' && label.enabled !== false;
   }
 
-  /** Ticks are off by default: the labels alone read the scale well enough. */
+  /** Ticks are off in most themes: the labels alone read the scale well enough. */
   protected get ticksVisible(): boolean {
-    return this.options.tick?.enabled === true;
+    return this.options.tick?.enabled ?? this.env.theme.axis.tick;
+  }
+
+  /** Tick label size — the theme's base size unless the axis overrides it. */
+  protected get labelSize(): Pixels {
+    return this.options.label?.fontSize ?? this.env.theme.axis.labelSize ?? themeFont(this.env.theme, FONT_STEP.label);
+  }
+
+  /** Tick label colour — the axis option, then the theme, then the muted ink. */
+  protected get labelColor(): ColorValue {
+    return this.options.label?.color ?? this.env.theme.axis.labelColor ?? this.env.theme.mutedColor;
   }
 
   /** Indent of an inside label from the axis into the plot area. */
@@ -123,7 +130,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
 
   /** Vertical space one inside label needs: the glyph row plus a gap on both sides. */
   protected insideLabelSlot(): number {
-    return (this.options.label?.fontSize ?? LABEL_FONT_SIZE) + this.insideGap * 2;
+    return this.labelSize + this.insideGap * 2;
   }
 
   /**
@@ -170,7 +177,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
 
   protected labelFont(): string {
     const label = this.options.label;
-    return `${label?.fontWeight ?? 'normal'} ${label?.fontSize ?? LABEL_FONT_SIZE}px ${label?.fontFamily ?? this.env.theme.fontFamily}`;
+    return `${label?.fontWeight ?? 'normal'} ${this.labelSize}px ${label?.fontFamily ?? this.env.theme.fontFamily}`;
   }
 
   /** Ticks accounting for interval.values and skipping of overlapping labels. */
@@ -203,12 +210,12 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
   measure(measureText: MeasureText): number {
     let thickness = 0;
     const tick = this.options.tick;
-    if (this.ticksVisible) thickness += tick?.size ?? TICK_SIZE;
+    if (this.ticksVisible) thickness += tick?.size ?? this.env.theme.axis.tickSize ?? TICK_SIZE;
 
     const label = this.options.label;
     if (label?.enabled !== false && !this.labelsInside) {
-      const fontSize = label?.fontSize ?? LABEL_FONT_SIZE;
-      thickness += label?.spacing ?? LABEL_SPACING;
+      const fontSize = this.labelSize;
+      thickness += label?.spacing ?? this.env.theme.axis.labelSpacing ?? LABEL_SPACING;
       if (this.isHorizontal) {
         thickness += fontSize;
       } else {
@@ -220,7 +227,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
 
     const title = this.options.title;
     if (title?.text && title.enabled !== false) {
-      thickness += (title.fontSize ?? TITLE_FONT_SIZE) + TITLE_SPACING;
+      thickness += (title.fontSize ?? this.env.theme.axis.titleSize ?? themeFont(this.env.theme, FONT_STEP.heading)) + TITLE_SPACING;
     }
     return Math.ceil(thickness);
   }
@@ -233,7 +240,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
   labelOverflow(measureText: MeasureText, plot: LayoutRect): Insets {
     if (this.options.label?.enabled === false || this.labelsInside) return NO_OVERFLOW;
     const font = this.labelFont();
-    const fontSize = this.options.label?.fontSize ?? LABEL_FONT_SIZE;
+    const fontSize = this.labelSize;
     let overflow = NO_OVERFLOW;
     for (const { value, coord, index } of this.displayTicks()) {
       const half = this.isHorizontal ? measureText(this.formatTick(value, index), font) / 2 : fontSize / 2;
@@ -252,7 +259,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     const edge = this.edgeCoordinate(plot);
 
     const lineOptions = this.options.line;
-    if (lineOptions?.enabled !== false) {
+    if (lineOptions?.enabled ?? theme.axis.line) {
       const axisLine = new Line();
       if (this.isHorizontal) {
         axisLine.x1 = plot.x;
@@ -263,13 +270,14 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
         axisLine.y2 = plot.y + plot.height;
         axisLine.x1 = axisLine.x2 = edge;
       }
-      axisLine.stroke = lineOptions?.stroke ?? theme.axisColor;
-      axisLine.strokeWidth = lineOptions?.width ?? 1;
+      axisLine.stroke = lineOptions?.stroke ?? theme.axis.color ?? theme.axisColor;
+      axisLine.strokeWidth = lineOptions?.width ?? theme.axis.strokeWidth;
+      if (theme.axis.lineDash?.length) axisLine.lineDash = theme.axis.lineDash;
       axisLayer.append(axisLine);
     }
 
     const gridOptions = this.options.gridLine;
-    if (gridOptions?.enabled !== false) {
+    if (gridOptions?.enabled ?? theme.axis.gridLine) {
       for (const { coord } of ticks) {
         const grid = new Line();
         if (this.isHorizontal) {
@@ -281,9 +289,9 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
           grid.x1 = plot.x;
           grid.x2 = plot.x + plot.width;
         }
-        grid.stroke = gridOptions?.stroke ?? theme.axisColor;
-        grid.strokeWidth = gridOptions?.width ?? 1;
-        grid.lineDash = gridOptions?.lineDash ?? GRID_DASH;
+        grid.stroke = gridOptions?.stroke ?? theme.axis.gridColor ?? theme.axisColor;
+        grid.strokeWidth = gridOptions?.width ?? theme.axis.strokeWidth;
+        grid.lineDash = gridOptions?.lineDash ?? theme.axis.gridDash;
         gridLayer.append(grid);
       }
     }
@@ -291,7 +299,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     this.renderCrossLines(gridLayer, plot);
 
     const tickOptions = this.options.tick;
-    const tickSize = tickOptions?.size ?? TICK_SIZE;
+    const tickSize = tickOptions?.size ?? theme.axis.tickSize ?? TICK_SIZE;
     const direction = this.outwardSign();
     if (this.ticksVisible) {
       for (const { coord } of ticks) {
@@ -305,8 +313,8 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
           tick.x1 = edge;
           tick.x2 = edge + tickSize * direction;
         }
-        tick.stroke = tickOptions?.stroke ?? theme.axisColor;
-        tick.strokeWidth = tickOptions?.width ?? 1;
+        tick.stroke = tickOptions?.stroke ?? theme.axis.tickColor ?? theme.axisColor;
+        tick.strokeWidth = tickOptions?.width ?? theme.axis.strokeWidth;
         axisLayer.append(tick);
       }
     }
@@ -318,8 +326,8 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       // above the series: bars would otherwise cover the labels
       this.renderInsideLabels(foregroundLayer ?? axisLayer, plot, ticks);
     } else if (labelOptions?.enabled !== false) {
-      labelExtent += labelOptions?.spacing ?? LABEL_SPACING;
-      const fontSize = labelOptions?.fontSize ?? LABEL_FONT_SIZE;
+      labelExtent += labelOptions?.spacing ?? theme.axis.labelSpacing ?? LABEL_SPACING;
+      const fontSize = this.labelSize;
       let maxLabelSize = 0;
       for (const { value, coord, index } of ticks) {
         const text = this.labelNode(this.formatTick(value, index));
@@ -351,10 +359,10 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       }
       const node = new Text();
       node.text = title.text;
-      node.fontSize = title.fontSize ?? TITLE_FONT_SIZE;
+      node.fontSize = title.fontSize ?? theme.axis.titleSize ?? themeFont(theme, FONT_STEP.heading);
       node.fontWeight = title.fontWeight !== undefined ? String(title.fontWeight) : 'bold';
       node.fontFamily = title.fontFamily ?? theme.fontFamily;
-      node.fill = title.color ?? theme.foregroundColor;
+      node.fill = title.color ?? theme.axis.titleColor ?? theme.foregroundColor;
       node.textAlign = 'center';
       const offset = labelExtent + TITLE_SPACING;
       if (this.isHorizontal) {
@@ -376,10 +384,10 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     const label = this.options.label;
     const node = new Text();
     node.text = content;
-    node.fontSize = label?.fontSize ?? LABEL_FONT_SIZE;
+    node.fontSize = this.labelSize;
     node.fontFamily = label?.fontFamily ?? this.env.theme.fontFamily;
     if (label?.fontWeight !== undefined) node.fontWeight = String(label.fontWeight);
-    node.fill = label?.color ?? this.env.theme.mutedColor;
+    node.fill = this.labelColor;
     return node;
   }
 
@@ -483,7 +491,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     if (!text) return;
     const node = new Text();
     node.text = text;
-    node.fontSize = crossLine.label?.fontSize ?? 11;
+    node.fontSize = crossLine.label?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
     node.fontFamily = this.env.theme.fontFamily;
     node.fill = crossLine.label?.color ?? crossLine.stroke ?? this.env.theme.foregroundColor;
     if (this.isHorizontal) {
@@ -511,7 +519,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
         return this.measureCtx.measureText(text).width;
       }
     }
-    const fontSize = Number.parseFloat(font) || LABEL_FONT_SIZE;
+    const fontSize = Number.parseFloat(font) || this.labelSize;
     return text.length * fontSize * 0.6;
   }
 

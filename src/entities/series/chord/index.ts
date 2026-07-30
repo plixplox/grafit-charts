@@ -1,4 +1,5 @@
 import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { SeriesModule, SeriesPick, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
 import type { FontOptions, Pixels, Switchable } from '@/shared/options';
 import { Group, Path, Sector, Text } from '@/shared/scene';
@@ -104,7 +105,7 @@ export class ChordSeries extends StandaloneSeries<ChordSeriesOptions> {
       ribbon.closePath();
       const fromIndex = this.nodeList.indexOf(from);
       ribbon.fill = this.colorFor(fromIndex);
-      ribbon.opacity = this.options.linkOpacity ?? 0.35;
+      ribbon.opacity = this.options.linkOpacity ?? this.env.theme.fillOpacity ?? 0.35;
       group.append(ribbon);
     }
 
@@ -131,7 +132,7 @@ export class ChordSeries extends StandaloneSeries<ChordSeriesOptions> {
       const sin = Math.sin(mid);
       label.textAlign = Math.abs(sin) < 0.25 ? 'center' : sin > 0 ? 'left' : 'right';
       label.textBaseline = Math.cos(mid) > 0.6 ? 'bottom' : Math.cos(mid) < -0.6 ? 'top' : 'middle';
-      label.fontSize = labelOptions?.fontSize ?? 11;
+      label.fontSize = labelOptions?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
       label.fontWeight = labelOptions?.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
       label.fontFamily = labelOptions?.fontFamily ?? this.env.theme.fontFamily;
       label.fill = labelOptions?.color ?? this.env.theme.foregroundColor;

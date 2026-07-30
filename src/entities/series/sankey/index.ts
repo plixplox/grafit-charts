@@ -1,5 +1,6 @@
 import { columnHeight, fitNodeSpacing, fitValueScale, MIN_NODE_HEIGHT } from './layout';
 import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { SeriesModule, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
 import type { FontOptions, Pixels, Switchable } from '@/shared/options';
 import { Group, Path, Rect, Text } from '@/shared/scene';
@@ -158,7 +159,7 @@ export class SankeySeries extends StandaloneSeries<SankeySeriesOptions> {
       link.curveTo(cx, y1 + value, cx, y0 + value, x0, y0 + value);
       link.closePath();
       link.fill = this.colorFor(from.colorIndex);
-      link.opacity = this.options.linkOpacity ?? 0.35;
+      link.opacity = this.options.linkOpacity ?? this.env.theme.fillOpacity ?? 0.35;
       group.append(link);
     }
 
@@ -182,7 +183,7 @@ export class SankeySeries extends StandaloneSeries<SankeySeriesOptions> {
       label.y = node.y + node.height / 2;
       label.textAlign = rightSide ? 'right' : 'left';
       label.textBaseline = 'middle';
-      label.fontSize = labelOptions?.fontSize ?? 11;
+      label.fontSize = labelOptions?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
       label.fontWeight = labelOptions?.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
       label.fontFamily = labelOptions?.fontFamily ?? this.env.theme.fontFamily;
       label.fill = labelOptions?.color ?? this.env.theme.foregroundColor;

@@ -116,7 +116,7 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
       const datum = ctx.data[point.index];
       return datum ? [{ x: point.x, y: point.y, text: this.labelTextFor(datum), offset }] : [];
     });
-    return pointLabelOverflow(marks, label.placement ?? 'top', labelFont(label, this.env.theme.fontFamily), ctx.plot, ctx.measureText);
+    return pointLabelOverflow(marks, label.placement ?? 'top', labelFont(label, this.env.theme), ctx.plot, ctx.measureText);
   }
 
   update(ctx: CartesianRenderContext): void {
@@ -130,7 +130,7 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
     const group = new Group();
     const fillPath = new Path();
     fillPath.fill = this.mainColor();
-    fillPath.opacity = this.options.fillOpacity ?? 0.35;
+    fillPath.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.35;
     this.points.forEach((point, i) => {
       if (i === 0) fillPath.moveTo(point.x, point.y);
       else fillPath.lineTo(point.x, point.y);
@@ -144,8 +144,9 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
 
     const strokePath = new Path();
     strokePath.stroke = this.options.stroke ?? this.mainColor();
-    strokePath.strokeWidth = this.options.strokeWidth ?? 2;
-    if (this.options.lineDash) strokePath.lineDash = this.options.lineDash;
+    strokePath.strokeWidth = this.options.strokeWidth ?? this.env.theme.strokeWidth;
+    const dash = this.options.lineDash ?? this.env.theme.lineDash;
+    if (dash?.length) strokePath.lineDash = dash;
     this.points.forEach((point, i) => {
       if (i === 0) strokePath.moveTo(point.x, point.y);
       else strokePath.lineTo(point.x, point.y);
@@ -192,7 +193,7 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
       const labelOptions = this.options.label;
       const placement = labelOptions.placement ?? 'top';
       const offset = (markerOptions?.size ?? DEFAULT_MARKER_SIZE) / 2 + POINT_LABEL_GAP;
-      const font = labelFont(labelOptions, this.env.theme.fontFamily);
+      const font = labelFont(labelOptions, this.env.theme);
       for (const point of this.points) {
         const datum = ctx.data[point.index];
         if (!datum) continue;

@@ -66,7 +66,7 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
       throw new Error('grafit: box-plot requires a category X axis and a numeric Y axis');
     }
     const stroke = this.options.stroke ?? this.mainColor();
-    const strokeWidth = this.options.strokeWidth ?? 1.5;
+    const strokeWidth = this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1.5;
     const slot = groupSlot(bandScale.bandwidth, ctx.group, this.options.groupGap);
     const highlighted =
       ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
@@ -119,7 +119,7 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
       box.width = width;
       box.height = Math.abs(pq3 - pq1);
       box.fill = this.mainColor();
-      box.opacity = this.options.fillOpacity ?? 0.45;
+      box.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.45;
       box.stroke = isSelected ? (ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor) : stroke;
       box.strokeWidth = isSelected ? (ctx.selectionStyle?.strokeWidth ?? 2) : index === highlighted ? 2 : strokeWidth;
       box.cornerRadius = 2;

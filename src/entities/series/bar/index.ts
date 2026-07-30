@@ -142,7 +142,7 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
     return rectLabelOverflow(
       marks,
       this.options.label.placement ?? 'top',
-      labelFont(this.options.label, this.env.theme.fontFamily),
+      labelFont(this.options.label, this.env.theme),
       ctx.plot,
       ctx.measureText,
     );
@@ -168,14 +168,14 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
       node.width = rect.width;
       node.height = rect.height;
       node.fill = this.mainColor();
-      node.opacity = this.options.fillOpacity ?? 1;
-      node.cornerRadius = this.options.cornerRadius ?? 0;
+      node.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 1;
+      node.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 0;
       if (ctx.selected?.has(index)) {
         node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
         node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
       } else if (this.options.stroke) {
         node.stroke = this.options.stroke;
-        node.strokeWidth = this.options.strokeWidth ?? 1;
+        node.strokeWidth = this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1;
       }
       if (ctx.selectionActive && !ctx.selected?.has(index)) {
         node.opacity *= ctx.selectionStyle?.inactiveOpacity ?? 0.45;
@@ -185,7 +185,7 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
       if (this.options.label?.enabled === true) {
         const labelOptions = this.options.label;
         const placed = placeRectLabel(labelOptions.placement ?? 'top', rect);
-        const font = labelFont(labelOptions, this.env.theme.fontFamily);
+        const font = labelFont(labelOptions, this.env.theme);
         const text = new Text();
         text.text = this.labelTextFor(rect, data);
         text.x = placed.x;

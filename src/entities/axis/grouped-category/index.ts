@@ -1,4 +1,5 @@
 import { BaseAxis, DEFAULT_PADDING_INNER, DEFAULT_PADDING_OUTER, type AxisBaseOptions } from '@/entities/axis/base';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { AxisModule, Insets, LayoutRect, MeasureText } from '@/shared/kernel';
 import type { Pixels } from '@/shared/options';
 import { BandScale } from '@/shared/scale';
@@ -17,7 +18,6 @@ export interface GroupedCategoryAxisOptions extends AxisBaseOptions {
 
 const GROUP_ROW_HEIGHT = 16;
 const GROUP_SPACING = 8;
-const GROUP_FONT_SIZE = 11;
 /** How far the separator between groups runs past the group row. */
 const SEPARATOR_OVERSHOOT = 10;
 
@@ -81,8 +81,13 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
     return spans;
   }
 
+  /** Group names share the tick-label size. */
+  private get groupFontSize(): Pixels {
+    return themeFont(this.env.theme, FONT_STEP.label);
+  }
+
   private groupFont(): string {
-    return `bold ${GROUP_FONT_SIZE}px ${this.env.theme.fontFamily}`;
+    return `bold ${this.groupFontSize}px ${this.env.theme.fontFamily}`;
   }
 
   /**
@@ -135,7 +140,7 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
         label.textBaseline = this.position === 'left' ? 'bottom' : 'top';
         label.rotation = -90;
       }
-      label.fontSize = GROUP_FONT_SIZE;
+      label.fontSize = this.groupFontSize;
       label.fontWeight = 'bold';
       label.fontFamily = this.env.theme.fontFamily;
       label.fill = this.env.theme.foregroundColor;

@@ -83,7 +83,14 @@ describe('resolveLegendItems', () => {
       { seriesId: 'pie-0#1', label: 'Firefox', color: '#222', visible: true },
     ];
     const onUnresolved = vi.fn();
-    const items = resolveLegendItems([{ name: 'FF', series: 'Firefox' }, { name: 'Pie', series: 'pie-0' }], sectors, onUnresolved);
+    const items = resolveLegendItems(
+      [
+        { name: 'FF', series: 'Firefox' },
+        { name: 'Pie', series: 'pie-0' },
+      ],
+      sectors,
+      onUnresolved,
+    );
     expect(items[0]?.seriesId).toBe('pie-0#1');
     expect(items[1]?.seriesId).toBeUndefined();
     expect(onUnresolved).toHaveBeenCalledWith('pie-0');
@@ -134,7 +141,12 @@ describe('captionObstacle', () => {
     mutedColor: '#888',
     axisColor: '#ddd',
     fontFamily: 'sans-serif',
-    palette: { fills: [], strokes: [] },
+    fontSize: 11,
+    strokeWidth: 2,
+    positiveColor: '#21a06c',
+    negativeColor: '#e5484d',
+    palette: { fills: [], strokes: [], sequential: ['#dbe6ff', '#1d4fd7'] },
+    axis: { line: true, tick: false, gridLine: true, strokeWidth: 1, gridDash: [4, 4] },
   };
   const rect = { x: 20, y: 12, width: 360, height: 276 };
   const measureText = (text: string) => text.length * 10;

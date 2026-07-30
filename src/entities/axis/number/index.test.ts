@@ -8,7 +8,12 @@ const theme: ThemeContext = {
   mutedColor: '#888',
   axisColor: '#ddd',
   fontFamily: 'sans-serif',
-  palette: { fills: [], strokes: [] },
+  fontSize: 11,
+  strokeWidth: 2,
+  positiveColor: '#21a06c',
+  negativeColor: '#e5484d',
+  palette: { fills: [], strokes: [], sequential: ['#dbe6ff', '#1d4fd7'] },
+  axis: { line: true, tick: false, gridLine: true, strokeWidth: 1, gridDash: [4, 4] },
 };
 
 const plot: LayoutRect = { x: 40, y: 20, width: 400, height: 300 };

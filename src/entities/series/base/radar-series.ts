@@ -91,10 +91,11 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
     });
     path.closePath();
     path.stroke = this.mainColor();
-    path.strokeWidth = this.options.strokeWidth ?? 2;
+    path.strokeWidth = this.options.strokeWidth ?? this.env.theme.strokeWidth;
+    if (this.env.theme.lineDash?.length) path.lineDash = this.env.theme.lineDash;
     if (this.filled()) {
       path.fill = this.mainColor();
-      path.opacity = this.options.fillOpacity ?? 0.25;
+      path.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.25;
       const outline = new Path();
       this.points.forEach((point, i) => {
         if (i === 0) outline.moveTo(point.x, point.y);
@@ -102,7 +103,7 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
       });
       outline.closePath();
       outline.stroke = this.mainColor();
-      outline.strokeWidth = this.options.strokeWidth ?? 2;
+      outline.strokeWidth = this.options.strokeWidth ?? this.env.theme.strokeWidth;
       group.append(path, outline);
     } else {
       group.append(path);

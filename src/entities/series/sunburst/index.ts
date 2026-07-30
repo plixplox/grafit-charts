@@ -1,4 +1,5 @@
 import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
+import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LegendItemDescriptor, SeriesModule, SeriesPick, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, FontOptions, Pixels, Switchable } from '@/shared/options';
 import { Group, Sector, Text } from '@/shared/scene';
@@ -117,9 +118,9 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
         sector.opacity = Math.max(0.35, 1 - depth * 0.22);
         const spacing = this.options.sectorSpacing ?? 0;
         sector.edgeInset = spacing / 2;
-        sector.cornerRadius = this.options.cornerRadius ?? 0;
+        sector.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 0;
         sector.stroke = this.options.stroke ?? (spacing > 0 ? undefined : this.env.theme.backgroundColor);
-        sector.strokeWidth = this.options.strokeWidth ?? 1;
+        sector.strokeWidth = this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1;
         if (nodeIndex === highlighted) {
           sector.opacity = 1;
         }
@@ -138,7 +139,7 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
             text.y = centerY - Math.cos(midAngle) * midRadius;
             text.textAlign = 'center';
             text.textBaseline = 'middle';
-            text.fontSize = labelOptions.fontSize ?? 11;
+            text.fontSize = labelOptions.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
             text.fontWeight = labelOptions.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
             text.fontFamily = labelOptions.fontFamily ?? this.env.theme.fontFamily;
             text.fill = labelOptions.color ?? contrastTextColor(this.colorFor(node.branchIndex));
