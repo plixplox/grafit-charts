@@ -95,6 +95,7 @@ const SIDEBAR_LABELS: Record<DocsLocale, Record<string, string>> = {
     state: 'State and synchronization',
     styling: 'Styling',
     themes: 'Themes',
+    themeBuilder: 'Theme builder',
     accessibility: 'Accessibility and localization',
     series: 'Series',
     cartesian: 'Cartesian',
@@ -124,6 +125,7 @@ const SIDEBAR_LABELS: Record<DocsLocale, Record<string, string>> = {
     state: 'Состояние и синхронизация',
     styling: 'Оформление',
     themes: 'Темы',
+    themeBuilder: 'Конструктор тем',
     accessibility: 'Доступность и локализация',
     series: 'Серии',
     cartesian: 'Декартовы',
@@ -181,6 +183,8 @@ function mainSidebar(locale: DocsLocale) {
       collapsed: false,
       items: [
         { text: t.themes, link: `${base}/guide/themes` },
+        // конструктор существует только на английском — ссылка без префикса локали
+        { text: t.themeBuilder, link: '/guide/theme-builder' },
         { text: t.accessibility, link: `${base}/guide/accessibility` },
       ],
     },
