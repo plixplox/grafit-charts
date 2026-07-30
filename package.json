@@ -1,6 +1,6 @@
 {
   "name": "grafit-charts",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Declarative charting library for the browser: one serializable options object describes the whole chart. Canvas 2D via a custom scene graph, zero dependencies, TypeScript. 29 series types, 6 axis types, tooltips, legend, zoom, annotations, themes, animations, a11y.",
   "license": "MIT",
   "author": "plixplox.dev@gmail.com",
