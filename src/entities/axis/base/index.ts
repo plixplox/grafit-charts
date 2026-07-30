@@ -1,6 +1,6 @@
 import type { AxisEnv, AxisPosition, CartesianAxisInstance, LayoutRect } from '@/shared/kernel';
 import type { ColorValue, FontOptions, Pixels, Switchable } from '@/shared/options';
-import type { AnyScale } from '@/shared/scale';
+import { BandScale, type AnyScale } from '@/shared/scale';
 import { Group, Line, Rect, Text } from '@/shared/scene';
 import { formatValue } from '@/shared/util';
 
@@ -8,6 +8,8 @@ export interface AxisLabelFormatterParams {
   value: unknown;
   index: number;
 }
+
+export type AxisLabelPlacement = 'outside' | 'inside';
 
 export interface AxisCrossLineOptions {
   type?: 'line' | 'range';
@@ -29,6 +31,12 @@ export interface AxisBaseOptions {
   label?: Switchable &
     FontOptions & {
       spacing?: Pixels;
+      /**
+       * 'outside' (default) — labels next to the axis line; 'inside' — inside
+       * the plot area: on a vertical axis above the band (over the bar), on a
+       * horizontal one along the inner edge. Inside labels reserve no space.
+       */
+      placement?: AxisLabelPlacement;
       /** Serializable format string (',.2f', '.0%', '%d %b'). */
       format?: string;
       formatter?: (params: AxisLabelFormatterParams) => string;
@@ -51,6 +59,8 @@ const TITLE_SPACING = 6;
 const LABEL_FONT_SIZE = 11;
 const TITLE_FONT_SIZE = 12;
 const MIN_LABEL_SPACING = 8;
+/** Bands never give up more than this share of the step to an inside label row. */
+const MAX_INSIDE_PADDING_INNER = 0.8;
 
 export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> implements CartesianAxisInstance {
   abstract readonly type: string;
@@ -67,6 +77,50 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
 
   protected get isHorizontal(): boolean {
     return this.position === 'bottom' || this.position === 'top';
+  }
+
+  /** Labels drawn inside the plot area: they take no thickness from the plot rect. */
+  protected get labelsInside(): boolean {
+    const label = this.options.label;
+    return label?.placement === 'inside' && label.enabled !== false;
+  }
+
+  /** Ticks point at outside labels, so inside labels turn them off unless asked for. */
+  protected get ticksVisible(): boolean {
+    return this.options.tick?.enabled ?? !this.labelsInside;
+  }
+
+  /** Vertical space one inside label needs: the glyph row plus a gap on both sides. */
+  protected insideLabelSlot(): number {
+    const label = this.options.label;
+    return (label?.fontSize ?? LABEL_FONT_SIZE) + (label?.spacing ?? LABEL_SPACING) * 2;
+  }
+
+  /**
+   * Binds a band scale to the plot rect. Inside labels on a vertical axis get a
+   * row above every band: one slot is reserved above the first band, and — unless
+   * paddingInner is set explicitly — the gap between bands grows to fit the row.
+   */
+  protected layoutBandScale(scale: BandScale<unknown>, plot: LayoutRect, explicitPaddingInner?: number): void {
+    // categories read left to right and top to bottom
+    if (this.isHorizontal) {
+      scale.range = [plot.x, plot.x + plot.width];
+      return;
+    }
+    if (!this.labelsInside) {
+      scale.range = [plot.y, plot.y + plot.height];
+      return;
+    }
+    const slot = this.insideLabelSlot();
+    const bottom = plot.y + plot.height;
+    scale.range = [Math.min(plot.y + slot, bottom), bottom];
+    if (explicitPaddingInner !== undefined) return;
+    const span = scale.range[1] - scale.range[0];
+    const count = scale.domain.length;
+    if (count === 0 || span <= 0) return;
+    // gap = paddingInner · step, step = span / (count − paddingInner + 2 · paddingOuter)
+    const padding = (slot * (count + 2 * scale.paddingOuter)) / (span + slot);
+    scale.paddingInner = Math.min(padding, MAX_INSIDE_PADDING_INNER);
   }
 
   abstract setDomain(domain: unknown[]): void;
@@ -121,10 +175,10 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
   measure(measureText: (text: string, font: string) => number): number {
     let thickness = 0;
     const tick = this.options.tick;
-    if (tick?.enabled !== false) thickness += tick?.size ?? TICK_SIZE;
+    if (this.ticksVisible) thickness += tick?.size ?? TICK_SIZE;
 
     const label = this.options.label;
-    if (label?.enabled !== false) {
+    if (label?.enabled !== false && !this.labelsInside) {
       const fontSize = label?.fontSize ?? LABEL_FONT_SIZE;
       thickness += label?.spacing ?? LABEL_SPACING;
       if (this.isHorizontal) {
@@ -143,7 +197,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     return Math.ceil(thickness);
   }
 
-  render(axisLayer: Group, gridLayer: Group, plot: LayoutRect): void {
+  render(axisLayer: Group, gridLayer: Group, plot: LayoutRect, foregroundLayer?: Group): void {
     const theme = this.env.theme;
     const ticks = this.displayTicks();
     const edge = this.edgeCoordinate(plot);
@@ -191,7 +245,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     const tickOptions = this.options.tick;
     const tickSize = tickOptions?.size ?? TICK_SIZE;
     const direction = this.outwardSign();
-    if (tickOptions?.enabled !== false) {
+    if (this.ticksVisible) {
       for (const { coord } of ticks) {
         const tick = new Line();
         if (this.isHorizontal) {
@@ -210,17 +264,17 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     }
 
     const labelOptions = this.options.label;
-    let labelExtent = tickOptions?.enabled !== false ? tickSize : 0;
-    if (labelOptions?.enabled !== false) {
+    let labelExtent = this.ticksVisible ? tickSize : 0;
+    const insideLabels = this.labelsInside;
+    if (labelOptions?.enabled !== false && insideLabels) {
+      // above the series: bars would otherwise cover the labels
+      this.renderInsideLabels(foregroundLayer ?? axisLayer, plot, ticks);
+    } else if (labelOptions?.enabled !== false) {
       labelExtent += labelOptions?.spacing ?? LABEL_SPACING;
       const fontSize = labelOptions?.fontSize ?? LABEL_FONT_SIZE;
       let maxLabelSize = 0;
       for (const { value, coord, index } of ticks) {
-        const text = new Text();
-        text.text = this.formatTick(value, index);
-        text.fontSize = fontSize;
-        text.fontFamily = labelOptions?.fontFamily ?? theme.fontFamily;
-        text.fill = labelOptions?.color ?? theme.mutedColor;
+        const text = this.labelNode(this.formatTick(value, index));
         if (this.isHorizontal) {
           text.x = coord;
           text.y = edge + labelExtent * direction;
@@ -242,7 +296,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
 
     const title = this.options.title;
     if (title?.text && title.enabled !== false) {
-      if (!this.isHorizontal) {
+      if (!this.isHorizontal && !insideLabels) {
         const font = this.labelFont();
         const widths = ticks.map(({ value, index }) => this.measureWithCanvasFallback(this.formatTick(value, index), font));
         labelExtent += widths.length > 0 ? Math.max(...widths) : 0;
@@ -267,6 +321,49 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       }
       axisLayer.append(node);
     }
+  }
+
+  /** Tick label with the label font applied; positioning is up to the caller. */
+  private labelNode(content: string): Text {
+    const label = this.options.label;
+    const node = new Text();
+    node.text = content;
+    node.fontSize = label?.fontSize ?? LABEL_FONT_SIZE;
+    node.fontFamily = label?.fontFamily ?? this.env.theme.fontFamily;
+    if (label?.fontWeight !== undefined) node.fontWeight = String(label.fontWeight);
+    node.fill = label?.color ?? this.env.theme.mutedColor;
+    return node;
+  }
+
+  /**
+   * Labels inside the plot area: on a vertical axis above the band (over the bar,
+   * flush with the start of the value axis), on a horizontal one along the inner
+   * edge of the plot rect. Continuous scales fall back to the tick coordinate.
+   */
+  private renderInsideLabels(layer: Group, plot: LayoutRect, ticks: Array<{ value: unknown; coord: number; index: number }>): void {
+    const spacing = this.options.label?.spacing ?? LABEL_SPACING;
+    for (const { value, coord, index } of ticks) {
+      const node = this.labelNode(this.formatTick(value, index));
+      if (this.isHorizontal) {
+        node.x = coord;
+        node.textAlign = 'center';
+        node.y = this.position === 'bottom' ? plot.y + plot.height - spacing : plot.y + spacing;
+        node.textBaseline = this.position === 'bottom' ? 'bottom' : 'top';
+      } else {
+        node.y = (this.bandStart(value) ?? coord) - spacing;
+        node.textBaseline = 'bottom';
+        node.x = this.position === 'left' ? plot.x + spacing : plot.x + plot.width - spacing;
+        node.textAlign = this.position === 'left' ? 'left' : 'right';
+      }
+      layer.append(node);
+    }
+  }
+
+  /** Top (or left) edge of the band for a value; undefined on a continuous scale. */
+  private bandStart(value: unknown): number | undefined {
+    if (!(this.scale instanceof BandScale)) return undefined;
+    const start = this.scale.convert(value);
+    return Number.isNaN(start) ? undefined : start;
   }
 
   private renderCrossLines(gridLayer: Group, plot: LayoutRect): void {

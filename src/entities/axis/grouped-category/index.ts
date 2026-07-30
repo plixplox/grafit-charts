@@ -30,7 +30,7 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
   }
 
   layout(plot: LayoutRect): void {
-    this.scale.range = this.isHorizontal ? [plot.x, plot.x + plot.width] : [plot.y, plot.y + plot.height];
+    this.layoutBandScale(this.scale, plot, this.options.paddingInner);
   }
 
   protected override formatTick(value: unknown, index: number): string {
@@ -56,8 +56,8 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
     return this.scale.domain.some((value) => Array.isArray(value) && value.length > 1);
   }
 
-  override render(axisLayer: Group, gridLayer: Group, plot: LayoutRect): void {
-    super.render(axisLayer, gridLayer, plot);
+  override render(axisLayer: Group, gridLayer: Group, plot: LayoutRect, foregroundLayer?: Group): void {
+    super.render(axisLayer, gridLayer, plot, foregroundLayer);
     if (!this.hasGroups()) return;
 
     // group row: contiguous runs with the same first element
@@ -103,7 +103,9 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
 
       if (spanStart > 0) {
         const separator = new Line();
-        const sepCoord = (this.scale.convert(domain[spanStart - 1]) + this.scale.bandwidth + c0) / 2;
+        const previousEnd = this.scale.convert(domain[spanStart - 1]) + this.scale.bandwidth;
+        // inside labels sit in the gap, so the separator goes above them instead of through them
+        const sepCoord = !horizontal && this.labelsInside ? previousEnd : (previousEnd + c0) / 2;
         if (horizontal) {
           separator.x1 = separator.x2 = sepCoord;
           separator.y1 = edge;

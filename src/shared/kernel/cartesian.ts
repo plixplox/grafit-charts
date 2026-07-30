@@ -203,6 +203,9 @@ export interface CartesianAxisInstance {
   layout(plot: LayoutRect): void;
   /** Thickness of the axis zone (labels + ticks + title); call after layout. */
   measure(measureText: (text: string, font: string) => number): number;
-  /** Renders the axis into axisLayer and grid lines into gridLayer. */
-  render(axisLayer: Group, gridLayer: Group, plot: LayoutRect): void;
+  /**
+   * Renders the axis into axisLayer and grid lines into gridLayer;
+   * foregroundLayer sits above the series and carries inside labels.
+   */
+  render(axisLayer: Group, gridLayer: Group, plot: LayoutRect, foregroundLayer?: Group): void;
 }

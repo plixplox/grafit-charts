@@ -122,9 +122,7 @@ export class CartesianChart implements SyncMember {
     container?: HTMLElement,
   ) {
     this.tooltip =
-      container && typeof document !== 'undefined'
-        ? this.registry.getFeature<TooltipApi>('tooltip')?.create(container)
-        : undefined;
+      container && typeof document !== 'undefined' ? this.registry.getFeature<TooltipApi>('tooltip')?.create(container) : undefined;
   }
 
   /** Optional feature from the registry; warn if the options request it but it is absent. */
@@ -142,9 +140,7 @@ export class CartesianChart implements SyncMember {
     this.buildAxes();
     if (inputs.tooltip && inputs.tooltip.enabled !== false && !this.tooltip) warnMissingFeature('tooltip');
     this.legend = this.feature<LegendApi>('legend', inputs.legend !== undefined)?.create(inputs.legend, theme);
-    this.navigator = this.feature<NavigatorApi>('navigator', inputs.navigator?.enabled === true)?.create(
-      inputs.navigator,
-    );
+    this.navigator = this.feature<NavigatorApi>('navigator', inputs.navigator?.enabled === true)?.create(inputs.navigator);
     if (this.navigator?.enabled) {
       const initial = this.navigator.initialWindow;
       if (initial && !isZoomed(this.zoomX)) this.zoomX = initial;
@@ -308,10 +304,12 @@ export class CartesianChart implements SyncMember {
     const gridLayer = this.scene.layer('grid');
     const axisLayer = this.scene.layer('axis');
     this.scene.layer('series');
+    // inside axis labels are drawn over the series, so they get a layer of their own
+    const axisForegroundLayer = this.scene.layer('axis-foreground');
     const legendLayer = this.scene.layer('legend');
     const captionLayer = this.scene.layer('caption');
     this.scene.layer('overlay');
-    for (const staticLayer of [backgroundLayer, gridLayer, axisLayer, legendLayer, captionLayer]) {
+    for (const staticLayer of [backgroundLayer, gridLayer, axisLayer, axisForegroundLayer, legendLayer, captionLayer]) {
       staticLayer.clear();
     }
 
@@ -443,7 +441,7 @@ export class CartesianChart implements SyncMember {
     this.plot = plot;
 
     if (!barePlot) {
-      for (const axis of this.axes) axis.render(axisLayer, gridLayer, plot);
+      for (const axis of this.axes) axis.render(axisLayer, gridLayer, plot, axisForegroundLayer);
     }
 
     // series

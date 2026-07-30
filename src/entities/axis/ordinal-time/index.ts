@@ -24,7 +24,7 @@ export class OrdinalTimeAxis extends BaseAxis<OrdinalTimeAxisOptions> {
   }
 
   layout(plot: LayoutRect): void {
-    this.scale.range = this.isHorizontal ? [plot.x, plot.x + plot.width] : [plot.y, plot.y + plot.height];
+    this.layoutBandScale(this.scale, plot, this.options.paddingInner);
   }
 
   protected override formatTick(value: unknown, index: number): string {
