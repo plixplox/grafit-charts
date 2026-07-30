@@ -16,6 +16,16 @@ and `linkOpacity`:
 
 ::: chart-example sankey-labels
 
+### Many nodes in a column
+
+The value → px scale is set by the column that runs out of room first, not by
+the heaviest one: the gaps between nodes are a fixed cost, so a column of twelve
+nodes has eleven gaps to pay for before its values get any height. Where the gaps
+alone would outgrow the plot, they shrink below `node.spacing` — every node keeps
+at least a hairline, and the column stays inside the chart.
+
+::: chart-example sankey-many-nodes
+
 ## Chord
 
 Nodes around a circle, ribbons are the mutual flows.
@@ -33,24 +43,24 @@ ribbon density, `label.formatter` receives the node's name and total:
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
 
-| Option      | Series | Description                          |
-| ----------- | ------ | ------------------------------------ |
-| `fromField` | both   | flow graph edges                     |
-| `toField`   | both   | flow graph edges                     |
-| `sizeField` | both   | flow graph edges                     |
+| Option      | Series | Description                             |
+| ----------- | ------ | --------------------------------------- |
+| `fromField` | both   | flow graph edges                        |
+| `toField`   | both   | flow graph edges                        |
+| `sizeField` | both   | flow graph edges                        |
 | `fills`     | both   | node colors cycling through the palette |
 
 ### Full option list
 
-| Option             | Type                          | Default      | Description                       |
-| ------------------ | ----------------------------- | ------------ | --------------------------------- |
-| `linkOpacity`      | both                          | `0.35`       | flow ribbon opacity               |
-| `nodeSpacing`      | chord                         | `12`         | gap between node arcs, px         |
-| `label.enabled`    | `boolean`                     | `true`       | node labels                       |
-| `label.formatter`  | `({ name, total }) => string` | node name    | content                           |
-| `label.fontSize`   | `Pixels`                   | `11`         | label font size                   |
-| `label.fontWeight` | `string \| number`            | `normal`     | font weight                       |
-| `label.fontFamily` | `string`                      | theme font   | font family                       |
-| `label.color`      | `ColorValue`                    | foreground   | color                             |
-| `node.width`       | `Pixels`                   | `14`         | sankey node width                 |
-| `node.spacing`     | `Pixels`                   | `14`         | sankey node vertical gap          |
+| Option             | Type                          | Default    | Description               |
+| ------------------ | ----------------------------- | ---------- | ------------------------- |
+| `linkOpacity`      | both                          | `0.35`     | flow ribbon opacity       |
+| `nodeSpacing`      | chord                         | `12`       | gap between node arcs, px |
+| `label.enabled`    | `boolean`                     | `true`     | node labels               |
+| `label.formatter`  | `({ name, total }) => string` | node name  | content                   |
+| `label.fontSize`   | `Pixels`                      | `11`       | label font size           |
+| `label.fontWeight` | `string \| number`            | `normal`   | font weight               |
+| `label.fontFamily` | `string`                      | theme font | font family               |
+| `label.color`      | `ColorValue`                  | foreground | color                     |
+| `node.width`       | `Pixels`                      | `14`       | sankey node width         |
+| `node.spacing`     | `Pixels`                      | `14`       | sankey node vertical gap  |

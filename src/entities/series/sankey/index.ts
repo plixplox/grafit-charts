@@ -1,3 +1,4 @@
+import { columnHeight, fitNodeSpacing, fitValueScale, MIN_NODE_HEIGHT } from './layout';
 import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
 import type { SeriesModule, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
 import type { FontOptions, Pixels, Switchable } from '@/shared/options';
@@ -29,6 +30,9 @@ interface SankeyNode {
   outOffset: number;
   inOffset: number;
 }
+
+const DEFAULT_NODE_WIDTH = 14;
+const DEFAULT_NODE_SPACING = 14;
 
 export class SankeySeries extends StandaloneSeries<SankeySeriesOptions> {
   readonly type = 'sankey';
@@ -89,8 +93,7 @@ export class SankeySeries extends StandaloneSeries<SankeySeriesOptions> {
     }
 
     const maxDepth = Math.max(...names.map((name) => depth.get(name) ?? 0));
-    const nodeWidth = this.options.node?.width ?? 14;
-    const nodeSpacing = this.options.node?.spacing ?? 14;
+    const nodeWidth = this.options.node?.width ?? DEFAULT_NODE_WIDTH;
     const columns = new Map<number, string[]>();
     for (const name of names) {
       const d = depth.get(name) ?? 0;
@@ -98,24 +101,24 @@ export class SankeySeries extends StandaloneSeries<SankeySeriesOptions> {
       column.push(name);
       columns.set(d, column);
     }
-    let maxColumnTotal = 0;
-    for (const column of columns.values()) {
-      maxColumnTotal = Math.max(
-        maxColumnTotal,
-        column.reduce((sum, name) => sum + (totals.get(name) ?? 0), 0),
-      );
-    }
-    if (maxColumnTotal <= 0) return;
-    const t = ctx.animationT ?? 1;
-    const valueScale = ((plot.height - nodeSpacing * 4) / maxColumnTotal) * t;
+    const columnTotals = [...columns.values()].map((column) => column.map((name) => totals.get(name) ?? 0));
+    if (columnTotals.every((column) => column.reduce((sum, total) => sum + total, 0) <= 0)) return;
 
-    // node layout by columns
+    const nodeSpacing = fitNodeSpacing(columnTotals, plot.height, this.options.node?.spacing ?? DEFAULT_NODE_SPACING);
+    const t = ctx.animationT ?? 1;
+    const valueScale = fitValueScale(columnTotals, plot.height, nodeSpacing) * t;
+
+    // node layout by columns, each centred on what it takes up
     for (const [d, column] of columns) {
-      const columnHeight = column.reduce((sum, name) => sum + (totals.get(name) ?? 0) * valueScale, 0) + nodeSpacing * (column.length - 1);
-      let y = plot.y + (plot.height - columnHeight) / 2;
+      const span = columnHeight(
+        column.map((name) => totals.get(name) ?? 0),
+        valueScale,
+        nodeSpacing,
+      );
+      let y = plot.y + (plot.height - span) / 2;
       const x = plot.x + (maxDepth === 0 ? 0 : (d / maxDepth) * (plot.width - nodeWidth));
       for (const name of column) {
-        const height = Math.max(2, (totals.get(name) ?? 0) * valueScale);
+        const height = Math.max(MIN_NODE_HEIGHT, (totals.get(name) ?? 0) * valueScale);
         const node: SankeyNode = {
           name,
           depth: d,

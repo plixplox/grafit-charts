@@ -16,6 +16,17 @@
 
 ::: chart-example sankey-labels
 
+### Много узлов в колонке
+
+Масштаб «значение → пиксели» задаёт та колонка, у которой раньше кончается
+место, а не самая тяжёлая: промежутки между узлами — фиксированная плата, и
+колонке из двенадцати узлов нужно сначала оплатить одиннадцать промежутков, а уж
+потом значения получат высоту. Если и одни промежутки не влезают, они сжимаются
+ниже `node.spacing` — каждому узлу остаётся хотя бы полоска, а колонка целиком
+остаётся внутри графика.
+
+::: chart-example sankey-many-nodes
+
 ## Chord
 
 Узлы по кругу, ленты — взаимные потоки.
@@ -48,9 +59,9 @@
 | `nodeSpacing`      | chord                         | `12`         | зазор между дугами узлов, px    |
 | `label.enabled`    | `boolean`                     | `true`       | подписи узлов                   |
 | `label.formatter`  | `({ name, total }) => string` | имя узла     | содержимое                      |
-| `label.fontSize`   | `Pixels`                   | `11`         | размер шрифта подписи           |
+| `label.fontSize`   | `Pixels`                      | `11`         | размер шрифта подписи           |
 | `label.fontWeight` | `string \| number`            | `normal`     | насыщенность                    |
 | `label.fontFamily` | `string`                      | шрифт темы   | гарнитура                       |
-| `label.color`      | `ColorValue`                    | foreground   | цвет                            |
-| `node.width`       | `Pixels`                   | `14`         | ширина узла sankey              |
-| `node.spacing`     | `Pixels`                   | `14`         | вертикальный зазор узлов sankey |
+| `label.color`      | `ColorValue`                  | foreground   | цвет                            |
+| `node.width`       | `Pixels`                      | `14`         | ширина узла sankey              |
+| `node.spacing`     | `Pixels`                      | `14`         | вертикальный зазор узлов sankey |
