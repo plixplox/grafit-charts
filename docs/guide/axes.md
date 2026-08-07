@@ -17,6 +17,63 @@ underneath your options, so anything comes back on request:
 `gridLine: { enabled: true, lineDash: [] }` for a solid grid along the
 categories.
 
+## Line, ticks and grid
+
+The axis line takes the same three style options as the grid — colour, width and
+dash pattern — and the ticks take their length and colour beside them:
+
+```js
+axes: [
+  {
+    position: 'bottom',
+    line: { stroke: '#0f766e', width: 2, lineDash: [6, 3] },
+    tick: { enabled: true, size: 10, width: 2, color: '#0f766e' },
+    gridLine: { stroke: '#e2e8f0', width: 1, lineDash: [2, 4] },
+  },
+],
+```
+
+`line.lineDash` and `gridLine.lineDash` read like the CSS-side dash arrays:
+`[on, off]` in pixels, and an empty array `[]` draws a solid line even when the
+theme dashes it. `tick.size` is the length of the mark, always drawn outwards
+from the plot, and `tick.color` is an alias of `tick.stroke` — either sets the
+tick colour and wins over the theme's `tickColor`.
+
+## Two value axes
+
+Quantities of different sizes — euros and per cent, requests and latency —
+share a chart badly on one scale: the smaller one flattens into the baseline.
+Declare a second value axis on the opposite side, and let each axis say with
+`keys` which series it carries:
+
+```js
+series: [
+  { type: 'bar', xField: 'month', yField: 'revenue', name: 'Revenue' },
+  { type: 'line', xField: 'month', yField: 'margin', name: 'Margin' },
+],
+axes: [
+  { type: 'category', position: 'bottom' },
+  { type: 'number', position: 'left', keys: ['revenue'], title: { text: 'Revenue, k€' } },
+  { type: 'number', position: 'right', keys: ['margin'], title: { text: 'Margin, %' } },
+],
+```
+
+::: chart-example axis-dual-y
+
+`keys` lists value fields — `yField`, or the low/high and OHLC fields of the
+multi-field series — and a series `id` matches too, which is how two series over
+one field end up on different axes. Everything unclaimed goes to the first axis
+without `keys`, so a chart with a single value axis behaves exactly as before.
+
+Each axis then scales itself to its own series only, and picks its own nice
+bounds; hiding a series through the legend rescales its axis alone. The two grids
+would never line up, so only the first value axis keeps its grid — turn it on for
+the second one with `gridLine: { enabled: true }` if you want both.
+
+The same works in a horizontal chart, where the value axes are `bottom` and
+`top`. What still reads off the first value axis: annotations, the crosshair's
+value label and the Y zoom window.
+
 ## Time axis
 
 `time` accepts a `Date`, a timestamp or an ISO string; ticks snap to calendar
@@ -123,10 +180,12 @@ Reference lines and ranges in axis coordinates — with labels:
 | `line.enabled`                                            | `boolean`                                                                           | category axis only          | axis line                                            |
 | `line.stroke`                                             | `ColorValue`                                                                        | theme axis (light grey)     | line color                                           |
 | `line.width`                                              | `Pixels`                                                                            | `1`                         | line width                                           |
+| `line.lineDash`                                           | `Pixels[]`                                                                          | solid                       | axis line dash pattern (`[]` forces a solid line)    |
 | `tick.enabled`                                            | `boolean`                                                                           | `false`                     | ticks                                                |
 | `tick.size`                                               | `Pixels`                                                                            | `6`                         | tick length                                          |
 | `tick.width`                                              | `Pixels`                                                                            | `1`                         | tick width                                           |
-| `tick.stroke`                                             | `ColorValue`                                                                        | theme axis (light grey)     | tick color                                           |
+| `tick.stroke`                                             | `ColorValue`                                                                        | theme axis (light grey)     | tick color (`tick.color` is an alias)                |
+| `tick.lineDash`                                           | `Pixels[]`                                                                          | solid                       | tick dash pattern                                    |
 | `label.enabled`                                           | `boolean`                                                                           | `true`                      | tick labels                                          |
 | `label.fontSize`                                          | `Pixels`                                                                            | `11`                        | label font size                                      |
 | `label.fontFamily`                                        | `string`                                                                            | theme font                  | typeface                                             |

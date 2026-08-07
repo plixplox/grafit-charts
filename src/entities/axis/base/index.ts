@@ -28,9 +28,31 @@ export interface AxisCrossLineOptions {
 
 export interface AxisBaseOptions {
   position?: AxisPosition;
+  /**
+   * Which series this axis carries, by their value field (`yField`, or the
+   * low/high/OHLC fields of the multi-field series) or by series `id`. Only
+   * meaningful with two value axes — it is what tells `left` from `right`.
+   * A series matching no axis falls back to the first value axis without keys.
+   */
+  keys?: string[];
   title?: Switchable & FontOptions & { text?: string };
-  line?: Switchable & { stroke?: ColorValue; width?: Pixels };
-  tick?: Switchable & { size?: Pixels; width?: Pixels; stroke?: ColorValue };
+  /** The axis line itself, styled like the grid: colour, width and dash pattern. */
+  line?: Switchable & {
+    stroke?: ColorValue;
+    width?: Pixels;
+    /** Dash pattern, as `gridLine.lineDash`; an empty array draws a solid line. */
+    lineDash?: Pixels[];
+  };
+  tick?: Switchable & {
+    /** Tick length, px (6 by default). */
+    size?: Pixels;
+    width?: Pixels;
+    /** Tick colour; `color` is an alias of it. */
+    stroke?: ColorValue;
+    color?: ColorValue;
+    /** Dash pattern of a tick mark; solid by default. */
+    lineDash?: Pixels[];
+  };
   label?: Switchable &
     FontOptions & {
       /** Gap from the axis line (from the tick, when ticks are on). Outside labels only. */
@@ -91,6 +113,10 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
 
   get position(): AxisPosition {
     return this.env.position;
+  }
+
+  get keys(): readonly string[] | undefined {
+    return this.options.keys;
   }
 
   protected get isHorizontal(): boolean {
@@ -272,7 +298,8 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       }
       axisLine.stroke = lineOptions?.stroke ?? theme.axis.color ?? theme.axisColor;
       axisLine.strokeWidth = lineOptions?.width ?? theme.axis.strokeWidth;
-      if (theme.axis.lineDash?.length) axisLine.lineDash = theme.axis.lineDash;
+      const lineDash = lineOptions?.lineDash ?? theme.axis.lineDash;
+      if (lineDash?.length) axisLine.lineDash = lineDash;
       axisLayer.append(axisLine);
     }
 
@@ -313,8 +340,9 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
           tick.x1 = edge;
           tick.x2 = edge + tickSize * direction;
         }
-        tick.stroke = tickOptions?.stroke ?? theme.axis.tickColor ?? theme.axisColor;
+        tick.stroke = tickOptions?.stroke ?? tickOptions?.color ?? theme.axis.tickColor ?? theme.axisColor;
         tick.strokeWidth = tickOptions?.width ?? theme.axis.strokeWidth;
+        if (tickOptions?.lineDash?.length) tick.lineDash = tickOptions.lineDash;
         axisLayer.append(tick);
       }
     }

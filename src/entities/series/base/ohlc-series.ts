@@ -81,6 +81,10 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
     return extent([...numericValues(data, this.options.lowField), ...numericValues(data, this.options.highField)]);
   }
 
+  override axisKeys(): string[] {
+    return [this.options.openField, this.options.highField, this.options.lowField, this.options.closeField];
+  }
+
   update(ctx: CartesianRenderContext): void {
     this.lastCtx = ctx;
     this.candles = [];

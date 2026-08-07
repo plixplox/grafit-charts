@@ -86,6 +86,10 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
     return extent([...numericValues(data, this.options.yLowField), ...numericValues(data, this.options.yHighField)]);
   }
 
+  override axisKeys(): string[] {
+    return [this.options.yLowField, this.options.yHighField];
+  }
+
   /** Bars in plot coordinates; shared by rendering and label measurement (t = 1 there). */
   private layoutBars(ctx: CartesianGeometry, t: number): BarRect[] {
     const bandScale = ctx.swapped ? ctx.yScale : ctx.xScale;

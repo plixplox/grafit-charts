@@ -5,7 +5,7 @@ import type { ChartOptions } from 'grafit-charts';
 export function createOptions(): ChartOptions {
   return {
     data: getData(),
-    title: { text: 'Weekly sessions', textAlign: 'left', spacing: 12 },
+    title: { text: 'Weekly sessions', textAlign: 'left', padding: { bottom: 12 } },
     subtitle: { text: 'updated hourly', textAlign: 'right', position: 'bottom' },
     series: [{ type: 'area', xField: 'day', yField: 'sessions', name: 'Sessions' }],
     legend: { enabled: false },

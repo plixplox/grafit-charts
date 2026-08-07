@@ -1,3 +1,4 @@
+import { bindSeriesToValueAxes } from './axis-binding';
 import { renderBackground, type BackgroundOptions } from '@/entities/background';
 import { hasCaptions, renderCaptions, type CaptionOptions } from '@/entities/caption';
 import type { GradientLegendApi, GradientLegendOptions } from '@/entities/gradient-legend';
@@ -40,7 +41,7 @@ import type {
   TooltipContentData,
 } from '@/shared/kernel';
 import { deepMerge, resolvePadding, type Datum, type PaddingValue, type Switchable } from '@/shared/options';
-import { BandScale, LinearScale, TimeScale } from '@/shared/scale';
+import { BandScale, LinearScale, TimeScale, type AnyScale } from '@/shared/scale';
 import { Group, Rect, Text, type Scene } from '@/shared/scene';
 import { maxOverflow, NO_OVERFLOW } from '@/shared/util';
 
@@ -240,15 +241,18 @@ export class CartesianChart implements SyncMember {
           ]);
     // heatmap-like series: labels only, without a grid of their own
     const bareAxes = this.series.length > 0 && this.series.every((series) => series.prefersBareAxes?.() === true);
+    let valueAxisCount = 0;
     this.axes = defs.map((rawOptions) => {
       const fallback: AxisPosition = rawOptions.type === 'number' && !swapped ? 'left' : 'bottom';
       const position = rawOptions.position ?? fallback;
       // the categories get the axis line, the values get the grid — and never both ways round
       const alongCategories = this.alongCategories(position, swapped);
+      // two value axes would draw two grids that never line up, so only the first one keeps its grid
+      const secondaryValueAxis = !alongCategories && valueAxisCount++ > 0;
       // the theme switches gate the directional rule: it can silence the chrome
       // everywhere, but never revive what the rule above turned off
       const defaults: Record<string, unknown> = {};
-      if (bareAxes || alongCategories || !this.theme.axis.gridLine) defaults.gridLine = { enabled: false };
+      if (bareAxes || alongCategories || secondaryValueAxis || !this.theme.axis.gridLine) defaults.gridLine = { enabled: false };
       if (bareAxes || !alongCategories || !this.theme.axis.line) defaults.line = { enabled: false };
       // defaults sit underneath the user's axis options
       const axisOptions = deepMerge(defaults, rawOptions as never) as typeof rawOptions;
@@ -400,9 +404,11 @@ export class CartesianChart implements SyncMember {
     const visibleSeries = this.series.filter((series) => series.visible);
     const categories = this.collectCategories(visibleSeries, data);
     const stacks = this.computeSeriesStacks(visibleSeries, data);
-    const valueDomain = this.collectValueDomain(visibleSeries, data, stacks);
     const yCategories = this.collectYCategories(visibleSeries, data);
     const swapped = this.swapped;
+    // each value axis is scaled by the series it carries, and only by those
+    const valueAxes = this.axes.filter((axis) => !this.alongCategories(axis.position, swapped));
+    const valueAxisOf = bindSeriesToValueAxes(this.series, valueAxes);
     for (const axis of this.axes) {
       const horizontalAxis = axis.position === 'bottom' || axis.position === 'top';
       const isCategoryDirection = this.alongCategories(axis.position, swapped);
@@ -413,7 +419,8 @@ export class CartesianChart implements SyncMember {
         // categorical value axis (heatmap)
         axis.setDomain(sliceDomain(yCategories, window));
       } else {
-        axis.setDomain(windowExtent(valueDomain, window));
+        const own = visibleSeries.filter((series) => valueAxisOf.get(series.id) === axis);
+        axis.setDomain(windowExtent(this.collectValueDomain(own, data, stacks), window));
       }
     }
 
@@ -453,7 +460,7 @@ export class CartesianChart implements SyncMember {
         }
       }
       // labels hanging over the plot edges want the same room as the axis zones do
-      const overflow = this.labelOverflow(plot, measureText, { data, xAxis, yAxis, swapped, stacks, slots, barePlot });
+      const overflow = this.labelOverflow(plot, measureText, { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, barePlot });
       for (const side of SIDES) inset[side] = Math.max(inset[side], Math.ceil(overflow[side]));
       plot = {
         x: avail.x + inset.left,
@@ -476,6 +483,7 @@ export class CartesianChart implements SyncMember {
       visibleCount: visibleSeries.length,
       xAxis,
       yAxis,
+      valueAxisOf,
       swapped,
       stacks,
       slots,
@@ -499,6 +507,7 @@ export class CartesianChart implements SyncMember {
       data: Datum[];
       xAxis: CartesianAxisInstance | undefined;
       yAxis: CartesianAxisInstance | undefined;
+      valueAxisOf: Map<string, CartesianAxisInstance>;
       swapped: boolean;
       stacks: Map<string, StackSegment>;
       slots: Map<string, { index: number; count: number }>;
@@ -515,12 +524,13 @@ export class CartesianChart implements SyncMember {
     if (!xAxis || !yAxis) return overflow;
     for (const series of this.series) {
       if (!series.visible || !series.labelOverflow) continue;
+      const scales = seriesScales(xAxis, yAxis, cache.valueAxisOf.get(series.id), cache.swapped);
       overflow = maxOverflow(
         overflow,
         series.labelOverflow({
           data: cache.data,
-          xScale: xAxis.scale,
-          yScale: yAxis.scale,
+          xScale: scales.xScale,
+          yScale: scales.yScale,
           swapped: cache.swapped,
           plot,
           stack: cache.stacks.get(series.id),
@@ -538,6 +548,8 @@ export class CartesianChart implements SyncMember {
         visibleCount: number;
         xAxis: CartesianAxisInstance | undefined;
         yAxis: CartesianAxisInstance | undefined;
+        /** seriesId → the value axis it is drawn against (two Y axes). */
+        valueAxisOf: Map<string, CartesianAxisInstance>;
         swapped: boolean;
         stacks: Map<string, StackSegment>;
         slots: Map<string, { index: number; count: number }>;
@@ -557,15 +569,16 @@ export class CartesianChart implements SyncMember {
     const overlayLayer = this.scene.layer('overlay');
     seriesLayer.clear();
     overlayLayer.clear();
-    const { data, xAxis, yAxis, swapped, stacks, slots, navigatorRect, colorInfo } = cache;
+    const { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, navigatorRect, colorInfo } = cache;
     const plot = this.plot;
 
     if (xAxis && yAxis) {
       for (const series of this.series) {
+        const scales = seriesScales(xAxis, yAxis, valueAxisOf.get(series.id), swapped);
         series.update({
           data,
-          xScale: xAxis.scale,
-          yScale: yAxis.scale,
+          xScale: scales.xScale,
+          yScale: scales.yScale,
           swapped,
           plot,
           layer: seriesLayer,
@@ -1284,6 +1297,21 @@ function windowFromSelection(
     newEnd = Math.min(1, newStart + minRatio);
   }
   return [newStart, newEnd];
+}
+
+/**
+ * Scales a series draws against. The category direction is shared by everyone;
+ * the value direction is the series' own axis — which is the horizontal one on
+ * a swapped chart.
+ */
+function seriesScales(
+  xAxis: CartesianAxisInstance,
+  yAxis: CartesianAxisInstance,
+  valueAxis: CartesianAxisInstance | undefined,
+  swapped: boolean,
+): { xScale: AnyScale; yScale: AnyScale } {
+  if (swapped) return { xScale: valueAxis?.scale ?? xAxis.scale, yScale: yAxis.scale };
+  return { xScale: xAxis.scale, yScale: valueAxis?.scale ?? yAxis.scale };
 }
 
 function sameHighlight(a: HighlightState | undefined, b: HighlightState | undefined): boolean {

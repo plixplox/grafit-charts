@@ -52,6 +52,9 @@ axes: [
 ],
 ```
 
+A second value axis on the opposite side gets its own scale; `keys` on each axis
+says which series it carries — see [Two value axes](/guide/axes#two-value-axes).
+
 ## Size
 
 Without `width`/`height` the chart tracks its container via `ResizeObserver` —
@@ -59,30 +62,30 @@ size the container with CSS. Numeric `width`/`height` fix the size.
 
 ## Titles, padding, background
 
-| Option               | Type        | Default      | Description                  |
-| -------------------- | ----------- | ------------ | ---------------------------- |
-| `title.text`         | `string`    | —            | chart title                  |
-| `title.textAlign`    | `'left' \| 'center' \| 'right'` | `'center'` | horizontal alignment |
-| `title.fontSize`     | `Pixels` | `17`         | title font size              |
-| `title.color`        | `ColorValue`  | foreground   | color                        |
-| `title.position`     | `'top' \| 'bottom'` | `'top'` | above or below the plot |
-| `title.spacing`      | `Pixels` | `8`          | gap below the title (towards the subtitle or the plot) |
-| `title.wrap`         | `boolean` | `true`      | break long text onto several lines |
-| `subtitle.text`      | `string`    | —            | subtitle (muted, same options) |
-| `subtitle.spacing`   | `Pixels` | `8`          | gap between the subtitle and the plot |
-| `padding`            | `PaddingValue` | `{ top: 12, right: 20, bottom: 12, left: 20 }` | outer chart padding: `12`, `[12, 20]`, `[12, 20, 12, 20]` or `{ top, right, bottom, left }` |
-| `background.fill`    | `ColorValue`  | theme background | backdrop fill            |
-| `background.visible` | `boolean`   | `true`       | whether to draw the background |
+| Option               | Type                            | Default                                        | Description                                                                                 |
+| -------------------- | ------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `title.text`         | `string`                        | —                                              | chart title                                                                                 |
+| `title.textAlign`    | `'left' \| 'center' \| 'right'` | `'center'`                                     | horizontal alignment                                                                        |
+| `title.fontSize`     | `Pixels`                        | `17`                                           | title font size                                                                             |
+| `title.color`        | `ColorValue`                    | foreground                                     | color                                                                                       |
+| `title.position`     | `'top' \| 'bottom'`             | `'top'`                                        | above or below the plot                                                                     |
+| `title.padding`      | `PaddingValue`                  | `8` below the title                            | padding around the title text; by default only the plot-facing side                         |
+| `title.wrap`         | `boolean`                       | `true`                                         | break long text onto several lines                                                          |
+| `subtitle.text`      | `string`                        | —                                              | subtitle (muted, same options)                                                              |
+| `subtitle.padding`   | `PaddingValue`                  | `8` below the subtitle                         | padding around the subtitle text                                                            |
+| `padding`            | `PaddingValue`                  | `{ top: 12, right: 20, bottom: 12, left: 20 }` | outer chart padding: `12`, `[12, 20]`, `[12, 20, 12, 20]` or `{ top, right, bottom, left }` |
+| `background.fill`    | `ColorValue`                    | theme background                               | backdrop fill                                                                               |
+| `background.visible` | `boolean`                       | `true`                                         | whether to draw the background                                                              |
 
 All caption options with live examples: [Title and subtitle](/interactivity/captions).
 
 ## Overlays and loading
 
-| Option                  | Type      | Default      | Description                          |
-| ----------------------- | --------- | ------------ | ------------------------------------ |
-| `loading`               | `boolean` | `false`      | show the “Loading data…” overlay     |
-| `overlays.loading.text` | `string`  | from `locale` | loading overlay text                |
-| `overlays.noData.text`  | `string`  | from `locale` | text shown when `data` is empty     |
+| Option                  | Type      | Default       | Description                      |
+| ----------------------- | --------- | ------------- | -------------------------------- |
+| `loading`               | `boolean` | `false`       | show the “Loading data…” overlay |
+| `overlays.loading.text` | `string`  | from `locale` | loading overlay text             |
+| `overlays.noData.text`  | `string`  | from `locale` | text shown when `data` is empty  |
 
 ## Conventions
 
@@ -104,39 +107,39 @@ await chart.updateDelta({ theme: 'dark' }); // targeted change
 await chart.update(buildOptions(newData)); // full replacement
 ```
 
-| Method                           | Description                                                       |
-| -------------------------------- | ----------------------------------------------------------------- |
-| `update(options)`                | full options replacement; the Promise resolves after rendering    |
-| `updateDelta(patch)`             | deep merge: objects are merged, arrays are replaced as a whole    |
-| `getOptions()`                   | current options                                                   |
-| `getState()` / `setState(state)` | zoom and hidden series — see [State](/interactivity/state)        |
-| `waitForUpdate()`                | wait for a scheduled render (and for pending web fonts)           |
-| `getImageDataURL(opts?)`         | PNG/JPEG as a data URL                                            |
-| `download(opts?)`                | download an image (`{ fileName?, fileFormat? }`)                  |
-| `destroy()`                      | release the DOM and subscriptions                                 |
+| Method                           | Description                                                    |
+| -------------------------------- | -------------------------------------------------------------- |
+| `update(options)`                | full options replacement; the Promise resolves after rendering |
+| `updateDelta(patch)`             | deep merge: objects are merged, arrays are replaced as a whole |
+| `getOptions()`                   | current options                                                |
+| `getState()` / `setState(state)` | zoom and hidden series — see [State](/interactivity/state)     |
+| `waitForUpdate()`                | wait for a scheduled render (and for pending web fonts)        |
+| `getImageDataURL(opts?)`         | PNG/JPEG as a data URL                                         |
+| `download(opts?)`                | download an image (`{ fileName?, fileFormat? }`)               |
+| `destroy()`                      | release the DOM and subscriptions                              |
 
 ## All root-level blocks
 
-| Block                                 | What it does                          | Read more                                    |
-| ------------------------------------- | ------------------------------------- | -------------------------------------------- |
-| `container`, `data`, `series`, `axes` | chart foundation                      | above on this page                           |
-| `width`, `height`                     | fixed size                            | [Size](#size)                                |
-| `title`, `subtitle`                   | titles                                | [Titles](#titles-padding-background)         |
-| `padding`, `background`               | padding and background                | [Titles](#titles-padding-background)         |
-| `loading`, `overlays`                 | overlays                              | [Overlays](#overlays-and-loading)            |
-| `theme`                               | theme name or object                  | [Themes](/guide/themes)                      |
-| `fonts`                               | redraw once a web font has loaded     | [Themes](/guide/themes#web-fonts)            |
-| `legend`                              | legend                                | [Legend](/interactivity/legend)              |
-| `gradientLegend`                      | color scale for colorField series     | [Heatmap](/series/heatmap)                   |
-| `tooltip`                             | tooltips (modes, position, snapping)  | [Tooltip](/interactivity/tooltip)            |
-| `highlight`                           | hover highlighting and dimming        | [Tooltip](/interactivity/tooltip)            |
-| `crosshair`                           | crosshair                             | [Crosshair](/interactivity/crosshair)        |
-| `zoom`, `navigator`                   | zoom and range bar                    | [Zoom](/interactivity/zoom)                  |
-| `sync`                                | synchronizing multiple charts         | [State](/interactivity/state)                |
-| `selection`                           | data selection                        | [Data selection](/interactivity/selection)   |
-| `listeners`                           | chart events                          | [Events](/interactivity/listeners)           |
-| `annotations`                         | lines/ranges/text on the chart        | [Annotations](/interactivity/annotations)    |
-| `animation`                           | entry and updates                     | [State](/interactivity/state)                |
-| `initialState`                        | initial zoom/hidden series            | [State](/interactivity/state)                |
-| `contextMenu`                         | right-click menu                      | [State](/interactivity/state)                |
-| `locale`                              | UI strings                            | [Accessibility](/guide/accessibility)        |
+| Block                                 | What it does                         | Read more                                  |
+| ------------------------------------- | ------------------------------------ | ------------------------------------------ |
+| `container`, `data`, `series`, `axes` | chart foundation                     | above on this page                         |
+| `width`, `height`                     | fixed size                           | [Size](#size)                              |
+| `title`, `subtitle`                   | titles                               | [Titles](#titles-padding-background)       |
+| `padding`, `background`               | padding and background               | [Titles](#titles-padding-background)       |
+| `loading`, `overlays`                 | overlays                             | [Overlays](#overlays-and-loading)          |
+| `theme`                               | theme name or object                 | [Themes](/guide/themes)                    |
+| `fonts`                               | redraw once a web font has loaded    | [Themes](/guide/themes#web-fonts)          |
+| `legend`                              | legend                               | [Legend](/interactivity/legend)            |
+| `gradientLegend`                      | color scale for colorField series    | [Heatmap](/series/heatmap)                 |
+| `tooltip`                             | tooltips (modes, position, snapping) | [Tooltip](/interactivity/tooltip)          |
+| `highlight`                           | hover highlighting and dimming       | [Tooltip](/interactivity/tooltip)          |
+| `crosshair`                           | crosshair                            | [Crosshair](/interactivity/crosshair)      |
+| `zoom`, `navigator`                   | zoom and range bar                   | [Zoom](/interactivity/zoom)                |
+| `sync`                                | synchronizing multiple charts        | [State](/interactivity/state)              |
+| `selection`                           | data selection                       | [Data selection](/interactivity/selection) |
+| `listeners`                           | chart events                         | [Events](/interactivity/listeners)         |
+| `annotations`                         | lines/ranges/text on the chart       | [Annotations](/interactivity/annotations)  |
+| `animation`                           | entry and updates                    | [State](/interactivity/state)              |
+| `initialState`                        | initial zoom/hidden series           | [State](/interactivity/state)              |
+| `contextMenu`                         | right-click menu                     | [State](/interactivity/state)              |
+| `locale`                              | UI strings                           | [Accessibility](/guide/accessibility)      |

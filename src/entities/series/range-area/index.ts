@@ -42,6 +42,10 @@ export class RangeAreaSeries extends CartesianSeries<RangeAreaSeriesOptions & { 
     return extent([...numericValues(data, this.options.yLowField), ...numericValues(data, this.options.yHighField)]);
   }
 
+  override axisKeys(): string[] {
+    return [this.options.yLowField, this.options.yHighField];
+  }
+
   update(ctx: CartesianRenderContext): void {
     this.lastCtx = ctx;
     this.points = [];

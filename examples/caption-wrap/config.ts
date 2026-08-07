@@ -6,8 +6,8 @@ import type { ChartOptions } from 'grafit-charts';
 export function createOptions(): ChartOptions {
   return {
     data: getData(),
-    title: { text: 'Site traffic by acquisition channel, twelve months to August', textAlign: 'left', spacing: 4 },
-    subtitle: { text: 'visits per month, thousands; organic includes search and referrals', textAlign: 'left', spacing: 12 },
+    title: { text: 'Site traffic by acquisition channel, twelve months to August', textAlign: 'left', padding: { bottom: 4 } },
+    subtitle: { text: 'visits per month, thousands; organic includes search and referrals', textAlign: 'left', padding: { bottom: 12 } },
     series: [
       { type: 'line', xField: 'month', yField: 'organic', name: 'Organic' },
       { type: 'line', xField: 'month', yField: 'ads', name: 'Ads' },

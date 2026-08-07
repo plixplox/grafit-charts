@@ -190,6 +190,12 @@ export interface CartesianSeriesInstance {
   yValues?(data: Datum[]): unknown[];
   /** The series' color scale (heatmap) — for the gradient legend. */
   colorScaleInfo?(): ColorScaleInfo | undefined;
+  /**
+   * Value fields the series reads — matched against an axis' `keys` to decide
+   * which value axis it belongs to. The series id matches too, so two series
+   * over one field can still be told apart.
+   */
+  axisKeys?(): string[];
   /** Values along the category/X axis — used to build the domain. */
   xValues(data: Datum[]): unknown[];
   /** Numeric value domain (accounting for the stack, if provided). */
@@ -226,6 +232,8 @@ export interface CartesianAxisInstance {
   readonly type: string;
   readonly position: AxisPosition;
   readonly scale: AnyScale;
+  /** Value fields (or series ids) this axis carries; undefined — it takes whatever is left. */
+  readonly keys?: readonly string[];
   setDomain(domain: unknown[]): void;
   /** Binds the scale range to the plot rect (orientation per position/type). */
   layout(plot: LayoutRect): void;

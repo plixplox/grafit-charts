@@ -1,6 +1,6 @@
 # Title and subtitle
 
-`title` and `subtitle` are drawn around the plot. Both accept the same options: text, font, color, alignment, vertical placement and the gap towards the plot.
+`title` and `subtitle` are drawn around the plot. Both accept the same options: text, font, color, alignment, vertical placement and the padding around the text.
 
 ::: chart-example caption-styling
 
@@ -16,7 +16,8 @@
 | `fontWeight` | `FontWeight`                     | `'bold'` / `'normal'` | font weight                  |
 | `fontFamily` | `string`                         | theme font         | font family                     |
 | `color`      | `ColorValue`                     | foreground / muted | text color                      |
-| `spacing`    | `Pixels`                         | `8`                | gap on the plot-facing side of the caption |
+| `padding`    | `PaddingValue`                   | `8` on the plot-facing side | padding around the text: `8`, `[8, 12]`, `[8, 12, 4, 0]` or `{ top, right, bottom, left }` |
+| `spacing`    | `Pixels`                         | `8`                | **deprecated** — the plot-facing side of `padding` |
 | `wrap`       | `boolean`                        | `true`             | break long text onto several lines |
 
 ## Alignment and placement
@@ -25,22 +26,35 @@
 
 ::: chart-example caption-align
 
-When both captions share a zone, the title always stays above the subtitle; `spacing` faces the plot.
+When both captions share a zone, the title always stays above the subtitle; the padding of the last one faces the plot.
 
-## Gap towards the plot
+## Padding
 
-`spacing` is measured on the side that faces the plot: below the caption in the `'top'` zone, above it in the `'bottom'` zone. With both captions stacked on top, `title.spacing` separates the title from the subtitle, and `subtitle.spacing` separates the subtitle from the plot — so widening the gap under the captions means raising the `spacing` of whichever caption sits last:
+`padding` takes the same CSS-like shorthand as everywhere else in the options — a single number, `[vertical, horizontal]`, `[top, right, bottom, left]`, or the named object:
+
+```js
+title: { text: 'Site traffic', padding: 12 },              // all four sides
+title: { text: 'Site traffic', padding: [4, 24] },         // vertical, horizontal
+title: { text: 'Site traffic', padding: [4, 24, 12, 24] }, // top, right, bottom, left
+title: { text: 'Site traffic', padding: { bottom: 12 } },  // one side, the rest default
+```
+
+By default only the side facing the plot is padded, by 8px: below the caption in the `'top'` zone, above it in the `'bottom'` zone. Any side left out of the object form keeps that default, so `{ bottom: 12 }` on a top caption is just a wider gap towards the plot.
+
+The vertical padding grows the caption block and shrinks the plot by the same amount. The horizontal padding narrows the width the text is measured against — a left-aligned caption starts `padding.left` in from the chart padding, and long text [wraps](#long-text) earlier:
 
 ```js
 grafit.create({
   container: '#chart',
-  title: { text: 'Site traffic', spacing: 4 },
-  subtitle: { text: 'visits per month, thousands', spacing: 28 },
+  title: { text: 'Site traffic', padding: { bottom: 4 } },
+  subtitle: { text: 'visits per month, thousands', padding: { bottom: 28 } },
   // ...
 });
 ```
 
-Without a subtitle, `title.spacing` is the one that faces the plot. To move both captions away from the chart edge instead, use `padding.top` (or `padding.bottom`).
+With both captions stacked on top, `title.padding.bottom` separates the title from the subtitle, and `subtitle.padding.bottom` separates the subtitle from the plot — so widening the gap under the captions means padding whichever caption sits last. Without a subtitle, the title is the one facing the plot. To move both captions away from the chart edge instead, use the chart-level `padding.top` (or `padding.bottom`).
+
+The older `spacing` option still works and sets the same plot-facing gap, but `padding` wins wherever both are given.
 
 ## Long text
 

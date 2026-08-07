@@ -143,6 +143,52 @@ describe('axis chrome from the theme', () => {
   });
 });
 
+describe('per-axis line and tick styling', () => {
+  it('styles the axis line like the grid — colour, width and dash', () => {
+    const axisLayer = captureLines();
+    axis({ line: { stroke: '#0f766e', width: 3, lineDash: [6, 2] } }, 'bottom').render(axisLayer.layer, new Group(), plot);
+
+    expect(axisLayer.lines[0]?.stroke).toBe('#0f766e');
+    expect(axisLayer.lines[0]?.strokeWidth).toBe(3);
+    expect(axisLayer.lines[0]?.lineDash).toEqual([6, 2]);
+  });
+
+  it('lets the axis dash win over the theme, and an empty array undo it', () => {
+    const dashed = captureLines();
+    axis({ line: { lineDash: [2, 2] } }, 'bottom', domain, { lineDash: [8, 8] }).render(dashed.layer, new Group(), plot);
+    expect(dashed.lines[0]?.lineDash).toEqual([2, 2]);
+
+    const solid = captureLines();
+    axis({ line: { lineDash: [] } }, 'bottom', domain, { lineDash: [8, 8] }).render(solid.layer, new Group(), plot);
+    expect(solid.lines[0]?.lineDash).toBeUndefined();
+  });
+
+  it('sizes and colours the ticks from the axis options', () => {
+    const axisLayer = captureLines();
+    axis({ tick: { enabled: true, size: 10, width: 2, stroke: '#e5484d' } }, 'bottom').render(axisLayer.layer, new Group(), plot);
+
+    const ticks = axisLayer.lines.slice(1);
+    expect(ticks).toHaveLength(domain.length);
+    for (const tick of ticks) {
+      // a bottom axis draws its ticks outwards, below the line
+      expect(tick.y2 - tick.y1).toBe(10);
+      expect(tick.strokeWidth).toBe(2);
+      expect(tick.stroke).toBe('#e5484d');
+    }
+  });
+
+  it('takes tick.color as an alias of tick.stroke, and beats the theme tick colour', () => {
+    const axisLayer = captureLines();
+    axis({ tick: { enabled: true, color: '#333333' } }, 'bottom', domain, { tickColor: '#999999' }).render(
+      axisLayer.layer,
+      new Group(),
+      plot,
+    );
+
+    for (const tick of axisLayer.lines.slice(1)) expect(tick.stroke).toBe('#333333');
+  });
+});
+
 describe('category axis with inside labels', () => {
   it('reserves no thickness for the plot rect', () => {
     expect(axis({ label: { placement: 'inside' } }).measure(measureText)).toBe(0);

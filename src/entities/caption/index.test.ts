@@ -89,10 +89,38 @@ describe('layoutCaptions', () => {
   });
 
   it('stacks the title above the subtitle and reports the consumed height', () => {
-    const { placements, top } = layout({ text: 'Revenue', spacing: 4 }, { text: 'in thousands', spacing: 12 });
+    const { placements, top } = layout({ text: 'Revenue', padding: { bottom: 4 } }, { text: 'in thousands', padding: { bottom: 12 } });
     expect(placements.map((placement) => placement.role)).toEqual(['title', 'subtitle']);
     expect(placements[1]?.lines[0]?.y).toBe(10 + 17 + 4);
     expect(top).toBe(17 + 4 + 13 + 12);
+  });
+
+  it('takes the deprecated spacing as the plot-facing padding', () => {
+    const { placements, top } = layout({ text: 'Revenue', spacing: 4 }, { text: 'in thousands', spacing: 12 });
+    expect(placements[1]?.lines[0]?.y).toBe(10 + 17 + 4);
+    expect(top).toBe(17 + 4 + 13 + 12);
+  });
+
+  it('pads the caption from every side of the shorthand', () => {
+    // [top, right, bottom, left]: the text starts 6px lower and the block grows by 6 + 10
+    const { placements, top } = layout({ text: 'Revenue', padding: [6, 40, 10, 40], textAlign: 'left' }, undefined);
+    expect(placements[0]?.lines[0]).toEqual({ text: 'Revenue', x: 60, y: 16, align: 'left' });
+    expect(top).toBe(6 + 17 + 10);
+  });
+
+  it('wraps within the width left by the horizontal padding', () => {
+    // 360px of room less 2 × 50 — 26 characters per line
+    const text = 'Site traffic by acquisition channel over the last twelve months';
+    const { placements } = layout({ text, padding: [0, 50, 8, 50] }, undefined);
+    const lines = placements[0]?.lines ?? [];
+    expect(lines.map((line) => line.text)).toEqual(['Site traffic by', 'acquisition channel over', 'the last twelve months']);
+    for (const line of lines) expect(measureText(line.text)).toBeLessThanOrEqual(260);
+  });
+
+  it('pads a bottom caption from the plot side, above its text', () => {
+    const { placements, bottom } = layout(undefined, { text: 'in thousands', position: 'bottom', padding: { top: 20, bottom: 4 } });
+    expect(bottom).toBe(20 + 13 + 4);
+    expect(placements[0]?.lines[0]?.y).toBe(300 - 10 - bottom + 20);
   });
 
   it('grows the bottom zone upwards as its captions wrap', () => {
@@ -100,7 +128,7 @@ describe('layoutCaptions', () => {
     const { placements, bottom } = layout(undefined, { text, position: 'bottom' });
     const lines = placements[0]?.lines ?? [];
     expect(lines).toHaveLength(2);
-    // spacing leads the text in the bottom zone, and the block ends at the padding edge
+    // padding leads the text in the bottom zone, and the block ends at the chart padding edge
     expect(bottom).toBe(8 + 13 + 13 * 1.25);
     expect(lines[0]?.y).toBe(300 - 10 - bottom + 8);
     expect((lines[1]?.y ?? 0) + 13).toBeLessThanOrEqual(300 - padding.bottom);

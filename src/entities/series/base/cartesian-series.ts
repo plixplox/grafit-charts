@@ -62,6 +62,14 @@ export abstract class CartesianSeries<O extends SeriesBaseOptions = SeriesBaseOp
     return data.map((datum) => datum[this.options.xField]);
   }
 
+  /**
+   * The single value field of the series; the multi-field ones (range, OHLC,
+   * box plot) list all of theirs instead.
+   */
+  axisKeys(): string[] {
+    return this.options.yField ? [this.options.yField] : [];
+  }
+
   yDomain(data: Datum[], stack?: StackSegment): [number, number] | undefined {
     if (stack) return extent([...stack.y0, ...stack.y1]);
     return extent(numericValues(data, this.options.yField));

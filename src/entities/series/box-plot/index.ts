@@ -56,6 +56,11 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
     return extent([...numericValues(data, this.options.minField), ...numericValues(data, this.options.maxField)]);
   }
 
+  override axisKeys(): string[] {
+    const { minField, q1Field, medianField, q3Field, maxField } = this.options;
+    return [minField, q1Field, medianField, q3Field, maxField];
+  }
+
   update(ctx: CartesianRenderContext): void {
     this.lastCtx = ctx;
     this.boxes = [];

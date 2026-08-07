@@ -1,6 +1,6 @@
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LayoutRect, ThemeContext } from '@/shared/kernel';
-import type { FontOptions, Pixels, Switchable } from '@/shared/options';
+import { resolvePadding, type FontOptions, type Padding, type PaddingValue, type Pixels, type Switchable } from '@/shared/options';
 import { Group, Text } from '@/shared/scene';
 
 export interface CaptionOptions extends Switchable, FontOptions {
@@ -10,10 +10,20 @@ export interface CaptionOptions extends Switchable, FontOptions {
   /** Vertical placement: above ('top', default) or below ('bottom') the plot. */
   position?: 'top' | 'bottom';
   /**
-   * Gap on the plot-facing side of the caption — below it in the 'top' zone,
-   * above it in the 'bottom' zone (8 by default). When both captions share a
-   * zone, the gap of the outer one separates the two captions, and the gap of
-   * the one closest to the plot separates it from the plot.
+   * Padding around the caption text in any CSS-like shorthand — `8`, `[8, 12]`,
+   * `[8, 12, 4, 0]` or `{ top, right, bottom, left }`. By default only the
+   * plot-facing side is padded (8 px): below the caption in the 'top' zone,
+   * above it in the 'bottom' zone. When both captions share a zone, the padding
+   * of the outer one separates the two captions, and the padding of the one
+   * closest to the plot separates it from the plot. Horizontal padding narrows
+   * the width the text is wrapped within.
+   */
+  padding?: PaddingValue;
+  /**
+   * Gap on the plot-facing side of the caption (8 by default).
+   *
+   * @deprecated Use `padding` — it covers the same gap and the other three
+   * sides. Kept as the default for the plot-facing side of `padding`.
    */
   spacing?: Pixels;
   /**
@@ -27,12 +37,13 @@ interface CaptionRole {
   fontStep: number;
   fontWeight: string;
   muted: boolean;
-  spacing: number;
+  /** Default padding on the plot-facing side; the other three sides default to 0. */
+  plotGap: number;
 }
 
 const ROLES: Record<'title' | 'subtitle', CaptionRole> = {
-  title: { fontStep: FONT_STEP.title, fontWeight: 'bold', muted: false, spacing: 8 },
-  subtitle: { fontStep: FONT_STEP.subtitle, fontWeight: 'normal', muted: true, spacing: 8 },
+  title: { fontStep: FONT_STEP.title, fontWeight: 'bold', muted: false, plotGap: 8 },
+  subtitle: { fontStep: FONT_STEP.subtitle, fontWeight: 'normal', muted: true, plotGap: 8 },
 };
 
 /** Baseline-to-baseline step of a wrapped caption, as a multiple of the font size. */
@@ -69,7 +80,7 @@ interface CaptionPlacement {
   role: 'title' | 'subtitle';
   options: CaptionOptions;
   fontSize: number;
-  /** Height of the whole block: the lines plus `spacing`. */
+  /** Height of the whole block: the lines plus the vertical padding. */
   height: number;
   lines: CaptionLine[];
 }
@@ -82,10 +93,15 @@ function captionMetrics(
   role: 'title' | 'subtitle',
   options: CaptionOptions | undefined,
   theme: ThemeContext,
-): { fontSize: number; spacing: number } | undefined {
+  zone: 'top' | 'bottom',
+): { fontSize: number; padding: Required<Padding> } | undefined {
   if (!captionShown(options) || !options) return undefined;
   const config = ROLES[role];
-  return { fontSize: options.fontSize ?? themeFont(theme, config.fontStep), spacing: options.spacing ?? config.spacing };
+  // only the plot-facing side is padded by default — above the plot that is the
+  // bottom of the caption, below it the top
+  const gap = options.spacing ?? config.plotGap;
+  const fallback: Required<Padding> = { top: zone === 'bottom' ? gap : 0, right: 0, bottom: zone === 'bottom' ? 0 : gap, left: 0 };
+  return { fontSize: options.fontSize ?? themeFont(theme, config.fontStep), padding: resolvePadding(options.padding, fallback) };
 }
 
 /** Whether anything will be drawn at all — lets callers skip preparing the layout context. */
@@ -135,9 +151,9 @@ function wrapText(
 }
 
 /**
- * Lays a caption out inside `full`, starting at `blockTop`. `spacing` faces the
- * plot: it trails the text in the 'top' zone ('after') and leads it in the
- * 'bottom' one ('before'). Returns undefined for a disabled or empty caption.
+ * Lays a caption out inside `full`, starting at `blockTop`. The text sits inside
+ * its `padding`: the horizontal sides narrow the room the lines wrap within, the
+ * vertical ones grow the block. Returns undefined for a disabled or empty caption.
  */
 function layoutCaption(
   role: 'title' | 'subtitle',
@@ -145,18 +161,19 @@ function layoutCaption(
   theme: ThemeContext,
   full: Span,
   blockTop: number,
-  spacingSide: 'before' | 'after',
+  zone: 'top' | 'bottom',
   context: CaptionLayoutContext,
 ): CaptionPlacement | undefined {
-  const metrics = captionMetrics(role, options, theme);
+  const metrics = captionMetrics(role, options, theme, zone);
   if (!metrics || !options) return undefined;
   const config = ROLES[role];
-  const { fontSize, spacing } = metrics;
+  const { fontSize, padding } = metrics;
   const fontWeight = options.fontWeight !== undefined ? String(options.fontWeight) : config.fontWeight;
   const font = `${fontWeight} ${fontSize}px ${options.fontFamily ?? theme.fontFamily}`;
   const step = fontSize * LINE_HEIGHT;
-  const textTop = spacingSide === 'before' ? blockTop + spacing : blockTop;
-  const spanAt = (index: number) => lineSpan(full, textTop + index * step, textTop + index * step + fontSize, context.obstacle);
+  const textTop = blockTop + padding.top;
+  const room: Span = { left: full.left + padding.left, right: full.right - padding.right };
+  const spanAt = (index: number) => lineSpan(room, textTop + index * step, textTop + index * step + fontSize, context.obstacle);
 
   const align = options.textAlign ?? 'center';
   const lines = wrapText(options.text ?? '', font, context.measureText, spanAt, options.wrap !== false).map(({ text, span }, index) => ({
@@ -165,7 +182,7 @@ function layoutCaption(
     x: align === 'left' ? span.left : align === 'right' ? span.right : (span.left + span.right) / 2,
     y: textTop + index * step,
   }));
-  return { role, options, fontSize, height: fontSize + (lines.length - 1) * step + spacing, lines };
+  return { role, options, fontSize, height: padding.top + fontSize + (lines.length - 1) * step + padding.bottom, lines };
 }
 
 function drawCaption(layer: Group, placement: CaptionPlacement, theme: ThemeContext): void {
@@ -189,9 +206,10 @@ function drawCaption(layer: Group, placement: CaptionPlacement, theme: ThemeCont
 /**
  * Places the title and subtitle around the plot: 'top' captions stack below
  * `padding.top`, 'bottom' ones sit above `padding.bottom` (the title stays
- * above the subtitle in both zones, `spacing` faces the plot). Long text wraps
- * within the available width, flowing around `context.obstacle`. Returns the
- * placements plus the space consumed from each edge, padding excluded.
+ * above the subtitle in both zones, the caption padding faces the plot). Long
+ * text wraps within the available width, flowing around `context.obstacle`.
+ * Returns the placements plus the space consumed from each edge, chart padding
+ * excluded.
  */
 export function layoutCaptions(
   title: CaptionOptions | undefined,
@@ -213,7 +231,7 @@ export function layoutCaptions(
   const placements: CaptionPlacement[] = [];
   let top = 0;
   for (const [role, options] of zone('top')) {
-    const placement = layoutCaption(role, options, theme, full, padding.top + top, 'after', context);
+    const placement = layoutCaption(role, options, theme, full, padding.top + top, 'top', context);
     if (!placement) continue;
     placements.push(placement);
     top += placement.height;
@@ -229,7 +247,7 @@ export function layoutCaptions(
     let cursor = start;
     bottomPlacements = [];
     for (const [role, options] of bottomEntries) {
-      const placement = layoutCaption(role, options, theme, full, cursor, 'before', context);
+      const placement = layoutCaption(role, options, theme, full, cursor, 'bottom', context);
       if (!placement) continue;
       bottomPlacements.push(placement);
       cursor += placement.height;
