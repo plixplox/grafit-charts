@@ -20,6 +20,14 @@ export interface ZoomOptions extends Switchable {
   wheelStep?: number;
   /** Minimum window width (fraction of the domain, 0.05 by default). */
   minRatio?: number;
+  /**
+   * Initial window sized to this many items along the category axis.
+   * Applies even without `enabled`, and yields to an explicit `navigator.min`/`max`.
+   * `minRatio` does not clamp it: an explicit count outranks the interaction floor.
+   */
+  visibleCount?: number;
+  /** Which end of the domain `visibleCount` starts from ('start' by default). */
+  visibleAnchor?: 'start' | 'end';
 }
 
 export const FULL_WINDOW: ZoomWindow = [0, 1];
@@ -56,13 +64,27 @@ export function panWindow(window: ZoomWindow, deltaRatio: number): ZoomWindow {
   return [newStart, newStart + span];
 }
 
+/**
+ * Window showing `count` of `total` items, anchored to one end of the domain.
+ * The full window comes back when the count covers everything or makes no sense.
+ */
+export function windowForCount(count: number, total: number, anchor: 'start' | 'end' = 'start'): ZoomWindow {
+  if (!Number.isFinite(count) || count < 1 || total <= 0 || count >= total) return FULL_WINDOW;
+  const span = Math.floor(count) / total;
+  return anchor === 'start' ? [0, span] : [1 - span, 1];
+}
+
 /** Slices a categorical domain by the window. */
 export function sliceDomain(domain: unknown[], window: ZoomWindow): unknown[] {
   if (!isZoomed(window) || domain.length === 0) return domain;
-  const from = Math.floor(domain.length * window[0]);
-  const to = Math.max(from + 1, Math.ceil(domain.length * window[1]));
+  // count/total windows land on an index exactly, and binary fractions miss it by
+  // an ulp either way — nudge both ends so a window of N never slices N ± 1
+  const from = Math.floor(domain.length * window[0] + EDGE_EPSILON);
+  const to = Math.max(from + 1, Math.ceil(domain.length * window[1] - EDGE_EPSILON));
   return domain.slice(from, to);
 }
+
+const EDGE_EPSILON = 1e-9;
 
 /** Window of a numeric domain. */
 export function windowExtent(values: number[], window: ZoomWindow): number[] {

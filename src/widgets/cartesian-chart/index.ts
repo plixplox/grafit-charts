@@ -18,6 +18,7 @@ import {
   panWindow,
   sliceDomain,
   windowExtent,
+  windowForCount,
   zoomAround,
   type ZoomOptions,
   type ZoomWindow,
@@ -107,6 +108,8 @@ export class CartesianChart implements SyncMember {
 
   private zoomX: ZoomWindow = FULL_WINDOW;
   private zoomY: ZoomWindow = FULL_WINDOW;
+  /** zoom.visibleCount already turned into a window; guards against reapplying it. */
+  private appliedVisibleCount: number | undefined;
   private pointer: { x: number; y: number } | undefined;
   private dragMode: DragMode | undefined;
   private selectRect: { x0: number; y0: number; x1: number; y1: number } | undefined;
@@ -152,6 +155,7 @@ export class CartesianChart implements SyncMember {
       const initial = this.navigator.initialWindow;
       if (initial && !isZoomed(this.zoomX)) this.zoomX = initial;
     }
+    this.applyVisibleCount();
     if (inputs.initialState) this.setState(inputs.initialState);
     this.joinSync();
     this.maybeAnimateEntrance();
@@ -179,6 +183,31 @@ export class CartesianChart implements SyncMember {
         series.visible = !this.hiddenSeries.has(series.id);
       }
     }
+  }
+
+  /**
+   * Sizes the starting window to zoom.visibleCount. Runs once per value of the
+   * option, so a wheel or a reset afterwards stays put, while a new count applies.
+   * An empty dataset defers it to the update that brings the data in.
+   */
+  private applyVisibleCount(): void {
+    const count = this.inputs.zoom?.visibleCount;
+    if (count === undefined || count === this.appliedVisibleCount) return;
+    const data = this.inputs.data ?? [];
+    const total = this.collectCategories(
+      this.series.filter((series) => series.visible),
+      data,
+    ).length;
+    if (total === 0) return;
+    this.appliedVisibleCount = count;
+    // horizontal series put the categories on the vertical axis, which reads zoomY
+    const swapped = this.swapped;
+    const current = swapped ? this.zoomY : this.zoomX;
+    // an explicit navigator window was set on purpose — leave it alone
+    if (isZoomed(current)) return;
+    const window = windowForCount(count, total, this.inputs.zoom?.visibleAnchor ?? 'start');
+    if (swapped) this.zoomY = window;
+    else this.zoomX = window;
   }
 
   isZoomed(): boolean {

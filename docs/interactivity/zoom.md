@@ -8,6 +8,21 @@ with PNG download and zoom reset.
 
 ::: chart-example zoom-basic
 
+## Initial window by item count
+
+`zoom.visibleCount` sizes the starting window to a number of items along the category
+axis instead of a fraction: with 365 points and `visibleCount: 30` the chart opens on
+the first 30 of them, and the rest stays a wheel or a drag of the navigator away.
+`zoom.visibleAnchor: 'end'` opens on the last ones instead — the usual choice for a
+time series, where the fresh data sits at the far end.
+
+::: chart-example zoom-visible-count
+
+The window is applied once per value of the option: zooming, panning or a double-click
+reset afterwards is left alone, while a new `visibleCount` in `update()` re-applies.
+An explicit `navigator.min`/`max` wins, and `minRatio` does not clamp the count —
+an explicit number of items outranks the interaction floor.
+
 ## Navigator
 
 A strip below the plot area with a window of the visible range and handles:
@@ -18,23 +33,25 @@ Zoom is part of the core, while when building with [grafit-charts/core](/guide/b
 
 ::: chart-example navigator-basic
 
-| Option                          | Type                                   | Default       | Description                                      |
-| ------------------------------- | -------------------------------------- | ------------- | ------------------------------------------------ |
-| `enabled`                       | `boolean`                              | `false`       | enable the navigator                             |
-| `sync.groupId`                  | `string`                               | shared group  | chart synchronization group                      |
-| `sync.nodeInteraction`          | `boolean`                              | `true`        | synchronization of node highlighting             |
-| `zoom.axes`                     | `'x' \| 'y' \| 'xy'`                   | `'x'`         | zoomable axes                                    |
-| `zoom.wheelZoom`          | `boolean`                              | `true`        | wheel zoom                                       |
-| `zoom.wheelStep`            | `number`                               | `0.1`         | zoom step per wheel tick                         |
-| `zoom.dragPan`            | `boolean`                              | `true`        | panning by dragging                              |
-| `zoom.panKey`                   | `'alt' \| 'ctrl' \| 'shift' \| 'meta'` | —             | pan modifier (without it, drag is box-zoom)      |
-| `zoom.dragSelect`          | `boolean`                              | `false`       | area selection → zoom                            |
-| `zoom.doubleClickReset` | `boolean`                              | `true`        | reset by double click                            |
-| `zoom.minRatio`                 | `number`                               | `0.05`        | minimum window width (fraction of the domain)    |
-| `navigator.height`              | `Pixels`                            | `24`          | navigator strip height                           |
-| `navigator.miniChart.enabled`   | `boolean`                              | `true`        | series miniature in the strip                    |
-| `navigator.min`                 | `0..1`                                 | `0`           | window start                                     |
-| `navigator.max`                 | `0..1`                                 | `1`           | window end                                       |
+| Option                        | Type                                   | Default      | Description                                   |
+| ----------------------------- | -------------------------------------- | ------------ | --------------------------------------------- |
+| `enabled`                     | `boolean`                              | `false`      | enable the navigator                          |
+| `sync.groupId`                | `string`                               | shared group | chart synchronization group                   |
+| `sync.nodeInteraction`        | `boolean`                              | `true`       | synchronization of node highlighting          |
+| `zoom.axes`                   | `'x' \| 'y' \| 'xy'`                   | `'x'`        | zoomable axes                                 |
+| `zoom.wheelZoom`              | `boolean`                              | `true`       | wheel zoom                                    |
+| `zoom.wheelStep`              | `number`                               | `0.1`        | zoom step per wheel tick                      |
+| `zoom.dragPan`                | `boolean`                              | `true`       | panning by dragging                           |
+| `zoom.panKey`                 | `'alt' \| 'ctrl' \| 'shift' \| 'meta'` | —            | pan modifier (without it, drag is box-zoom)   |
+| `zoom.dragSelect`             | `boolean`                              | `false`      | area selection → zoom                         |
+| `zoom.doubleClickReset`       | `boolean`                              | `true`       | reset by double click                         |
+| `zoom.minRatio`               | `number`                               | `0.05`       | minimum window width (fraction of the domain) |
+| `zoom.visibleCount`           | `number`                               | —            | items visible in the initial window           |
+| `zoom.visibleAnchor`          | `'start' \| 'end'`                     | `'start'`    | end of the domain `visibleCount` starts from  |
+| `navigator.height`            | `Pixels`                               | `24`         | navigator strip height                        |
+| `navigator.miniChart.enabled` | `boolean`                              | `true`       | series miniature in the strip                 |
+| `navigator.min`               | `0..1`                                 | `0`          | window start                                  |
+| `navigator.max`               | `0..1`                                 | `1`          | window end                                    |
 
 A pinch gesture on touch devices zooms around the gesture center. The navigator window and zoom are a single state: the wheel updates the navigator and vice versa.
 The current window is saved in the [chart state](/interactivity/state).
