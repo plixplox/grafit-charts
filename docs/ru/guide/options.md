@@ -68,10 +68,7 @@ axes: [
 | `title.wrap`         | `boolean` | `true`      | переносить длинный текст на несколько строк |
 | `subtitle.text`      | `string`    | —            | подзаголовок (приглушённый, те же опции) |
 | `subtitle.spacing`   | `Pixels` | `8`          | отступ между подзаголовком и графиком |
-| `padding.top`        | `Pixels` | `12`         | внешние поля чарта          |
-| `padding.right`      | `Pixels` | `20`         | —                           |
-| `padding.bottom`     | `Pixels` | `12`         | —                           |
-| `padding.left`       | `Pixels` | `20`         | —                           |
+| `padding`            | `PaddingValue` | `{ top: 12, right: 20, bottom: 12, left: 20 }` | внешние поля чарта: `12`, `[12, 20]`, `[12, 20, 12, 20]` или `{ top, right, bottom, left }` |
 | `background.fill`    | `ColorValue`  | фон темы     | заливка подложки            |
 | `background.visible` | `boolean`   | `true`       | рисовать ли фон             |
 
@@ -110,7 +107,7 @@ await chart.update(buildOptions(newData)); // полная замена
 | `updateDelta(patch)`             | глубокий merge: объекты сливаются, массивы заменяются целиком |
 | `getOptions()`                   | текущие options                                               |
 | `getState()` / `setState(state)` | зум и скрытые серии — см. [Состояние](/ru/interactivity/state)   |
-| `waitForUpdate()`                | дождаться запланированного рендера                            |
+| `waitForUpdate()`                | дождаться рендера (и догрузки веб-шрифтов)                    |
 | `getImageDataURL(opts?)`         | PNG/JPEG как data-URL                                         |
 | `download(opts?)`                | скачать изображение (`{ fileName?, fileFormat? }`)            |
 | `destroy()`                      | освободить DOM и подписки                                     |
@@ -125,6 +122,7 @@ await chart.update(buildOptions(newData)); // полная замена
 | `padding`, `background`               | поля и фон                         | [Заголовки](#заголовки-поля-фон)             |
 | `loading`, `overlays`                 | оверлеи                            | [Оверлеи](#оверлеи-и-загрузка)               |
 | `theme`                               | имя темы или объект                | [Темы](/ru/guide/themes)                        |
+| `fonts`                               | перерисовка после загрузки шрифта  | [Темы](/ru/guide/themes#веб-шрифты)             |
 | `legend`                              | легенда                            | [Легенда](/ru/interactivity/legend)             |
 | `gradientLegend`                      | цветовая шкала colorField-серий    | [Heatmap](/ru/series/heatmap)                   |
 | `tooltip`                             | тултипы (режимы, позиция, захват)  | [Тултип](/ru/interactivity/tooltip)             |

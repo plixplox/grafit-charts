@@ -1,6 +1,6 @@
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { ThemeContext, TooltipContentData } from '@/shared/kernel';
-import type { ColorValue, FontOptions, Pixels, Switchable } from '@/shared/options';
+import { paddingToCss, type ColorValue, type FontOptions, type PaddingValue, type Pixels, type Switchable } from '@/shared/options';
 
 export interface TooltipOptions extends Switchable, FontOptions {
   /** single — the nearest node; shared — values of all series in the category. */
@@ -25,8 +25,11 @@ export interface TooltipOptions extends Switchable, FontOptions {
   borderRadius?: Pixels;
   /** CSS box-shadow; false removes the shadow. */
   shadow?: string | false;
-  /** CSS padding of the container. */
-  padding?: string;
+  /**
+   * Inner padding of the container: `8`, `[8, 12]`, `[8, 12, 4, 0]`,
+   * `{ top, right, bottom, left }` — or a raw CSS string.
+   */
+  padding?: PaddingValue | string;
 }
 
 const OFFSET = 12;
@@ -65,7 +68,9 @@ export class HtmlTooltip {
     this.element.style.border = borderWidth <= 0 ? 'none' : `${borderWidth}px solid ${options?.borderColor ?? theme.mutedColor}`;
     this.element.style.borderRadius = `${options?.borderRadius ?? theme.cornerRadius ?? 6}px`;
     this.element.style.boxShadow = options?.shadow === false ? 'none' : (options?.shadow ?? '0 2px 8px rgba(0, 0, 0, 0.25)');
-    if (options?.padding !== undefined) this.element.style.padding = options.padding;
+    if (options?.padding !== undefined) {
+      this.element.style.padding = typeof options.padding === 'string' ? options.padding : paddingToCss(options.padding);
+    }
     this.element.style.fontSize = `${options?.fontSize ?? themeFont(theme, FONT_STEP.heading)}px`;
     this.element.style.fontFamily = options?.fontFamily ?? theme.fontFamily;
     if (options?.fontWeight !== undefined) this.element.style.fontWeight = String(options.fontWeight);

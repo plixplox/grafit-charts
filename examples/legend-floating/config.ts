@@ -15,7 +15,15 @@ export function createOptions(): ChartOptions {
     legend: {
       position: 'top-right',
       floating: true,
-      background: { fill: 'rgba(255, 255, 255, 0.85)', stroke: '#cbd5e1', cornerRadius: 6, padding: 10 },
+      background: {
+        fill: 'rgba(255, 255, 255, 0.9)',
+        stroke: '#cbd5e1',
+        cornerRadius: 6,
+        // CSS-like shorthand: [vertical, horizontal]
+        padding: [8, 12],
+        // lifts the panel off the plot it overlays
+        shadow: { color: 'rgba(15, 23, 42, 0.18)', blur: 10, offsetY: 3 },
+      },
     },
   };
 }

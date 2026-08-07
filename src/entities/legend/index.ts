@@ -1,7 +1,18 @@
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { AxisPosition, LegendItemDescriptor, LayoutRect, ThemeContext } from '@/shared/kernel';
-import type { ColorValue, FontOptions, FontWeight, Padding, Pixels, Switchable } from '@/shared/options';
-import { Group, Rect, Text } from '@/shared/scene';
+import {
+  resolvePadding,
+  type ColorValue,
+  type Fraction,
+  type FontOptions,
+  type FontWeight,
+  type Padding,
+  type PaddingValue,
+  type Pixels,
+  type ShadowOptions,
+  type Switchable,
+} from '@/shared/options';
+import { Group, Line, Marker, Rect, resolveShadow, Text, type MarkerShape } from '@/shared/scene';
 
 export type LegendPlacement =
   | AxisPosition
@@ -21,8 +32,44 @@ export interface LegendBackgroundOptions {
   strokeWidth?: Pixels;
   /** 4 by default. */
   cornerRadius?: Pixels;
-  /** Inner padding; 8 by default when fill/stroke is set, otherwise 0. */
-  padding?: Pixels | Padding;
+  /**
+   * Inner padding in any CSS-like shorthand — `8`, `[8, 12]`,
+   * `[8, 12, 4, 0]` or `{ top, right, bottom, left }`.
+   * 8 by default when fill/stroke is set, otherwise 0.
+   */
+  padding?: PaddingValue;
+  /** Drop shadow under the panel; drawn only when the panel has a fill. */
+  shadow?: ShadowOptions;
+}
+
+/** Legend marker glyph: any point-series shape plus 'line' — a dash, as line/area series draw. */
+export type LegendMarkerShape = MarkerShape | 'line';
+
+export interface LegendMarkerOptions {
+  /** 'square' by default (a rounded square); 'line' draws a dash. */
+  shape?: LegendMarkerShape;
+  /**
+   * Custom glyph as SVG path data — wins over `shape`. Coordinates are taken in a
+   * `viewBox` square and scaled to the marker size, so the same `d` fits any size.
+   */
+  path?: string;
+  /** Side of the square the `path` coordinates live in; 24 by default. */
+  viewBox?: number;
+  /** Marker box side; 10 by default (a 'line' marker is drawn 1.8× wider). */
+  size?: Pixels;
+  /** Outline colour; without it the glyph is filled only. */
+  stroke?: ColorValue;
+  /** Outline width, and the thickness of a 'line' marker; 1 / theme width by default. */
+  strokeWidth?: Pixels;
+  /** Dashes for a 'line' marker. */
+  lineDash?: Pixels[];
+  /** 'square' only: corner rounding; 3 by default. */
+  cornerRadius?: Pixels;
+}
+
+export interface LegendItemMarkerOptions extends LegendMarkerOptions {
+  /** Glyph colour; a bound item inherits the series colour. */
+  color?: ColorValue;
 }
 
 export interface LegendItemOptions {
@@ -34,11 +81,30 @@ export interface LegendItemOptions {
    * and dims when it is hidden; an unbound item is static.
    */
   series?: string;
-  marker?: { color?: ColorValue; size?: Pixels };
+  /** Per-item marker; falls back to `legend.item.marker` field by field. */
+  marker?: LegendItemMarkerOptions;
   /** Per-item label font; falls back to `item.label`, then the theme. */
   label?: FontOptions;
   /** Value to the right of the label ("label … value"). */
   value?: string;
+}
+
+export interface LegendItemStyleOptions {
+  /** Marker glyph shared by all items. */
+  marker?: LegendMarkerOptions;
+  label?: FontOptions;
+  /** Font of the value text; falls back to the label font at the theme's muted colour. */
+  value?: FontOptions;
+  /** Gap between the marker and the label; 6 by default. */
+  markerGap?: Pixels;
+  /** Gap between the label and the value; 14 by default. */
+  valueGap?: Pixels;
+  /** Gap between neighbouring items in a row; 18 by default. */
+  gap?: Pixels;
+  /** Gap between rows; 8 by default. */
+  rowGap?: Pixels;
+  /** Opacity of an item whose series is hidden; 0.4 by default. */
+  hiddenOpacity?: Fraction;
 }
 
 export interface LegendOptions extends Switchable {
@@ -61,15 +127,20 @@ export interface LegendOptions extends Switchable {
   background?: LegendBackgroundOptions;
   /** Clicking an item toggles series visibility (true by default). */
   toggleSeries?: boolean;
-  item?: {
-    marker?: { size?: Pixels };
-    label?: FontOptions;
-  };
+  /** Styling shared by all items. */
+  item?: LegendItemStyleOptions;
+  /** Rows per page for a horizontal legend; 2 by default. A vertical one pages by height. */
+  maxRows?: number;
+  /** Renders the items back to front. */
+  reverse?: boolean;
   /** Custom items; fully replaces the auto-derived series items. */
   data?: LegendItemOptions[];
 }
 
 const MARKER_SIZE = 10;
+const MARKER_CORNER_RADIUS = 3;
+/** A dash reads as a line only when it is noticeably wider than it is tall. */
+const LINE_MARKER_RATIO = 1.8;
 const MARKER_GAP = 6;
 const ITEM_GAP_X = 18;
 const VALUE_GAP = 14;
@@ -84,7 +155,8 @@ export interface ResolvedLegendItem {
   seriesId?: string;
   color?: ColorValue;
   value?: string;
-  markerSize?: Pixels;
+  /** Per-item marker overrides on top of `legend.item.marker`. */
+  marker?: LegendItemMarkerOptions;
   labelFont?: FontOptions;
 }
 
@@ -107,7 +179,7 @@ export function resolveLegendItems(
       seriesId: target?.seriesId,
       color: entry.marker?.color ?? target?.color,
       value: entry.value,
-      markerSize: entry.marker?.size,
+      marker: entry.marker,
       labelFont: entry.label,
     };
   });
@@ -194,15 +266,53 @@ export class Legend {
     return this.options?.item?.marker?.size ?? MARKER_SIZE;
   }
 
+  /** Per-item marker options resolved field by field against `legend.item.marker`. */
+  private markerOf(item: ResolvedLegendItem): LegendItemMarkerOptions {
+    const shared = this.options?.item?.marker;
+    const own = item.marker;
+    return {
+      shape: own?.shape ?? shared?.shape ?? 'square',
+      path: own?.path ?? shared?.path,
+      viewBox: own?.viewBox ?? shared?.viewBox,
+      size: own?.size ?? shared?.size ?? MARKER_SIZE,
+      color: own?.color ?? item.color ?? this.theme.mutedColor,
+      stroke: own?.stroke ?? shared?.stroke,
+      strokeWidth: own?.strokeWidth ?? shared?.strokeWidth,
+      lineDash: own?.lineDash ?? shared?.lineDash,
+      cornerRadius: own?.cornerRadius ?? shared?.cornerRadius ?? MARKER_CORNER_RADIUS,
+    };
+  }
+
+  private get markerGap(): number {
+    return this.options?.item?.markerGap ?? MARKER_GAP;
+  }
+
+  private get valueGap(): number {
+    return this.options?.item?.valueGap ?? VALUE_GAP;
+  }
+
+  private get itemGap(): number {
+    return this.options?.item?.gap ?? ITEM_GAP_X;
+  }
+
+  private get rowGap(): number {
+    return this.options?.item?.rowGap ?? ITEM_GAP_Y;
+  }
+
   private get padding(): Required<Padding> {
     const background = this.options?.background;
-    const raw = background?.padding ?? (background?.fill !== undefined || background?.stroke !== undefined ? 8 : 0);
-    if (typeof raw === 'number') return { top: raw, right: raw, bottom: raw, left: raw };
-    return { top: raw.top ?? 0, right: raw.right ?? 0, bottom: raw.bottom ?? 0, left: raw.left ?? 0 };
+    const panelled = background?.fill !== undefined || background?.stroke !== undefined;
+    return resolvePadding(background?.padding ?? (panelled ? 8 : 0));
   }
 
   private itemMarkerSize(item: ResolvedLegendItem): number {
-    return item.markerSize ?? this.markerSize;
+    return item.marker?.size ?? this.markerSize;
+  }
+
+  /** Horizontal slot the glyph takes: a dash is wider than the square box. */
+  private itemMarkerWidth(item: ResolvedLegendItem): number {
+    const size = this.itemMarkerSize(item);
+    return this.markerOf(item).shape === 'line' ? size * LINE_MARKER_RATIO : size;
   }
 
   private itemFontSize(item: ResolvedLegendItem): number {
@@ -221,12 +331,30 @@ export class Legend {
     return `${this.itemFontWeight(item)} ${this.itemFontSize(item)}px ${this.itemFontFamily(item)}`;
   }
 
+  /** The value text follows the label font unless `item.value` overrides it. */
+  private itemValueFontSize(item: ResolvedLegendItem): number {
+    return this.options?.item?.value?.fontSize ?? this.itemFontSize(item);
+  }
+
+  private itemValueFontFamily(item: ResolvedLegendItem): string {
+    return this.options?.item?.value?.fontFamily ?? this.itemFontFamily(item);
+  }
+
+  private itemValueFontWeight(item: ResolvedLegendItem): FontWeight {
+    return this.options?.item?.value?.fontWeight ?? this.itemFontWeight(item);
+  }
+
+  private itemValueFont(item: ResolvedLegendItem): string {
+    return `${this.itemValueFontWeight(item)} ${this.itemValueFontSize(item)}px ${this.itemValueFontFamily(item)}`;
+  }
+
   private resolveItems(): ResolvedLegendItem[] {
-    return resolveLegendItems(this.options?.data, this.items, (ref) => {
+    const items = resolveLegendItems(this.options?.data, this.items, (ref) => {
       if (this.warnedUnresolved) return;
       this.warnedUnresolved = true;
       console.warn(`grafit: legend item references unknown series "${ref}"`);
     });
+    return this.options?.reverse ? [...items].reverse() : items;
   }
 
   /**
@@ -251,10 +379,10 @@ export class Legend {
     const widths = items.map((item) => {
       const font = this.itemFont(item);
       return (
-        this.itemMarkerSize(item) +
-        MARKER_GAP +
+        this.itemMarkerWidth(item) +
+        this.markerGap +
         measureText(item.label, font) +
-        (item.value ? VALUE_GAP + measureText(item.value, font) : 0)
+        (item.value ? this.valueGap + measureText(item.value, this.itemValueFont(item)) : 0)
       );
     });
 
@@ -267,19 +395,20 @@ export class Legend {
       if (horizontal) {
         if (x > 0 && x + width > innerWidth) {
           x = 0;
-          y += itemHeight + ITEM_GAP_Y;
+          y += itemHeight + this.rowGap;
         }
         all.push({ item, x, y, width, height: itemHeight });
-        x += width + ITEM_GAP_X;
+        x += width + this.itemGap;
       } else {
         all.push({ item, x: 0, y, width, height: itemHeight });
-        y += itemHeight + ITEM_GAP_Y;
+        y += itemHeight + this.rowGap;
       }
     });
 
-    // pagination: horizontal — at most MAX_ROWS rows, vertical — by height
-    const rowStep = itemHeight + ITEM_GAP_Y;
-    const pageCapacityRows = horizontal ? MAX_ROWS : Math.max(1, Math.floor((innerHeight - PAGER_HEIGHT) / rowStep));
+    // pagination: horizontal — at most maxRows rows, vertical — by height
+    const rowStep = itemHeight + this.rowGap;
+    const maxRows = Math.max(1, Math.floor(this.options?.maxRows ?? MAX_ROWS));
+    const pageCapacityRows = horizontal ? maxRows : Math.max(1, Math.floor((innerHeight - PAGER_HEIGHT) / rowStep));
     const totalRows = all.length > 0 ? Math.floor((all[all.length - 1]?.y ?? 0) / rowStep) + 1 : 0;
     this.pages = Math.max(1, Math.ceil(totalRows / pageCapacityRows));
     this.page = Math.min(this.page, this.pages - 1);
@@ -294,7 +423,7 @@ export class Legend {
       .map((placed) => ({ ...placed, y: placed.y - fromRow * rowStep }));
 
     const usedRows = Math.min(totalRows - fromRow, pageCapacityRows);
-    const contentHeight = Math.max(0, usedRows * rowStep - ITEM_GAP_Y);
+    const contentHeight = Math.max(0, usedRows * rowStep - this.rowGap);
     const contentWidth = this.placed.reduce((max, placed) => Math.max(max, placed.x + placed.width), 0);
     const pagerSpace = this.pages > 1 ? PAGER_HEIGHT : 0;
     this.size = { width: contentWidth + pad.left + pad.right, height: contentHeight + pagerSpace + pad.top + pad.bottom };
@@ -318,6 +447,38 @@ export class Legend {
     this.page = Math.max(0, Math.min(this.pages - 1, this.page + delta));
   }
 
+  /** Glyph of one item, laid out in the marker slot at the left of the row. */
+  private renderMarker(placed: PlacedItem, markerWidth: number): Line | Marker {
+    const options = this.markerOf(placed.item);
+    const size = this.itemMarkerSize(placed.item);
+    const centerY = placed.y + placed.height / 2;
+
+    if (options.shape === 'line') {
+      const line = new Line();
+      line.x1 = placed.x;
+      line.x2 = placed.x + markerWidth;
+      line.y1 = centerY;
+      line.y2 = centerY;
+      line.stroke = options.color ?? this.theme.mutedColor;
+      line.strokeWidth = options.strokeWidth ?? this.theme.strokeWidth ?? 2;
+      line.lineDash = options.lineDash;
+      return line;
+    }
+
+    const marker = new Marker();
+    marker.x = placed.x + size / 2;
+    marker.y = centerY;
+    marker.size = size;
+    marker.shape = options.shape ?? 'square';
+    marker.path = options.path;
+    if (options.viewBox !== undefined) marker.viewBox = options.viewBox;
+    marker.cornerRadius = options.cornerRadius ?? MARKER_CORNER_RADIUS;
+    marker.fill = options.color ?? this.theme.mutedColor;
+    marker.stroke = options.stroke;
+    marker.strokeWidth = options.strokeWidth ?? 1;
+    return marker;
+  }
+
   /** Renders the legend; rect is the zone allocated by the layout. */
   render(layer: Group, rect: LayoutRect): void {
     if (!this.enabled || this.placed.length === 0) return;
@@ -336,6 +497,7 @@ export class Legend {
       panel.fill = background.fill;
       panel.stroke = background.stroke;
       panel.strokeWidth = background.strokeWidth ?? 1;
+      panel.shadow = resolveShadow(background.shadow);
       layer.append(panel);
     }
 
@@ -348,21 +510,14 @@ export class Legend {
 
     for (const placed of this.placed) {
       const itemGroup = new Group();
-      itemGroup.opacity = placed.item.visible ? 1 : DISABLED_OPACITY;
+      itemGroup.opacity = placed.item.visible ? 1 : (this.options?.item?.hiddenOpacity ?? DISABLED_OPACITY);
 
-      const markerSize = this.itemMarkerSize(placed.item);
-      const marker = new Rect();
-      marker.x = placed.x;
-      marker.y = placed.y + (placed.height - markerSize) / 2;
-      marker.width = markerSize;
-      marker.height = markerSize;
-      marker.cornerRadius = 3;
-      marker.fill = placed.item.color ?? this.theme.mutedColor;
-      itemGroup.append(marker);
+      const markerWidth = this.itemMarkerWidth(placed.item);
+      itemGroup.append(this.renderMarker(placed, markerWidth));
 
       const label = new Text();
       label.text = placed.item.label;
-      label.x = placed.x + markerSize + MARKER_GAP;
+      label.x = placed.x + markerWidth + this.markerGap;
       label.y = placed.y + placed.height / 2;
       label.textBaseline = 'middle';
       label.fontSize = this.itemFontSize(placed.item);
@@ -378,9 +533,10 @@ export class Legend {
         value.y = placed.y + placed.height / 2;
         value.textAlign = 'right';
         value.textBaseline = 'middle';
-        value.fontSize = this.itemFontSize(placed.item);
-        value.fontFamily = this.itemFontFamily(placed.item);
-        value.fill = this.theme.mutedColor;
+        value.fontSize = this.itemValueFontSize(placed.item);
+        value.fontFamily = this.itemValueFontFamily(placed.item);
+        value.fontWeight = this.itemValueFontWeight(placed.item);
+        value.fill = this.options?.item?.value?.color ?? this.theme.mutedColor;
         itemGroup.append(value);
       }
 

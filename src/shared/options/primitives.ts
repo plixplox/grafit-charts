@@ -58,6 +58,23 @@ export interface Padding {
   left?: Pixels;
 }
 
+/**
+ * Padding in any CSS-like shorthand: a single value, `[vertical, horizontal]`,
+ * `[top, right, bottom, left]`, or the named object.
+ */
+export type PaddingValue = Pixels | [Pixels, Pixels] | [Pixels, Pixels, Pixels, Pixels] | Padding;
+
+/** Drop shadow of a filled shape. */
+export interface ShadowOptions extends Switchable {
+  /** 'rgba(0, 0, 0, 0.2)' by default. */
+  color?: ColorValue;
+  /** Blur radius; 8 by default. */
+  blur?: Pixels;
+  offsetX?: Pixels;
+  /** 2 by default. */
+  offsetY?: Pixels;
+}
+
 export type DeepPartial<T> = T extends readonly unknown[]
   ? T
   : T extends (...args: never[]) => unknown

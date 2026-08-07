@@ -70,10 +70,7 @@ size the container with CSS. Numeric `width`/`height` fix the size.
 | `title.wrap`         | `boolean` | `true`      | break long text onto several lines |
 | `subtitle.text`      | `string`    | —            | subtitle (muted, same options) |
 | `subtitle.spacing`   | `Pixels` | `8`          | gap between the subtitle and the plot |
-| `padding.top`        | `Pixels` | `12`         | outer chart padding          |
-| `padding.right`      | `Pixels` | `20`         | —                            |
-| `padding.bottom`     | `Pixels` | `12`         | —                            |
-| `padding.left`       | `Pixels` | `20`         | —                            |
+| `padding`            | `PaddingValue` | `{ top: 12, right: 20, bottom: 12, left: 20 }` | outer chart padding: `12`, `[12, 20]`, `[12, 20, 12, 20]` or `{ top, right, bottom, left }` |
 | `background.fill`    | `ColorValue`  | theme background | backdrop fill            |
 | `background.visible` | `boolean`   | `true`       | whether to draw the background |
 
@@ -113,7 +110,7 @@ await chart.update(buildOptions(newData)); // full replacement
 | `updateDelta(patch)`             | deep merge: objects are merged, arrays are replaced as a whole    |
 | `getOptions()`                   | current options                                                   |
 | `getState()` / `setState(state)` | zoom and hidden series — see [State](/interactivity/state)        |
-| `waitForUpdate()`                | wait for a scheduled render                                       |
+| `waitForUpdate()`                | wait for a scheduled render (and for pending web fonts)           |
 | `getImageDataURL(opts?)`         | PNG/JPEG as a data URL                                            |
 | `download(opts?)`                | download an image (`{ fileName?, fileFormat? }`)                  |
 | `destroy()`                      | release the DOM and subscriptions                                 |
@@ -128,6 +125,7 @@ await chart.update(buildOptions(newData)); // full replacement
 | `padding`, `background`               | padding and background                | [Titles](#titles-padding-background)         |
 | `loading`, `overlays`                 | overlays                              | [Overlays](#overlays-and-loading)            |
 | `theme`                               | theme name or object                  | [Themes](/guide/themes)                      |
+| `fonts`                               | redraw once a web font has loaded     | [Themes](/guide/themes#web-fonts)            |
 | `legend`                              | legend                                | [Legend](/interactivity/legend)              |
 | `gradientLegend`                      | color scale for colorField series     | [Heatmap](/series/heatmap)                   |
 | `tooltip`                             | tooltips (modes, position, snapping)  | [Tooltip](/interactivity/tooltip)            |

@@ -9,7 +9,7 @@ import { Animator } from '@/shared/animation';
 import { InteractionManager } from '@/shared/interaction';
 import { warnMissingFeature, type ChartKind } from '@/shared/kernel';
 import { deepMerge, type DeepPartial } from '@/shared/options';
-import { DomCanvas, RenderScheduler, Scene, type CanvasFactory } from '@/shared/scene';
+import { DomCanvas, FontWatcher, RenderScheduler, Scene, watchDocumentFonts, type CanvasFactory } from '@/shared/scene';
 
 const MIN_WIDTH = 300;
 const MIN_HEIGHT = 200;
@@ -20,6 +20,7 @@ export interface ChartInstance {
   getOptions(): ChartOptions;
   getState(): ChartState;
   setState(state: ChartState): Promise<void>;
+  /** Resolves after the scheduled render — including the redraw a still-loading web font triggers. */
   waitForUpdate(): Promise<void>;
   getImageDataURL(options?: DownloadOptions): string;
   download(options?: DownloadOptions): void;
@@ -122,6 +123,11 @@ export function createChart(options: ChartOptions): ChartInstance {
   });
 
   let previousData: ChartOptions['data'];
+  let destroyed = false;
+  let fontGeneration = 0;
+  let fontsSettled: Promise<void> = Promise.resolve();
+  let fontsAutoReload = true;
+  const fontWatcher = new FontWatcher();
   const dataTransition = new Animator();
   // the DOM chrome (context menu) is drawn outside applyOptions and needs the live theme
   let currentTheme: ResolvedTheme = resolveTheme(options.theme);
@@ -131,6 +137,7 @@ export function createChart(options: ChartOptions): ChartInstance {
     validateSeriesOptions(effective);
     const theme = resolveTheme(effective.theme);
     currentTheme = theme;
+    syncFonts(effective, theme);
     const oldData = previousData;
     previousData = effective.data;
 
@@ -158,6 +165,41 @@ export function createChart(options: ChartOptions): ChartInstance {
     widget.layoutAndRender();
     return scheduler.schedule();
   }
+
+  /**
+   * A web font applied through the options is usually still loading while the
+   * chart already draws with a fallback face. Ask for it, then lay out and draw
+   * again once it lands — text metrics decide axis, legend and label geometry.
+   */
+  function syncFonts(effective: ChartOptions, theme: ResolvedTheme): void {
+    const token = ++fontGeneration;
+    fontsAutoReload = effective.fonts?.autoReload !== false;
+    // opted out: the first frame is the only one, whatever face the browser has
+    if (!fontsAutoReload) {
+      fontsSettled = Promise.resolve();
+      return;
+    }
+    fontsSettled = fontWatcher
+      .request(effective, theme.fontFamily)
+      .then((loaded) => {
+        // a newer applyOptions has taken over, or the chart is gone
+        if (!loaded || destroyed || token !== fontGeneration) return;
+        return redrawWithNewFonts();
+      })
+      .catch(() => undefined);
+  }
+
+  function redrawWithNewFonts(): Promise<void> {
+    widget.layoutAndRender();
+    return scheduler.schedule();
+  }
+
+  // fonts the page declares after the chart was built (a lazy CSS chunk,
+  // document.fonts.add) never pass through applyOptions — catch them here
+  const unwatchFonts = watchDocumentFonts(() => {
+    if (destroyed || !fontsAutoReload || !fontWatcher.recheck()) return;
+    void redrawWithNewFonts();
+  });
 
   let resizeObserver: ResizeObserver | undefined;
   const isResponsive = options.width === undefined || options.height === undefined;
@@ -225,8 +267,11 @@ export function createChart(options: ChartOptions): ChartInstance {
       widget.layoutAndRender();
       return scheduler.schedule();
     },
-    waitForUpdate() {
-      return scheduler.settled;
+    async waitForUpdate() {
+      await scheduler.settled;
+      // the web fonts may still be in flight; their redraw is part of the update
+      await fontsSettled;
+      await scheduler.settled;
     },
     getImageDataURL(downloadOptions) {
       return canvasDataUrl(compositeCanvas(), downloadOptions);
@@ -235,7 +280,9 @@ export function createChart(options: ChartOptions): ChartInstance {
       downloadCanvas(compositeCanvas(), downloadOptions);
     },
     destroy() {
+      destroyed = true;
       dataTransition.stop();
+      unwatchFonts();
       liveRegion.remove();
       container.removeEventListener('keydown', onKeyDown);
       resizeObserver?.disconnect();

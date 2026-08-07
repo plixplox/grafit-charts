@@ -82,6 +82,34 @@ offset from it — axis labels sit at the base, the legend and axis titles one s
 above, the chart title six. Moving the base moves the whole scale and keeps the
 hierarchy.
 
+### Web fonts
+
+Canvas text never triggers a font download by itself: a `@font-face` family that
+the browser has not fetched yet would draw — and be measured — with a fallback
+face. The chart therefore asks the browser for every family its options mention,
+and once the real faces arrive it lays out and draws again, so labels, axes and
+the legend end up sized against the font you asked for.
+
+Fonts the page declares later — a lazily loaded CSS chunk, a `document.fonts.add()`
+from your own code — are covered too: the chart listens for them and redraws when
+one of its families lands.
+
+Switching `fontFamily` to a font that is still loading therefore produces two
+frames. `chart.waitForUpdate()` resolves after the second one — await it before
+`getImageDataURL()` if you export the chart.
+
+To keep the first frame as the only one, opt out:
+
+```js
+{
+  fonts: { autoReload: false },
+}
+```
+
+The chart then draws with whatever face the browser already has and never asks
+for the missing ones — with a not-yet-loaded family it stays on the fallback,
+since canvas text triggers no font download on its own.
+
 ## Axis chrome
 
 `ChartOptions.axes` is an array, so `overrides` cannot reach it — that is what the

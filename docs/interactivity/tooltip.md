@@ -39,7 +39,7 @@ The tooltip container is styled in the same `tooltip` block:
 | `borderWidth`  | `Pixels`            | `1`                         | border width; `0` removes the border |
 | `borderRadius` | `Pixels`            | `6`                         | corner radius                        |
 | `shadow`       | `string \| false`   | `0 2px 8px rgba(0,0,0,.25)` | CSS box-shadow; `false` — no shadow  |
-| `padding`      | `string`            | `7px 10px`                  | CSS padding of the container         |
+| `padding`      | `PaddingValue \| string` | `7px 10px`             | inner padding: `8`, `[8, 12]`, `[8, 12, 4, 0]`, `{ top, right, bottom, left }` or a CSS string |
 | `fontSize`     | `Pixels`            | `12`                        | font size                            |
 | `fontFamily`   | `string`            | `system-ui, sans-serif`     | font family                          |
 | `color`        | `ColorValue`        | theme foreground            | text color                           |

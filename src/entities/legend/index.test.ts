@@ -1,11 +1,26 @@
 import { Legend, placeLegendBox, resolveLegendItems, type LegendOptions } from './index';
 import type { LegendItemDescriptor, ThemeContext } from '@/shared/kernel';
+import { Group } from '@/shared/scene';
 import { describe, expect, it, vi } from 'vitest';
 
 const descriptors: LegendItemDescriptor[] = [
   { seriesId: 'revenue', label: 'Revenue', color: '#3b82f6', visible: true },
   { seriesId: 'costs', label: 'Costs', color: '#ef4444', visible: false, value: '12K' },
 ];
+
+const theme: ThemeContext = {
+  backgroundColor: '#fff',
+  foregroundColor: '#000',
+  mutedColor: '#888',
+  axisColor: '#ddd',
+  fontFamily: 'sans-serif',
+  fontSize: 11,
+  strokeWidth: 2,
+  positiveColor: '#21a06c',
+  negativeColor: '#e5484d',
+  palette: { fills: [], strokes: [], sequential: ['#dbe6ff', '#1d4fd7'] },
+  axis: { line: true, tick: false, gridLine: true, strokeWidth: 1, gridDash: [4, 4] },
+};
 
 describe('resolveLegendItems', () => {
   it('maps descriptors 1:1 when no custom data is given', () => {
@@ -98,10 +113,14 @@ describe('resolveLegendItems', () => {
 
   it('carries per-item style overrides through', () => {
     const [item] = resolveLegendItems(
-      [{ name: 'a', marker: { size: 14 }, label: { fontWeight: 'bold', color: '#333' }, value: '5' }],
+      [{ name: 'a', marker: { size: 14, shape: 'diamond' }, label: { fontWeight: 'bold', color: '#333' }, value: '5' }],
       descriptors,
     );
-    expect(item).toMatchObject({ markerSize: 14, labelFont: { fontWeight: 'bold', color: '#333' }, value: '5' });
+    expect(item).toMatchObject({
+      marker: { size: 14, shape: 'diamond' },
+      labelFont: { fontWeight: 'bold', color: '#333' },
+      value: '5',
+    });
   });
 });
 
@@ -134,20 +153,66 @@ describe('placeLegendBox', () => {
   });
 });
 
-describe('captionObstacle', () => {
-  const theme: ThemeContext = {
-    backgroundColor: '#fff',
-    foregroundColor: '#000',
-    mutedColor: '#888',
-    axisColor: '#ddd',
-    fontFamily: 'sans-serif',
-    fontSize: 11,
-    strokeWidth: 2,
-    positiveColor: '#21a06c',
-    negativeColor: '#e5484d',
-    palette: { fills: [], strokes: [], sequential: ['#dbe6ff', '#1d4fd7'] },
-    axis: { line: true, tick: false, gridLine: true, strokeWidth: 1, gridDash: [4, 4] },
+describe('item layout', () => {
+  const measureText = (text: string) => text.length * 10;
+
+  const measure = (options: LegendOptions, width = 1000, height = 300) => {
+    const legend = new Legend(options, theme);
+    legend.setItems(descriptors);
+    return legend.measure(measureText, width, height);
   };
+
+  it('widens the item slot for a line marker', () => {
+    const square = measure({}).width;
+    const line = measure({ item: { marker: { shape: 'line' } } }).width;
+    // 10px box → 18px dash, twice (two items)
+    expect(line - square).toBe(16);
+  });
+
+  it('scales the row height with the marker size', () => {
+    const small = measure({ item: { marker: { size: 10 } } }).height;
+    const large = measure({ item: { marker: { size: 24 } } }).height;
+    // the label font (12) sets the floor, so only the larger marker moves the row
+    expect(large - small).toBe(12);
+  });
+
+  it('honours the spacing options', () => {
+    const base = measure({}).width;
+    expect(measure({ item: { gap: 28 } }).width).toBe(base + 10);
+    expect(measure({ item: { markerGap: 16 } }).width).toBe(base + 20);
+    // only the second item has a value, so its gap counts once
+    expect(measure({ item: { valueGap: 20 } }).width).toBe(base + 6);
+  });
+
+  it('accepts the padding shorthands', () => {
+    const bare = measure({ background: { fill: '#fff', padding: 0 } });
+    const pair = measure({ background: { fill: '#fff', padding: [4, 12] } });
+    expect(pair.width - bare.width).toBe(24);
+    expect(pair.height - bare.height).toBe(8);
+
+    const sides = measure({ background: { fill: '#fff', padding: [1, 2, 3, 4] } });
+    expect(sides.width - bare.width).toBe(6);
+    expect(sides.height - bare.height).toBe(4);
+  });
+
+  it('paginates a horizontal legend by maxRows', () => {
+    // a narrow box forces one item per row
+    const twoRows = measure({ maxRows: 2 }, 120);
+    const oneRow = measure({ maxRows: 1 }, 120);
+    expect(oneRow.height).toBeLessThan(twoRows.height);
+  });
+
+  it('lays the items out back to front with reverse', () => {
+    const legend = new Legend({ position: 'left-top', reverse: true }, theme);
+    legend.setItems(descriptors);
+    legend.measure(measureText, 300, 300);
+    legend.render(new Group(), { x: 0, y: 0, width: 300, height: 300 });
+    // vertical column: the first row is the last descriptor
+    expect(legend.hitTest(4, 6)).toBe('costs');
+  });
+});
+
+describe('captionObstacle', () => {
   const rect = { x: 20, y: 12, width: 360, height: 276 };
   const measureText = (text: string) => text.length * 10;
 

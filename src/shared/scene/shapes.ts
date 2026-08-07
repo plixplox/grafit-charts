@@ -1,5 +1,26 @@
 import { SceneNode } from './node';
-import type { ColorValue, Pixels } from '@/shared/options';
+import type { ColorValue, Pixels, ShadowOptions } from '@/shared/options';
+
+/** Canvas drop shadow of a shape, in device-independent pixels. */
+export interface SceneShadow {
+  color: ColorValue;
+  blur: Pixels;
+  offsetX: Pixels;
+  offsetY: Pixels;
+}
+
+const DEFAULT_SHADOW: SceneShadow = { color: 'rgba(0, 0, 0, 0.2)', blur: 8, offsetX: 0, offsetY: 2 };
+
+/** Fills in the shadow defaults; undefined when there is nothing to draw. */
+export function resolveShadow(options: ShadowOptions | undefined): SceneShadow | undefined {
+  if (!options || options.enabled === false) return undefined;
+  return {
+    color: options.color ?? DEFAULT_SHADOW.color,
+    blur: options.blur ?? DEFAULT_SHADOW.blur,
+    offsetX: options.offsetX ?? DEFAULT_SHADOW.offsetX,
+    offsetY: options.offsetY ?? DEFAULT_SHADOW.offsetY,
+  };
+}
 
 export class Rect extends SceneNode {
   x = 0;
@@ -10,6 +31,8 @@ export class Rect extends SceneNode {
   stroke?: ColorValue;
   strokeWidth: Pixels = 1;
   cornerRadius: Pixels = 0;
+  /** Cast under the shape; the stroke is drawn without it. */
+  shadow?: SceneShadow;
 
   protected draw(ctx: CanvasRenderingContext2D): void {
     ctx.beginPath();
@@ -19,8 +42,21 @@ export class Rect extends SceneNode {
       ctx.rect(this.x, this.y, this.width, this.height);
     }
     if (this.fill) {
+      if (this.shadow) {
+        ctx.shadowColor = this.shadow.color;
+        ctx.shadowBlur = this.shadow.blur;
+        ctx.shadowOffsetX = this.shadow.offsetX;
+        ctx.shadowOffsetY = this.shadow.offsetY;
+      }
       ctx.fillStyle = this.fill;
       ctx.fill();
+      if (this.shadow) {
+        // the border and everything after it must not inherit the shadow
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
     }
     if (this.stroke && this.strokeWidth > 0) {
       ctx.strokeStyle = this.stroke;

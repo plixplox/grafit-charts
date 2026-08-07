@@ -18,20 +18,29 @@ When building with [grafit-charts/core](/guide/bundle), the legend is a separate
 | `offset`                | `{ x?: Pixels; y?: Pixels }`             | `0`          | floating only: inset from the anchored edges |
 | `avoidCaptions`         | `boolean`                                | `true`       | floating only: title/subtitle flow around the legend box |
 | `toggleSeries`          | `boolean`                                | `true`       | click toggles visibility     |
-| `item.marker.size`      | `Pixels`                              | `10`         | item marker size             |
+| `maxRows`               | `number`                                 | `2`          | rows per page in a horizontal legend |
+| `reverse`               | `boolean`                                | `false`      | render the items back to front |
+| `item.marker`           | `LegendMarkerOptions`                    | —            | marker glyph ([below](#markers)) |
 | `item.label.fontSize`   | `Pixels`                              | `12`         | label font size              |
 | `item.label.fontFamily` | `string`                                 | theme font   | font family                  |
 | `item.label.color`      | `ColorValue`                               | foreground   | label color                  |
+| `item.value`            | `FontOptions`                            | label font, muted | font/color of the value text |
+| `item.gap`              | `Pixels`                                 | `18`         | gap between items in a row   |
+| `item.rowGap`           | `Pixels`                                 | `8`          | gap between rows             |
+| `item.markerGap`        | `Pixels`                                 | `6`          | gap between the marker and the label |
+| `item.valueGap`         | `Pixels`                                 | `14`         | gap between the label and the value |
+| `item.hiddenOpacity`    | `Fraction`                               | `0.4`        | opacity of an item whose series is hidden |
 | `background.fill`       | `ColorValue`                             | —            | panel fill behind the items  |
 | `background.stroke`     | `ColorValue`                             | —            | panel border color           |
 | `background.strokeWidth`| `Pixels`                                 | `1`          | panel border width           |
 | `background.cornerRadius`| `Pixels`                                | `4`          | panel corner radius          |
-| `background.padding`    | `Pixels \| Padding`                      | `8` / `0`    | inner padding; `8` when fill/stroke is set |
+| `background.padding`    | `PaddingValue`                           | `8` / `0`    | inner padding, CSS-like ([below](#panel)); `8` when fill/stroke is set |
+| `background.shadow`     | `ShadowOptions`                          | —            | drop shadow under the panel ([below](#panel)) |
 | `data`                  | `LegendItemOptions[]`                    | —            | custom items ([below](#custom-items)) |
 
 The item name is the series `name` (or `yField` if no name is set). `showInLegend: false` on a series removes its item.
 
-Items that don't fit are paginated: arrows `‹ 1/3 ›` appear at the bottom of the legend (a horizontal legend fits up to two rows per page). For pie/donut, clicking an item hides the sector.
+Items that don't fit are paginated: arrows `‹ 1/3 ›` appear at the bottom of the legend (a horizontal legend fits `maxRows` rows per page, two by default). For pie/donut, clicking an item hides the sector.
 
 ## Floating placement
 
@@ -49,6 +58,41 @@ Since the legend overlays the caption zone, the [title and subtitle flow around 
 legend: { position: 'top-right', floating: true, avoidCaptions: false },
 ```
 
+## Panel
+
+`background.padding` takes any CSS-like shorthand — a single value, `[vertical, horizontal]`, `[top, right, bottom, left]`, or `{ top, right, bottom, left }` (the same shorthands work for the chart-level `padding`).
+
+`background.shadow` lifts the panel off what it overlays. Any field turns the shadow on; `enabled: false` removes it.
+
+| Option    | Type         | Default              | Description                       |
+| --------- | ------------ | -------------------- | --------------------------------- |
+| `color`   | `ColorValue` | `rgba(0, 0, 0, 0.2)` | shadow color                      |
+| `blur`    | `Pixels`     | `8`                  | blur radius                       |
+| `offsetX` | `Pixels`     | `0`                  | horizontal offset                 |
+| `offsetY` | `Pixels`     | `2`                  | vertical offset                   |
+| `enabled` | `boolean`    | `true`               | `false` removes the shadow        |
+
+The shadow is cast by the panel fill, so it needs `background.fill`; the border is drawn without it.
+
+## Markers
+
+`item.marker` sets the glyph for every item; a `data` item overrides it field by field.
+
+| Option        | Type                | Default    | Description                                          |
+| ------------- | ------------------- | ---------- | ---------------------------------------------------- |
+| `shape`       | `LegendMarkerShape` | `'square'` | `circle`, `square`, `diamond`, `triangle`, `cross`, `plus`, `line` |
+| `path`        | `string`            | —          | custom glyph as SVG path data; wins over `shape`      |
+| `viewBox`     | `number`            | `24`       | side of the square the `path` coordinates live in     |
+| `size`        | `Pixels`            | `10`       | marker box side (`line` is drawn 1.8× wider)          |
+| `stroke`      | `ColorValue`        | —          | outline color; without it the glyph is filled only    |
+| `strokeWidth` | `Pixels`            | `1`        | outline width, and the thickness of a `line` marker   |
+| `lineDash`    | `Pixels[]`          | —          | dashes for a `line` marker                            |
+| `cornerRadius`| `Pixels`            | `3`        | `square` only: corner rounding                        |
+
+`line` draws a dash — the way a line/area series looks on the plot; `path` takes plain SVG path data (`d`), so an icon set drops straight in. The coordinates are read in a `viewBox × viewBox` square and scaled to `size`, so the same `d` fits any marker size:
+
+::: chart-example legend-markers
+
 ## Custom items
 
 `legend.data` fully replaces the auto-derived series items. Useful when colors carry meaning inside a single series — e.g. a Gantt-style range-bar painted by a per-datum `fill` callback:
@@ -60,7 +104,7 @@ legend: { position: 'top-right', floating: true, avoidCaptions: false },
 | `name`         | `string`                                 | display text (required)                                  |
 | `series`       | `string`                                 | binds the item to a series for toggling                  |
 | `marker.color` | `ColorValue`                             | marker color; a bound item inherits the series color     |
-| `marker.size`  | `Pixels`                                 | per-item marker size                                     |
+| `marker`       | `LegendMarkerOptions`                    | shape/path/size — every [marker option](#markers), on top of `item.marker` |
 | `label`        | `FontOptions`                            | per-item label font/color                                |
 | `value`        | `string`                                 | value to the right of the label                          |
 

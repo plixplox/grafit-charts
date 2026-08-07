@@ -18,7 +18,7 @@ import type {
   SeriesPick,
   ThemeContext,
 } from '@/shared/kernel';
-import type { Datum, Padding } from '@/shared/options';
+import { resolvePadding, type Datum, type PaddingValue } from '@/shared/options';
 import { BandScale, LinearScale } from '@/shared/scale';
 import { Circle, Group, Line, Path, Text, type Scene } from '@/shared/scene';
 import { textBounds, type Bounds } from '@/shared/util';
@@ -28,7 +28,7 @@ export interface PolarChartInputs {
   series?: Array<{ type: string }>;
   title?: CaptionOptions;
   subtitle?: CaptionOptions;
-  padding?: Padding;
+  padding?: PaddingValue;
   background?: BackgroundOptions;
   legend?: LegendOptions;
   tooltip?: TooltipOptions;
@@ -157,7 +157,7 @@ export class PolarChart implements ChartWidget {
 
     renderBackground(backgroundLayer, this.inputs.background, this.theme, width, height);
 
-    const padding = { ...DEFAULT_PADDING, ...this.inputs.padding };
+    const padding = resolvePadding(this.inputs.padding, DEFAULT_PADDING);
     const data = this.inputs.data ?? [];
     for (const series of this.series) series.setData(data);
 

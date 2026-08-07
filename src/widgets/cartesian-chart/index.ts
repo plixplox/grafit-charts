@@ -39,7 +39,7 @@ import type {
   ThemeContext,
   TooltipContentData,
 } from '@/shared/kernel';
-import { deepMerge, type Datum, type Padding, type Switchable } from '@/shared/options';
+import { deepMerge, resolvePadding, type Datum, type PaddingValue, type Switchable } from '@/shared/options';
 import { BandScale, LinearScale, TimeScale } from '@/shared/scale';
 import { Group, Rect, Text, type Scene } from '@/shared/scene';
 import { maxOverflow, NO_OVERFLOW } from '@/shared/util';
@@ -56,7 +56,7 @@ export interface CartesianChartInputs {
   axes?: Array<{ type: string; position?: AxisPosition }>;
   title?: CaptionOptions;
   subtitle?: CaptionOptions;
-  padding?: Padding;
+  padding?: PaddingValue;
   background?: BackgroundOptions;
   legend?: LegendOptions;
   gradientLegend?: GradientLegendOptions;
@@ -331,7 +331,7 @@ export class CartesianChart implements SyncMember {
 
     renderBackground(backgroundLayer, this.inputs.background, this.theme, width, height);
 
-    const padding = { ...DEFAULT_PADDING, ...this.inputs.padding };
+    const padding = resolvePadding(this.inputs.padding, DEFAULT_PADDING);
     const measureText = (text: string, font: string) => this.scene.measureText(text, font);
     const legend = this.legend;
     if (legend?.enabled) legend.setItems(this.series.flatMap((series) => series.legendItems()));

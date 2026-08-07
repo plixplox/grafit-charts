@@ -8,7 +8,16 @@ import type { TimeAxisOptions } from '@/entities/axis/time';
 import type { BackgroundOptions } from '@/entities/background';
 import type { CaptionOptions } from '@/entities/caption';
 import type { GradientLegendOptions } from '@/entities/gradient-legend';
-import type { LegendBackgroundOptions, LegendItemOptions, LegendOptions, LegendPlacement } from '@/entities/legend';
+import type {
+  LegendBackgroundOptions,
+  LegendItemMarkerOptions,
+  LegendItemOptions,
+  LegendItemStyleOptions,
+  LegendMarkerOptions,
+  LegendMarkerShape,
+  LegendOptions,
+  LegendPlacement,
+} from '@/entities/legend';
 import type { AreaSeriesOptions } from '@/entities/series/area';
 import type { BarSeriesOptions } from '@/entities/series/bar';
 import type { BoxPlotSeriesOptions } from '@/entities/series/box-plot';
@@ -50,7 +59,8 @@ import type { SyncOptions } from '@/features/sync';
 import type { TooltipOptions } from '@/features/tooltip';
 import type { ZoomOptions } from '@/features/zoom';
 import type { AnimationOptions } from '@/shared/animation';
-import type { Datum, Padding } from '@/shared/options';
+import type { Datum, PaddingValue } from '@/shared/options';
+import type { FontsOptions } from '@/shared/scene';
 import type { OverlaysOptions } from '@/widgets/cartesian-chart';
 
 /** Discriminated union of series — extended phase by phase along the roadmap. */
@@ -101,7 +111,7 @@ export interface ChartOptions {
   axes?: AxisOptions[];
   title?: CaptionOptions;
   subtitle?: CaptionOptions;
-  padding?: Padding;
+  padding?: PaddingValue;
   background?: BackgroundOptions;
   legend?: LegendOptions;
   /** Color scale for colorField series (heatmap). */
@@ -124,6 +134,8 @@ export interface ChartOptions {
   locale?: LocaleOptions;
   initialState?: ChartState;
   theme?: ThemeName | ThemeOptions;
+  /** Handling of web fonts that are still loading when the chart draws. */
+  fonts?: FontsOptions;
   /** Without width/height the chart follows its container (ResizeObserver). */
   width?: number;
   height?: number;
@@ -134,6 +146,10 @@ export type {
   CaptionOptions,
   LegendOptions,
   LegendItemOptions,
+  LegendItemStyleOptions,
+  LegendItemMarkerOptions,
+  LegendMarkerOptions,
+  LegendMarkerShape,
   LegendPlacement,
   LegendBackgroundOptions,
   GradientLegendOptions,
@@ -146,6 +162,7 @@ export type {
   SyncOptions,
   ContextMenuOptions,
   AnimationOptions,
+  FontsOptions,
   ChartState,
   LineSeriesOptions,
   BarSeriesOptions,

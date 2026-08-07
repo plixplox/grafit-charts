@@ -39,7 +39,7 @@
 | `borderWidth`  | `Pixels`            | `1`                        | толщина рамки; `0` убирает рамку     |
 | `borderRadius` | `Pixels`            | `6`                        | скругление углов                     |
 | `shadow`       | `string \| false`   | `0 2px 8px rgba(0,0,0,.25)` | CSS box-shadow; `false` — без тени   |
-| `padding`      | `string`            | `7px 10px`                 | CSS padding контейнера               |
+| `padding`      | `PaddingValue \| string` | `7px 10px`            | внутренние поля: `8`, `[8, 12]`, `[8, 12, 4, 0]`, `{ top, right, bottom, left }` или CSS-строка |
 | `fontSize`     | `Pixels`            | `12`                       | размер шрифта                        |
 | `fontFamily`   | `string`            | `system-ui, sans-serif`    | гарнитура                            |
 | `color`        | `ColorValue`        | foreground темы            | цвет текста                          |
