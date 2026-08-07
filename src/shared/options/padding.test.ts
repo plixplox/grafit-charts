@@ -23,8 +23,13 @@ describe('resolvePadding', () => {
     expect(resolvePadding(undefined)).toEqual({ top: 0, right: 0, bottom: 0, left: 0 });
   });
 
+  it('spreads a one-element tuple over all sides, as CSS does', () => {
+    expect(resolvePadding([4])).toEqual({ top: 4, right: 4, bottom: 4, left: 4 });
+    // the fallback is for what the value does not say, and this one says everything
+    expect(resolvePadding([4], { top: 1, right: 2, bottom: 3, left: 4 })).toEqual({ top: 4, right: 4, bottom: 4, left: 4 });
+  });
+
   it('takes per-side defaults from an object fallback', () => {
-    expect(resolvePadding([4], { top: 1, right: 2, bottom: 3, left: 4 })).toEqual({ top: 4, right: 2, bottom: 4, left: 2 });
     expect(resolvePadding({ top: 0 }, { top: 1, right: 2, bottom: 3, left: 4 })).toEqual({ top: 0, right: 2, bottom: 3, left: 4 });
   });
 });

@@ -7,9 +7,9 @@ export function paddingToCss(value: PaddingValue): string {
 }
 
 /**
- * Normalizes any padding shorthand into the four sides, CSS-style:
- * `8` → all sides, `[8, 12]` → vertical/horizontal, `[8, 12, 4, 0]` → top/right/bottom/left.
- * Sides missing from the object form fall back to `fallback`.
+ * Normalizes any padding shorthand into the four sides, CSS-style: `8` and `[8]`
+ * → all sides, `[8, 12]` → vertical/horizontal, `[8, 12, 4, 0]` →
+ * top/right/bottom/left. Sides missing from the object form fall back to `fallback`.
  */
 export function resolvePadding(value: PaddingValue | undefined, fallback: Pixels | Required<Padding> = 0): Required<Padding> {
   const base: Required<Padding> =
@@ -17,7 +17,8 @@ export function resolvePadding(value: PaddingValue | undefined, fallback: Pixels
   if (value === undefined) return { ...base };
   if (typeof value === 'number') return { top: value, right: value, bottom: value, left: value };
   if (Array.isArray(value)) {
-    const [top = base.top, right = base.right, bottom = top, left = right] = value;
+    // as in CSS, each missing side copies the one across from it
+    const [top = base.top, right = top, bottom = top, left = right] = value;
     return { top, right, bottom, left };
   }
   return {

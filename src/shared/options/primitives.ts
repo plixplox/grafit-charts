@@ -59,10 +59,10 @@ export interface Padding {
 }
 
 /**
- * Padding in any CSS-like shorthand: a single value, `[vertical, horizontal]`,
- * `[top, right, bottom, left]`, or the named object.
+ * Padding in any CSS-like shorthand: a single value, `[all]`,
+ * `[vertical, horizontal]`, `[top, right, bottom, left]`, or the named object.
  */
-export type PaddingValue = Pixels | [Pixels, Pixels] | [Pixels, Pixels, Pixels, Pixels] | Padding;
+export type PaddingValue = Pixels | [Pixels] | [Pixels, Pixels] | [Pixels, Pixels, Pixels, Pixels] | Padding;
 
 /** Drop shadow of a filled shape. */
 export interface ShadowOptions extends Switchable {
