@@ -17,7 +17,7 @@ import type {
   SeriesPick,
   StackSegment,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, FontOptions, Pixels, Fraction, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Fraction, Switchable } from '@/shared/options';
 import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
@@ -45,7 +45,8 @@ export interface BarSeriesOptions extends SeriesBaseOptions {
    * (top-left, …); center and inner-* are inside the bar (auto-contrast + outline).
    */
   label?: Switchable &
-    FontOptions & {
+    FontOptions &
+    LabelOverlapOptions & {
       placement?: BarLabelPlacement;
       formatter?: (params: { value: number; datum: Datum }) => string;
     };
@@ -155,6 +156,7 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
 
     const { data } = ctx;
     const group = new Group();
+    const labels = new Group();
 
     this.rects = this.layoutBars(ctx, ctx.animationT ?? 1);
     this.rects.forEach((rect) => {
@@ -198,14 +200,14 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
         const barFill = node.fill ?? this.mainColor();
         text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(barFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = barFill;
-        group.append(text);
+        if (this.labelFits(ctx, text, labelOptions.avoidOverlap)) labels.append(text);
       }
     });
 
     if (ctx.highlight && !ctx.highlight.allSeries && ctx.highlight.seriesId !== this.id) {
       group.opacity = ctx.dimOpacity ?? DEFAULT_DIM_OPACITY;
     }
-    ctx.layer.append(group);
+    this.appendGroups(ctx, group, labels);
   }
 
   pickInRect(x0: number, y0: number, x1: number, y1: number): number[] {
@@ -221,15 +223,7 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
   pick(x: number, y: number, searchRadius?: number): SeriesPick | undefined {
     for (const rect of this.rects) {
       if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
-        return {
-          seriesId: this.id,
-          datumIndex: rect.index,
-          distance: 0,
-          x: rect.x + rect.width / 2,
-          y: rect.y,
-          centerX: rect.x + rect.width / 2,
-          centerY: rect.y + rect.height / 2,
-        };
+        return this.pickOf(rect);
       }
     }
     // nearest: closest bar along the category axis from anywhere in the plot
@@ -247,6 +241,24 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
       return best;
     }
     return undefined;
+  }
+
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const rect = this.rects.find((candidate) => candidate.index === datumIndex);
+    return rect && this.pickOf(rect);
+  }
+
+  /** The tooltip hangs off the top edge of a bar, the crosshair off its middle. */
+  private pickOf(rect: { index: number; x: number; y: number; width: number; height: number }): SeriesPick {
+    return {
+      seriesId: this.id,
+      datumIndex: rect.index,
+      distance: 0,
+      x: rect.x + rect.width / 2,
+      y: rect.y,
+      centerX: rect.x + rect.width / 2,
+      centerY: rect.y + rect.height / 2,
+    };
   }
 }
 

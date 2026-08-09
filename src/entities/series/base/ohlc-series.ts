@@ -137,25 +137,29 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
       const top = Math.min(candle.high, candle.low);
       const bottom = Math.max(candle.high, candle.low);
       if (searchRadius === Infinity && x >= candle.bodyX && x <= candle.bodyX + candle.bodyWidth) {
-        return {
-          seriesId: this.id,
-          datumIndex: candle.index,
-          distance: 0,
-          x: candle.centerX,
-          y: Math.min(candle.open, candle.close),
-        };
+        return this.pickOf(candle);
       }
       if (x >= candle.bodyX && x <= candle.bodyX + candle.bodyWidth && y >= top - 4 && y <= bottom + 4) {
-        return {
-          seriesId: this.id,
-          datumIndex: candle.index,
-          distance: 0,
-          x: candle.centerX,
-          y: Math.min(candle.open, candle.close),
-        };
+        return this.pickOf(candle);
       }
     }
     return undefined;
+  }
+
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const candle = this.candles.find((candidate) => candidate.index === datumIndex);
+    return candle && this.pickOf(candle);
+  }
+
+  /** The tooltip hangs off the top of the body, whichever end is the open. */
+  private pickOf(candle: CandleGeometry): SeriesPick {
+    return {
+      seriesId: this.id,
+      datumIndex: candle.index,
+      distance: 0,
+      x: candle.centerX,
+      y: Math.min(candle.open, candle.close),
+    };
   }
 
   override tooltipFor(datumIndex: number): TooltipContentData {

@@ -11,6 +11,7 @@ import type {
   HighlightState,
   LayoutRect,
   ModuleRegistry,
+  NodeRef,
   SeriesPick,
   StandaloneSeriesInstance,
   ThemeContext,
@@ -191,6 +192,31 @@ export class StandaloneChart implements ChartWidget {
       this.layoutAndRender();
       this.requestRender();
     }
+  }
+
+  /**
+   * The tooltip addressed by datum. There is nothing else to drive here: this
+   * widget has neither clicks, nor a selection, nor a zoom.
+   */
+  showTooltip(target: NodeRef): boolean {
+    for (const series of this.series) {
+      if (!series.visible) continue;
+      if (target.seriesId !== undefined && series.id !== target.seriesId) continue;
+      const pick = series.nodeAt?.(target.datumIndex);
+      if (!pick) continue;
+      this.highlight = { seriesId: pick.seriesId, datumIndex: pick.datumIndex };
+      this.layoutAndRender();
+      this.requestRender();
+      if (this.tooltip && this.inputs.tooltip?.enabled !== false) {
+        this.tooltip.show(series.tooltipFor(pick.datumIndex), pick.x, pick.y, this.theme, this.inputs.tooltip);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  hideTooltip(): void {
+    this.handlePointerLeave();
   }
 
   handleClick(): void {}

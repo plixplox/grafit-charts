@@ -16,7 +16,7 @@ import type {
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, FontOptions, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
 import { BandScale, LinearScale } from '@/shared/scale';
 import { Group, Line, Rect, Text } from '@/shared/scene';
 import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
@@ -35,7 +35,8 @@ export interface WaterfallSeriesOptions extends SeriesBaseOptions {
   line?: { enabled?: boolean; stroke?: ColorValue };
   /** Value labels: same placements as bar (top, inner-top, center, …). */
   label?: Switchable &
-    FontOptions & {
+    FontOptions &
+    LabelOverlapOptions & {
       placement?: RectLabelPlacement;
       formatter?: (params: { value: number; isTotal: boolean; datum: Datum }) => string;
     };
@@ -151,6 +152,7 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
     const negativeFill = this.options.item?.negative?.fill ?? this.env.theme.negativeColor;
     const totalFill = this.options.item?.total?.fill ?? this.env.theme.mutedColor;
     const group = new Group();
+    const labels = new Group();
 
     this.bars = this.layoutBars(ctx, ctx.animationT ?? 1);
     // the scales were checked while laying the bars out
@@ -202,11 +204,11 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
         const elementFill = node.fill ?? this.env.colors.fill;
         text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = elementFill;
-        group.append(text);
+        if (this.labelFits(ctx, text, labelOptions.avoidOverlap)) labels.append(text);
       }
       prev = bar;
     });
-    ctx.layer.append(group);
+    this.appendGroups(ctx, group, labels);
   }
 
   pick(x: number, y: number): SeriesPick | undefined {
@@ -216,6 +218,12 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
       }
     }
     return undefined;
+  }
+
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const bar = this.bars.find((candidate) => candidate.index === datumIndex);
+    if (!bar) return undefined;
+    return { seriesId: this.id, datumIndex, distance: 0, x: bar.x + bar.width / 2, y: bar.y };
   }
 
   override tooltipFor(datumIndex: number): TooltipContentData {

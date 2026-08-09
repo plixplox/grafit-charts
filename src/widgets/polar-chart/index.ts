@@ -11,10 +11,13 @@ import type {
   ChartState,
   ChartWidget,
   HighlightState,
+  ImperativeOptions,
   LayoutRect,
   MeasureText,
   ModuleRegistry,
+  NodeRef,
   PolarSeriesInstance,
+  SelectedNode,
   SeriesPick,
   ThemeContext,
 } from '@/shared/kernel';
@@ -683,41 +686,116 @@ export class PolarChart implements ChartWidget {
       return;
     }
     const pick = this.pickNearest(x, y);
-    if (pick && this.inputs.listeners?.nodeClick) {
-      const datum = (this.inputs.data ?? [])[pick.datumIndex];
-      if (datum) this.inputs.listeners.nodeClick({ seriesId: pick.seriesId, datumIndex: pick.datumIndex, datum });
-    }
+    if (pick) this.emitNodeClick(pick.seriesId, pick.datumIndex);
     if (this.inputs.selection?.enabled) {
-      const multiple = this.inputs.selection.mode === 'multiple';
       if (pick) {
-        const set = multiple ? (this.selectedMap.get(pick.seriesId) ?? new Set<number>()) : new Set<number>();
-        if (!multiple) this.selectedMap.clear();
-        if (multiple && set.has(pick.datumIndex)) {
-          set.delete(pick.datumIndex);
-        } else {
-          set.add(pick.datumIndex);
-        }
-        this.selectedMap.set(pick.seriesId, set);
+        this.toggleSelected(pick.seriesId, pick.datumIndex);
       } else {
+        // a click on empty space drops the selection
         this.selectedMap.clear();
+        this.afterSelectionChange();
       }
-      const listener = this.inputs.listeners?.selectionChange;
-      if (listener) {
-        const data = this.inputs.data ?? [];
-        const items: SelectedItem[] = [];
-        for (const [seriesId, indices] of this.selectedMap) {
-          for (const datumIndex of indices) {
-            const datum = data[datumIndex];
-            if (datum) items.push({ seriesId, datumIndex, datum });
-          }
-        }
-        listener({ items });
-      }
-      this.layoutAndRender();
-      this.requestRender();
       return;
     }
     this.handleLegendClick(x, y);
+  }
+
+  // ------------------------------------------------------- imperative control
+
+  showTooltip(target: NodeRef): boolean {
+    const found = this.resolveNode(target);
+    if (!found) return false;
+    const { series, pick } = found;
+    const previous = this.highlight;
+    this.highlight = { seriesId: pick.seriesId, datumIndex: pick.datumIndex };
+    if (previous) {
+      this.layoutAndRender();
+      this.requestRender();
+    } else {
+      this.animateHover(1);
+    }
+    if (this.tooltip && this.inputs.tooltip?.enabled !== false) {
+      // no pointer to fall back on: the node's own anchor stands in for one
+      this.tooltip.show(series.tooltipFor(pick.datumIndex), ...this.tooltipAnchor(pick, pick.x, pick.y), this.theme, this.inputs.tooltip);
+    }
+    return true;
+  }
+
+  hideTooltip(): void {
+    this.handlePointerLeave();
+  }
+
+  clickNode(target: NodeRef, options?: ImperativeOptions): boolean {
+    const found = this.resolveNode(target);
+    if (!found) return false;
+    const { pick } = found;
+    if (!options?.silent) this.emitNodeClick(pick.seriesId, pick.datumIndex);
+    if (this.inputs.selection?.enabled) this.toggleSelected(pick.seriesId, pick.datumIndex, options);
+    return true;
+  }
+
+  getSelection(): SelectedNode[] {
+    return this.collectSelection();
+  }
+
+  setSelection(targets: NodeRef[], options?: ImperativeOptions): void {
+    const fallbackId = this.series.find((series) => series.visible)?.id;
+    this.selectedMap.clear();
+    for (const target of targets) {
+      const seriesId = target.seriesId ?? fallbackId;
+      if (seriesId === undefined) continue;
+      const set = this.selectedMap.get(seriesId) ?? new Set<number>();
+      set.add(target.datumIndex);
+      this.selectedMap.set(seriesId, set);
+    }
+    this.afterSelectionChange(options);
+  }
+
+  /** The node a reference points at; without a series id the visible ones answer in order. */
+  private resolveNode(target: NodeRef): { series: PolarSeriesInstance; pick: SeriesPick } | undefined {
+    for (const series of this.series) {
+      if (!series.visible) continue;
+      if (target.seriesId !== undefined && series.id !== target.seriesId) continue;
+      const pick = series.nodeAt?.(target.datumIndex);
+      if (pick) return { series, pick };
+    }
+    return undefined;
+  }
+
+  private emitNodeClick(seriesId: string, datumIndex: number): void {
+    const listener = this.inputs.listeners?.nodeClick;
+    if (!listener) return;
+    const datum = (this.inputs.data ?? [])[datumIndex];
+    if (datum) listener({ seriesId, datumIndex, datum });
+  }
+
+  /** Click semantics of the selection: single replaces it, multiple toggles the node. */
+  private toggleSelected(seriesId: string, datumIndex: number, options?: ImperativeOptions): void {
+    const multiple = this.inputs.selection?.mode === 'multiple';
+    const set = multiple ? (this.selectedMap.get(seriesId) ?? new Set<number>()) : new Set<number>();
+    if (!multiple) this.selectedMap.clear();
+    if (multiple && set.has(datumIndex)) set.delete(datumIndex);
+    else set.add(datumIndex);
+    this.selectedMap.set(seriesId, set);
+    this.afterSelectionChange(options);
+  }
+
+  private afterSelectionChange(options?: ImperativeOptions): void {
+    if (!options?.silent) this.inputs.listeners?.selectionChange?.({ items: this.collectSelection() });
+    this.layoutAndRender();
+    this.requestRender();
+  }
+
+  private collectSelection(): SelectedItem[] {
+    const data = this.inputs.data ?? [];
+    const items: SelectedItem[] = [];
+    for (const [seriesId, indices] of this.selectedMap) {
+      for (const datumIndex of indices) {
+        const datum = data[datumIndex];
+        if (datum) items.push({ seriesId, datumIndex, datum });
+      }
+    }
+    return items;
   }
 
   private handleLegendClick(x: number, y: number): void {

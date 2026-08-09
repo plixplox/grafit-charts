@@ -11,7 +11,7 @@ import type {
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction, Styler, FontOptions, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, Fraction, Styler, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
 import { Group, Marker, Text, type MarkerShape } from '@/shared/scene';
 import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
 
@@ -43,7 +43,8 @@ export interface MarkerSeriesBaseOptions extends SeriesBaseOptions {
   itemStyler?: Styler<MarkerItemStylerParams, MarkerItemStyle>;
   /** Value labels at points: top (by default) / bottom / left / right. */
   label?: Switchable &
-    FontOptions & {
+    FontOptions &
+    LabelOverlapOptions & {
       /** inside — within the marker (for bubble), auto-contrast + outline. */
       placement?: 'top' | 'bottom' | 'left' | 'right' | 'inside';
       formatter?: (params: { value: number; datum: Datum }) => string;
@@ -138,6 +139,7 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
 
     const { data } = ctx;
     const group = new Group();
+    const labels = new Group();
     const highlighted =
       ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
 
@@ -207,11 +209,11 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
           label.fill = labelOptions.color ?? this.env.theme.foregroundColor;
           label.outline = this.env.theme.backgroundColor;
         }
-        group.append(label);
+        if (this.labelFits(ctx, label, labelOptions.avoidOverlap)) labels.append(label);
       }
     }
 
-    ctx.layer.append(group);
+    this.appendGroups(ctx, group, labels);
   }
 
   pickInRect(x0: number, y0: number, x1: number, y1: number): number[] {
@@ -234,5 +236,11 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
       }
     }
     return best;
+  }
+
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const point = this.points.find((candidate) => candidate.index === datumIndex);
+    if (!point) return undefined;
+    return { seriesId: this.id, datumIndex, distance: 0, x: point.x, y: point.y };
   }
 }

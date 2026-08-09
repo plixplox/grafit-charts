@@ -158,6 +158,12 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
     return undefined;
   }
 
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const box = this.boxes.find((candidate) => candidate.index === datumIndex);
+    if (!box) return undefined;
+    return { seriesId: this.id, datumIndex, distance: 0, x: box.x + box.width / 2, y: Math.min(box.q1, box.q3) };
+  }
+
   override tooltipFor(datumIndex: number): TooltipContentData {
     const datum = this.lastCtx?.data[datumIndex];
     if (!datum) return { rows: [] };

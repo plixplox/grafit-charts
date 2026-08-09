@@ -105,16 +105,17 @@ await chart.updateDelta({ theme: 'dark' }); // точечное изменени
 await chart.update(buildOptions(newData)); // полная замена
 ```
 
-| Метод                            | Описание                                                       |
-| -------------------------------- | -------------------------------------------------------------- |
-| `update(options)`                | полная замена options; Promise резолвится после рендера        |
-| `updateDelta(patch)`             | глубокий merge: объекты сливаются, массивы заменяются целиком  |
-| `getOptions()`                   | текущие options                                                |
-| `getState()` / `setState(state)` | зум и скрытые серии — см. [Состояние](/ru/interactivity/state) |
-| `waitForUpdate()`                | дождаться рендера (и догрузки веб-шрифтов)                     |
-| `getImageDataURL(opts?)`         | PNG/JPEG как data-URL                                          |
-| `download(opts?)`                | скачать изображение (`{ fileName?, fileFormat? }`)             |
-| `destroy()`                      | освободить DOM и подписки                                      |
+| Метод                                                       | Описание                                                                                      |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `update(options)`                                           | полная замена options; Promise резолвится после рендера                                       |
+| `updateDelta(patch)`                                        | глубокий merge: объекты сливаются, массивы заменяются целиком                                 |
+| `getOptions()`                                              | текущие options                                                                               |
+| `getState()` / `setState(state)`                            | зум и скрытые серии — см. [Состояние](/ru/interactivity/state)                                |
+| `waitForUpdate()`                                           | дождаться рендера (и догрузки веб-шрифтов)                                                    |
+| `showTooltip` / `clickNode` / `setSelection` / `zoomTo` / … | управление взаимодействиями из кода — см. [Программное управление](/ru/interactivity/control) |
+| `getImageDataURL(opts?)`                                    | PNG/JPEG как data-URL                                                                         |
+| `download(opts?)`                                           | скачать изображение (`{ fileName?, fileFormat? }`)                                            |
+| `destroy()`                                                 | освободить DOM и подписки                                                                     |
 
 ## Все корневые блоки
 

@@ -31,11 +31,15 @@ import type {
   CartesianAxisInstance,
   ColorScaleInfo,
   CartesianSeriesInstance,
+  DomainAnchor,
   HighlightState,
+  ImperativeOptions,
   Insets,
   LayoutRect,
   MeasureText,
   ModuleRegistry,
+  NodeRef,
+  SelectedNode,
   SeriesPick,
   StackSegment,
   ThemeContext,
@@ -44,7 +48,7 @@ import type {
 import { deepMerge, resolvePadding, type Datum, type PaddingValue, type Switchable } from '@/shared/options';
 import { BandScale, LinearScale, TimeScale, type AnyScale } from '@/shared/scale';
 import { Group, Rect, Text, type Scene } from '@/shared/scene';
-import { maxOverflow, NO_OVERFLOW } from '@/shared/util';
+import { LabelPlacements, maxOverflow, NO_OVERFLOW } from '@/shared/util';
 
 /**
  * Input contract of the widget. The public typed ChartOptions
@@ -214,10 +218,97 @@ export class CartesianChart implements SyncMember {
     return isZoomed(this.zoomX) || isZoomed(this.zoomY);
   }
 
-  resetZoom(): void {
+  resetZoom(options?: ImperativeOptions): void {
     this.zoomX = FULL_WINDOW;
     this.zoomY = FULL_WINDOW;
-    this.afterZoomChange();
+    this.afterZoomChange(options);
+  }
+
+  // ------------------------------------------------------- imperative control
+
+  /**
+   * The same states the pointer drives, addressed by datum instead. The tooltip
+   * and the highlight need a node on screen, so they answer false once the datum
+   * is outside the zoom window; the selection is bookkeeping and takes any index.
+   */
+  showTooltip(target: NodeRef): boolean {
+    const found = this.resolveNode(target);
+    if (!found) return false;
+    const { series, pick } = found;
+    const shared = this.inputs.tooltip?.mode === 'shared';
+    const previous = this.highlight;
+    this.highlight = { seriesId: pick.seriesId, datumIndex: pick.datumIndex, allSeries: shared ? true : undefined };
+    this.broadcastHighlightIfSynced();
+    if (previous) {
+      this.renderDynamicLayers();
+      this.requestRender();
+    } else {
+      this.animateHover(1);
+    }
+    if (this.tooltip && this.inputs.tooltip?.enabled !== false) {
+      const content = shared ? this.sharedTooltipContent(pick) : series.tooltipFor(pick.datumIndex);
+      // no pointer to fall back on: the node's own anchor stands in for one
+      this.tooltip.show(content, ...this.tooltipAnchor(pick, pick.x, pick.y), this.theme, this.inputs.tooltip);
+    }
+    return true;
+  }
+
+  hideTooltip(): void {
+    this.handlePointerLeave();
+  }
+
+  clickNode(target: NodeRef, options?: ImperativeOptions): boolean {
+    const found = this.resolveNode(target);
+    if (!found) return false;
+    const { pick } = found;
+    if (!options?.silent) this.emitNodeClick(pick.seriesId, pick.datumIndex);
+    if (this.inputs.selection?.enabled) this.toggleSelected(pick.seriesId, pick.datumIndex, options);
+    return true;
+  }
+
+  getSelection(): SelectedNode[] {
+    return this.collectSelection();
+  }
+
+  setSelection(targets: NodeRef[], options?: ImperativeOptions): void {
+    const fallbackId = this.series.find((series) => series.visible)?.id;
+    this.selectedMap.clear();
+    for (const target of targets) {
+      const seriesId = target.seriesId ?? fallbackId;
+      if (seriesId === undefined) continue;
+      const set = this.selectedMap.get(seriesId) ?? new Set<number>();
+      set.add(target.datumIndex);
+      this.selectedMap.set(seriesId, set);
+    }
+    this.afterSelectionChange(options);
+  }
+
+  zoomTo(window: { x?: ZoomWindow; y?: ZoomWindow }, options?: ImperativeOptions): void {
+    if (window.x) this.zoomX = clampWindow(window.x);
+    if (window.y) this.zoomY = clampWindow(window.y);
+    this.afterZoomChange(options);
+  }
+
+  zoomToCount(count: number, options?: ImperativeOptions & { anchor?: DomainAnchor }): void {
+    const total = this.collectCategories(
+      this.series.filter((series) => series.visible),
+      this.inputs.data ?? [],
+    ).length;
+    const window = windowForCount(count, total, options?.anchor ?? this.inputs.zoom?.visibleAnchor ?? 'start');
+    if (this.swapped) this.zoomY = window;
+    else this.zoomX = window;
+    this.afterZoomChange(options);
+  }
+
+  /** The node a reference points at; without a series id the visible ones answer in order. */
+  private resolveNode(target: NodeRef): { series: CartesianSeriesInstance; pick: SeriesPick } | undefined {
+    for (const series of this.series) {
+      if (!series.visible) continue;
+      if (target.seriesId !== undefined && series.id !== target.seriesId) continue;
+      const pick = series.nodeAt?.(target.datumIndex);
+      if (pick) return { series, pick };
+    }
+    return undefined;
   }
 
   // ------------------------------------------------------------- assembly
@@ -353,6 +444,8 @@ export class CartesianChart implements SyncMember {
     const gridLayer = this.scene.layer('grid');
     const axisLayer = this.scene.layer('axis');
     this.scene.layer('series');
+    // value labels sit above every series' marks: a bar drawn later must not cover them
+    this.scene.layer('series-label');
     // inside axis labels are drawn over the series, so they get a layer of their own
     const axisForegroundLayer = this.scene.layer('axis-foreground');
     const legendLayer = this.scene.layer('legend');
@@ -595,11 +688,15 @@ export class CartesianChart implements SyncMember {
     const cache = this.renderCache;
     if (!cache) return;
     const seriesLayer = this.scene.layer('series');
+    const seriesLabelLayer = this.scene.layer('series-label');
     const overlayLayer = this.scene.layer('overlay');
     seriesLayer.clear();
+    seriesLabelLayer.clear();
     overlayLayer.clear();
     const { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, navigatorRect, colorInfo } = cache;
     const plot = this.plot;
+    // the labels of the whole frame share one guard, so series avoid each other too
+    const labelGuard = new LabelPlacements((text, font) => this.scene.measureText(text, font));
 
     if (xAxis && yAxis) {
       for (const series of this.series) {
@@ -611,6 +708,8 @@ export class CartesianChart implements SyncMember {
           swapped,
           plot,
           layer: seriesLayer,
+          labelLayer: seriesLabelLayer,
+          labelGuard,
           highlight: this.inputs.highlight?.enabled !== false ? (this.highlight ?? this.fadeHighlight) : undefined,
           dimOpacity: this.effectiveDimOpacity(),
           selected: this.selectedMap.get(series.id),
@@ -662,7 +761,7 @@ export class CartesianChart implements SyncMember {
       overlayLayer.append(selection);
     }
     this.renderOverlays(overlayLayer, plot, data, cache.visibleCount);
-    this.scene.markDirty('series', 'overlay');
+    this.scene.markDirty('series', 'series-label', 'overlay');
   }
 
   /** Values of the first visible series for the navigator thumbnail. */
@@ -923,27 +1022,15 @@ export class CartesianChart implements SyncMember {
     const inPlot = x >= this.plot.x && x <= this.plot.x + this.plot.width && y >= this.plot.y && y <= this.plot.y + this.plot.height;
     if (inPlot) {
       const pick = this.pickNearest(x, y);
-      if (pick && this.inputs.listeners?.nodeClick) {
-        const datum = (this.inputs.data ?? [])[pick.datumIndex];
-        if (datum) this.inputs.listeners.nodeClick({ seriesId: pick.seriesId, datumIndex: pick.datumIndex, datum });
-      }
+      if (pick) this.emitNodeClick(pick.seriesId, pick.datumIndex);
       if (this.inputs.selection?.enabled) {
-        const multiple = this.inputs.selection.mode === 'multiple';
         if (pick) {
-          const set = multiple ? (this.selectedMap.get(pick.seriesId) ?? new Set<number>()) : new Set<number>();
-          if (!multiple) this.selectedMap.clear();
-          if (multiple && set.has(pick.datumIndex)) {
-            set.delete(pick.datumIndex);
-          } else {
-            set.add(pick.datumIndex);
-          }
-          this.selectedMap.set(pick.seriesId, set);
+          this.toggleSelected(pick.seriesId, pick.datumIndex);
         } else {
+          // a click on empty space drops the selection
           this.selectedMap.clear();
+          this.afterSelectionChange();
         }
-        this.emitSelectionChange();
-        this.renderDynamicLayers();
-        this.requestRender();
         return;
       }
     }
@@ -1236,9 +1323,9 @@ export class CartesianChart implements SyncMember {
     this.requestRender();
   }
 
-  private afterZoomChange(): void {
-    this.inputs.listeners?.zoomChange?.({ x: this.zoomX, y: this.zoomY });
-    if (!this.suppressSyncBroadcast) {
+  private afterZoomChange(options?: ImperativeOptions): void {
+    if (!options?.silent) this.inputs.listeners?.zoomChange?.({ x: this.zoomX, y: this.zoomY });
+    if (!options?.silent && !this.suppressSyncBroadcast) {
       const sync = this.inputs.sync;
       if (sync && sync.enabled !== false && sync.zoom !== false) {
         this.registry.getFeature<SyncApi>('sync')?.broadcastZoom(sync.groupId ?? 'default', this, this.zoomX);
@@ -1255,9 +1342,31 @@ export class CartesianChart implements SyncMember {
     }
   }
 
-  private emitSelectionChange(): void {
-    const listener = this.inputs.listeners?.selectionChange;
+  private emitNodeClick(seriesId: string, datumIndex: number): void {
+    const listener = this.inputs.listeners?.nodeClick;
     if (!listener) return;
+    const datum = (this.inputs.data ?? [])[datumIndex];
+    if (datum) listener({ seriesId, datumIndex, datum });
+  }
+
+  /** Click semantics of the selection: single replaces it, multiple toggles the node. */
+  private toggleSelected(seriesId: string, datumIndex: number, options?: ImperativeOptions): void {
+    const multiple = this.inputs.selection?.mode === 'multiple';
+    const set = multiple ? (this.selectedMap.get(seriesId) ?? new Set<number>()) : new Set<number>();
+    if (!multiple) this.selectedMap.clear();
+    if (multiple && set.has(datumIndex)) set.delete(datumIndex);
+    else set.add(datumIndex);
+    this.selectedMap.set(seriesId, set);
+    this.afterSelectionChange(options);
+  }
+
+  private afterSelectionChange(options?: ImperativeOptions): void {
+    if (!options?.silent) this.emitSelectionChange();
+    this.renderDynamicLayers();
+    this.requestRender();
+  }
+
+  private collectSelection(): SelectedItem[] {
     const data = this.inputs.data ?? [];
     const items: SelectedItem[] = [];
     for (const [seriesId, indices] of this.selectedMap) {
@@ -1266,7 +1375,13 @@ export class CartesianChart implements SyncMember {
         if (datum) items.push({ seriesId, datumIndex, datum });
       }
     }
-    listener({ items });
+    return items;
+  }
+
+  private emitSelectionChange(): void {
+    const listener = this.inputs.listeners?.selectionChange;
+    if (!listener) return;
+    listener({ items: this.collectSelection() });
   }
 
   private selectionActive(): boolean {
@@ -1296,6 +1411,13 @@ export class CartesianChart implements SyncMember {
     this.leaveSync?.();
     this.tooltip?.destroy();
   }
+}
+
+/** A window straight from the caller: inside 0..1 and never inverted. */
+function clampWindow(window: ZoomWindow): ZoomWindow {
+  const start = Math.min(Math.max(window[0], 0), 1);
+  const end = Math.min(Math.max(window[1], 0), 1);
+  return start <= end ? [start, end] : [end, start];
 }
 
 /** Converts a screen selection into a zoom window inside the current window. */

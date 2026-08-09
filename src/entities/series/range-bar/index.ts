@@ -17,7 +17,7 @@ import type {
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction, FontOptions, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, Fraction, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
 import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { extent, contrastTextColor, NO_OVERFLOW } from '@/shared/util';
@@ -30,7 +30,8 @@ export interface RangeBarSeriesOptions extends Omit<SeriesBaseOptions, 'yField' 
   name?: string;
   /** Value labels: same placements as bar (top, inner-top, center, …). */
   label?: Switchable &
-    FontOptions & {
+    FontOptions &
+    LabelOverlapOptions & {
       placement?: RectLabelPlacement;
       formatter?: (params: { low: number; high: number; datum: Datum }) => string;
     };
@@ -145,6 +146,7 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
     this.rects = [];
     if (!this.visible) return;
     const group = new Group();
+    const labels = new Group();
 
     this.rects = this.layoutBars(ctx, ctx.animationT ?? 1);
     this.rects.forEach((rect) => {
@@ -185,11 +187,11 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
         const elementFill = node.fill ?? this.mainColor();
         text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = elementFill;
-        group.append(text);
+        if (this.labelFits(ctx, text, labelOptions.avoidOverlap)) labels.append(text);
       }
     });
     if (ctx.highlight && ctx.highlight.seriesId !== this.id) group.opacity = ctx.dimOpacity ?? DEFAULT_DIM_OPACITY;
-    ctx.layer.append(group);
+    this.appendGroups(ctx, group, labels);
   }
 
   pick(x: number, y: number): SeriesPick | undefined {
@@ -199,6 +201,12 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
       }
     }
     return undefined;
+  }
+
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const rect = this.rects.find((candidate) => candidate.index === datumIndex);
+    if (!rect) return undefined;
+    return { seriesId: this.id, datumIndex, distance: 0, x: rect.x + rect.width / 2, y: rect.y };
   }
 
   override tooltipFor(datumIndex: number): TooltipContentData {

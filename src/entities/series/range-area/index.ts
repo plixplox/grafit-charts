@@ -126,6 +126,12 @@ export class RangeAreaSeries extends CartesianSeries<RangeAreaSeriesOptions & { 
     return best;
   }
 
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const point = this.points.find((candidate) => candidate.index === datumIndex);
+    if (!point) return undefined;
+    return { seriesId: this.id, datumIndex, distance: 0, x: point.x, y: point.yHigh };
+  }
+
   override tooltipFor(datumIndex: number): TooltipContentData {
     const datum = this.lastCtx?.data[datumIndex];
     if (!datum) return { rows: [] };

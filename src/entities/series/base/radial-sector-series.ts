@@ -131,6 +131,14 @@ export abstract class RadialSectorSeries<O extends RadialSectorSeriesBaseOptions
     return undefined;
   }
 
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const sector = this.sectors.find((candidate) => candidate.index === datumIndex);
+    if (!sector) return undefined;
+    const mid = (sector.startAngle + sector.endAngle) / 2;
+    const anchor = PolarSeries.pointAt(this.center.x, this.center.y, mid, sector.outerRadius);
+    return { seriesId: this.id, datumIndex, distance: 0, x: anchor.x, y: anchor.y };
+  }
+
   tooltipFor(datumIndex: number): TooltipContentData {
     const datum = this.data[datumIndex];
     if (!datum) return { rows: [] };

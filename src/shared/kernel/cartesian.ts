@@ -28,6 +28,27 @@ export type AxisPosition = 'top' | 'right' | 'bottom' | 'left';
 /** Zoom window as fractions of the full domain. */
 export type ZoomWindow = [start: number, end: number];
 
+/** Which end of a domain something is measured from. */
+export type DomainAnchor = 'start' | 'end';
+
+/** Points at one datum of a series; without seriesId the first visible series answers. */
+export interface NodeRef {
+  seriesId?: string;
+  datumIndex: number;
+}
+
+/** A datum the chart singled out — a selection entry or the target of a click. */
+export interface SelectedNode {
+  seriesId: string;
+  datumIndex: number;
+  datum: Datum;
+}
+
+/** Shared tail of the imperative calls: whether they notify listeners (they do by default). */
+export interface ImperativeOptions {
+  silent?: boolean;
+}
+
 /** Serializable chart state (zoom + hidden series). */
 export interface ChartState {
   zoom?: { x?: ZoomWindow; y?: ZoomWindow };
@@ -58,7 +79,22 @@ export interface ChartWidget {
   getState(): ChartState;
   setState(state: ChartState): void;
   isZoomed(): boolean;
-  resetZoom(): void;
+  resetZoom(options?: ImperativeOptions): void;
+  /**
+   * The imperative half of the pointer handlers above: the same highlight,
+   * tooltip, selection and zoom, addressed by datum instead of by coordinates.
+   * A widget that leaves one out simply has nothing to drive that way.
+   */
+  showTooltip?(target: NodeRef): boolean;
+  hideTooltip?(): void;
+  /** Programmatic click: nodeClick and selection, exactly as a real one would. */
+  clickNode?(target: NodeRef, options?: ImperativeOptions): boolean;
+  getSelection?(): SelectedNode[];
+  /** Replaces the selection; an empty list clears it. */
+  setSelection?(targets: NodeRef[], options?: ImperativeOptions): void;
+  zoomTo?(window: { x?: ZoomWindow; y?: ZoomWindow }, options?: ImperativeOptions): void;
+  /** Window sized to a number of items, as zoom.visibleCount does at startup. */
+  zoomToCount?(count: number, options?: ImperativeOptions & { anchor?: DomainAnchor }): void;
   /** Keyboard navigation across points (a11y). */
   handleKeyStep?(delta: number): void;
   /** Description of the currently highlighted point for the ARIA live region. */
@@ -113,6 +149,28 @@ export interface LegendItemDescriptor {
   value?: string;
 }
 
+/** Anchor, alignment and font of a label — everything its box follows from. */
+export interface LabelBox {
+  text: string;
+  x: number;
+  y: number;
+  align: CanvasTextAlign;
+  baseline: CanvasTextBaseline;
+  fontSize: number;
+  /** Canvas font spec of the label: `${weight} ${size}px ${family}`. */
+  font: string;
+}
+
+/**
+ * Room the value labels have already taken in the frame. A series that avoids
+ * overlap asks before it draws: a box running into one already taken is
+ * refused, and its label is left out. Series are asked in drawing order, so
+ * the first label on a spot keeps it.
+ */
+export interface LabelGuard {
+  admits(box: LabelBox): boolean;
+}
+
 /** Stack segment: accumulated lower/upper values by data index. */
 export interface StackSegment {
   y0: number[];
@@ -143,6 +201,13 @@ export interface LabelOverflowContext extends CartesianGeometry {
 
 export interface CartesianRenderContext extends CartesianGeometry {
   layer: Group;
+  /**
+   * Layer above every series' marks for the value labels: a bar drawn later
+   * must not cover the label of the one before it. Falls back to layer.
+   */
+  labelLayer?: Group;
+  /** Room the labels of the frame have taken (label.avoidOverlap); without it nothing is hidden. */
+  labelGuard?: LabelGuard;
   highlight?: HighlightState;
   /** Entry animation factor 0..1 (1 — no animation). */
   animationT?: number;
@@ -216,6 +281,11 @@ export interface CartesianSeriesInstance {
    * searchRadius: 0 — exact hit only, Infinity — nearest with no limit.
    */
   pick(x: number, y: number, searchRadius?: number): SeriesPick | undefined;
+  /**
+   * pick() run backwards: the node of a datum, wherever it ended up. Drives the
+   * tooltip and highlight when they are addressed by datum rather than by cursor.
+   */
+  nodeAt?(datumIndex: number): SeriesPick | undefined;
   /** Indices of datums whose nodes fall inside the rectangle (Data Selection). */
   pickInRect?(x0: number, y0: number, x1: number, y1: number): number[];
   /** mode 'shared' — the rows go into a combined multi-series tooltip, so each row needs its own marker. */

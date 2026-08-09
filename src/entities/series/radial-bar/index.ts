@@ -129,6 +129,20 @@ export class RadialBarSeries extends PolarSeries<RadialBarSeriesOptions> {
     return undefined;
   }
 
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const bar = this.bars.find((candidate) => candidate.index === datumIndex);
+    if (!bar) return undefined;
+    const mid = bar.sweep / 2;
+    const r = (bar.innerRadius + bar.outerRadius) / 2;
+    return {
+      seriesId: this.id,
+      datumIndex,
+      distance: 0,
+      x: this.center.x + Math.sin(mid) * r,
+      y: this.center.y - Math.cos(mid) * r,
+    };
+  }
+
   tooltipFor(datumIndex: number): TooltipContentData {
     const datum = this.data[datumIndex];
     if (!datum) return { rows: [] };

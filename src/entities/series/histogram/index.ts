@@ -17,7 +17,7 @@ import type {
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction, FontOptions, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, Fraction, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { extent, contrastTextColor, NO_OVERFLOW } from '@/shared/util';
@@ -35,7 +35,8 @@ export interface HistogramSeriesOptions extends Omit<SeriesBaseOptions, 'yField'
   bins?: Array<[number, number]>;
   /** Value labels: same placements as bar (top, inner-top, center, …). */
   label?: Switchable &
-    FontOptions & {
+    FontOptions &
+    LabelOverlapOptions & {
       placement?: RectLabelPlacement;
       formatter?: (params: { value: number; x0: number; x1: number }) => string;
     };
@@ -166,6 +167,7 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
     if (!this.visible) return;
     this.bins = this.computeBins(ctx.data);
     const group = new Group();
+    const labels = new Group();
 
     this.rects = this.layoutBins(ctx, this.bins);
     this.rects.forEach((rect) => {
@@ -207,7 +209,7 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
         const elementFill = node.fill ?? this.mainColor();
         text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = elementFill;
-        group.append(text);
+        if (this.labelFits(ctx, text, labelOptions.avoidOverlap)) labels.append(text);
       }
     });
 
@@ -215,7 +217,7 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
       group.opacity = ctx.dimOpacity ?? DEFAULT_DIM_OPACITY;
     }
     group.opacity *= ctx.animationT ?? 1;
-    ctx.layer.append(group);
+    this.appendGroups(ctx, group, labels);
   }
 
   pick(x: number, y: number): SeriesPick | undefined {
@@ -231,6 +233,13 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
       }
     }
     return undefined;
+  }
+
+  /** Bins, not datums: the index is the bin the tooltip talks about. */
+  nodeAt(binIndex: number): SeriesPick | undefined {
+    const rect = this.rects.find((candidate) => candidate.binIndex === binIndex);
+    if (!rect) return undefined;
+    return { seriesId: this.id, datumIndex: binIndex, distance: 0, x: rect.x + rect.width / 2, y: rect.y };
   }
 
   override tooltipFor(binIndex: number): TooltipContentData {

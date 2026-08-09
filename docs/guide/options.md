@@ -107,16 +107,17 @@ await chart.updateDelta({ theme: 'dark' }); // targeted change
 await chart.update(buildOptions(newData)); // full replacement
 ```
 
-| Method                           | Description                                                    |
-| -------------------------------- | -------------------------------------------------------------- |
-| `update(options)`                | full options replacement; the Promise resolves after rendering |
-| `updateDelta(patch)`             | deep merge: objects are merged, arrays are replaced as a whole |
-| `getOptions()`                   | current options                                                |
-| `getState()` / `setState(state)` | zoom and hidden series — see [State](/interactivity/state)     |
-| `waitForUpdate()`                | wait for a scheduled render (and for pending web fonts)        |
-| `getImageDataURL(opts?)`         | PNG/JPEG as a data URL                                         |
-| `download(opts?)`                | download an image (`{ fileName?, fileFormat? }`)               |
-| `destroy()`                      | release the DOM and subscriptions                              |
+| Method                                                      | Description                                                                           |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `update(options)`                                           | full options replacement; the Promise resolves after rendering                        |
+| `updateDelta(patch)`                                        | deep merge: objects are merged, arrays are replaced as a whole                        |
+| `getOptions()`                                              | current options                                                                       |
+| `getState()` / `setState(state)`                            | zoom and hidden series — see [State](/interactivity/state)                            |
+| `waitForUpdate()`                                           | wait for a scheduled render (and for pending web fonts)                               |
+| `showTooltip` / `clickNode` / `setSelection` / `zoomTo` / … | drive the interactions from code — see [Programmatic control](/interactivity/control) |
+| `getImageDataURL(opts?)`                                    | PNG/JPEG as a data URL                                                                |
+| `download(opts?)`                                           | download an image (`{ fileName?, fileFormat? }`)                                      |
+| `destroy()`                                                 | release the DOM and subscriptions                                                     |
 
 ## All root-level blocks
 

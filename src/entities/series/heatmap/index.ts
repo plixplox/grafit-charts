@@ -2,7 +2,7 @@ import { CartesianSeries, type SeriesBaseOptions } from '@/entities/series/base'
 import { numericValues, uniqueValues } from '@/shared/data';
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { CartesianRenderContext, ColorScaleInfo, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
-import type { ColorValue, Datum, FontOptions, Pixels, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Switchable } from '@/shared/options';
 import { BandScale, ColorScale } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { contrastTextColor, extent } from '@/shared/util';
@@ -22,7 +22,8 @@ export interface HeatmapSeriesOptions extends Omit<SeriesBaseOptions, 'tooltip'>
   cornerRadius?: Pixels;
   /** Value labels in cells (disabled by default). */
   label?: Switchable &
-    FontOptions & {
+    FontOptions &
+    LabelOverlapOptions & {
       /** Placement within the cell (center by default). */
       placement?: 'center' | 'top' | 'bottom' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
       formatter?: (params: { value: number; datum: Datum }) => string;
@@ -99,6 +100,7 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
     this.scale = new ColorScale(domain, this.options.colorRange ?? this.env.theme.palette.sequential);
     const pad = this.options.itemPadding ?? 2;
     const group = new Group();
+    const labels = new Group();
 
     data.forEach((datum, index) => {
       const value = values[index];
@@ -149,11 +151,11 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
         label.fontFamily = this.options.label.fontFamily ?? this.env.theme.fontFamily;
         label.fill = this.options.label.color ?? contrastTextColor(node.fill ?? '#000');
         label.outline = node.fill;
-        group.append(label);
+        if (this.labelFits(ctx, label, this.options.label.avoidOverlap)) labels.append(label);
       }
     });
     group.opacity = ctx.animationT ?? 1;
-    ctx.layer.append(group);
+    this.appendGroups(ctx, group, labels);
   }
 
   pick(x: number, y: number): SeriesPick | undefined {
@@ -171,6 +173,20 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
       }
     }
     return undefined;
+  }
+
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const cell = this.cells.find((candidate) => candidate.index === datumIndex);
+    if (!cell) return undefined;
+    return {
+      seriesId: this.id,
+      datumIndex,
+      distance: 0,
+      x: cell.x + cell.width / 2,
+      y: cell.y,
+      centerX: cell.x + cell.width / 2,
+      centerY: cell.y + cell.height / 2,
+    };
   }
 
   override tooltipFor(datumIndex: number): TooltipContentData {

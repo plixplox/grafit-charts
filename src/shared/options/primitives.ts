@@ -39,6 +39,16 @@ export interface FontOptions {
   color?: ColorValue;
 }
 
+/** Shared by every value label: what to do when labels run into each other. */
+export interface LabelOverlapOptions {
+  /**
+   * Drop a label whose box runs into one already drawn (default false — every
+   * label is drawn). Marks keep their own order, so of two labels fighting for
+   * the same spot the earlier datum wins.
+   */
+  avoidOverlap?: boolean;
+}
+
 /**
  * The format/formatter/itemStyler triad: `format` is a serializable string,
  * `formatter` is a function → text. Stylers (function → partial styles)

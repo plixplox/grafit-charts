@@ -11,7 +11,7 @@ import type {
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, FontOptions, Pixels, Switchable, Showable } from '@/shared/options';
+import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Switchable, Showable } from '@/shared/options';
 import { Group, Line, Path, Rect, Text } from '@/shared/scene';
 import { contrastTextColor, maxOverflow, overflowOutside, textBounds, NO_OVERFLOW } from '@/shared/util';
 
@@ -30,7 +30,8 @@ export interface FunnelSeriesBaseOptions extends Showable {
   widthRatio?: number;
   /** Labels: inside (auto-contrast) or outside on the right. */
   label?: Switchable &
-    FontOptions & {
+    FontOptions &
+    LabelOverlapOptions & {
       placement?: 'inside' | 'outside';
       formatter?: (params: { datum: Datum; stage: string; value: number }) => string;
     };
@@ -180,6 +181,7 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
     const { plot } = ctx;
     const centerX = plot.x + plot.width / 2;
     const group = new Group();
+    const labels = new Group();
 
     this.layoutStages(ctx, ctx.animationT ?? 1).forEach((layout) => {
       const { index, width, nextWidth, y, height: stageHeight } = layout;
@@ -214,18 +216,6 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
         const font = this.labelFontOf();
         const label = new Text();
         label.text = layout.text;
-        // outside label sits next to its segment, connected by a short line
-        const calloutLength = this.options.calloutLine?.length ?? CALLOUT_LENGTH;
-        if (outside && this.options.calloutLine?.enabled !== false) {
-          const callout = new Line();
-          callout.x1 = layout.edgeX + EDGE_GAP;
-          callout.y1 = y + stageHeight / 2;
-          callout.x2 = layout.edgeX + EDGE_GAP + calloutLength;
-          callout.y2 = y + stageHeight / 2;
-          callout.stroke = this.options.calloutLine?.stroke ?? this.colorFor(index);
-          callout.strokeWidth = this.options.calloutLine?.strokeWidth ?? 1;
-          group.append(callout);
-        }
         label.x = outside ? layout.edgeX + this.calloutReach() : centerX;
         label.y = y + stageHeight / 2;
         label.textAlign = outside ? 'left' : 'center';
@@ -235,10 +225,25 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
         label.fontFamily = font.family;
         label.fill = labelOptions?.color ?? (outside ? this.env.theme.foregroundColor : contrastTextColor(this.colorFor(index)));
         if (!outside) label.outline = this.colorFor(index); // halo in the segment color
-        group.append(label);
+        if (this.labelFits(ctx, label, labelOptions?.avoidOverlap)) {
+          // outside label sits next to its segment, connected by a short line —
+          // a label that lost its room takes the line with it
+          const calloutLength = this.options.calloutLine?.length ?? CALLOUT_LENGTH;
+          if (outside && this.options.calloutLine?.enabled !== false) {
+            const callout = new Line();
+            callout.x1 = layout.edgeX + EDGE_GAP;
+            callout.y1 = y + stageHeight / 2;
+            callout.x2 = layout.edgeX + EDGE_GAP + calloutLength;
+            callout.y2 = y + stageHeight / 2;
+            callout.stroke = this.options.calloutLine?.stroke ?? this.colorFor(index);
+            callout.strokeWidth = this.options.calloutLine?.strokeWidth ?? 1;
+            group.append(callout);
+          }
+          labels.append(label);
+        }
       }
     });
-    ctx.layer.append(group);
+    this.appendGroups(ctx, group, labels);
   }
 
   pick(x: number, y: number): SeriesPick | undefined {
@@ -254,6 +259,12 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
       }
     }
     return undefined;
+  }
+
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const stage = this.stages.find((candidate) => candidate.index === datumIndex);
+    if (!stage) return undefined;
+    return { seriesId: this.id, datumIndex, distance: 0, x: stage.x + stage.width / 2, y: stage.y };
   }
 
   override tooltipFor(datumIndex: number): TooltipContentData {

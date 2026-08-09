@@ -11,7 +11,19 @@ import { registerDefaultModules } from '@/app/setup';
 export const Charts = buildCharts(registerDefaultModules);
 
 export { register } from '@/app/registry';
-export type { ChartModule, SeriesModule, AxisModule, TooltipContentData, TooltipHeading, TooltipRow } from '@/shared/kernel';
+export type {
+  ChartModule,
+  SeriesModule,
+  AxisModule,
+  TooltipContentData,
+  TooltipHeading,
+  TooltipRow,
+  NodeRef,
+  SelectedNode,
+  ImperativeOptions,
+  DomainAnchor,
+  ZoomWindow,
+} from '@/shared/kernel';
 export * from './modules';
 
 export type {

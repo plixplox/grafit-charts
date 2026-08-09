@@ -183,6 +183,19 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
     return undefined;
   }
 
+  override nodeAt(datumIndex: number): SeriesPick | undefined {
+    const sector = this.sectors.find((candidate) => candidate.index === datumIndex);
+    if (!sector) return undefined;
+    const mid = (sector.startAngle + sector.endAngle) / 2;
+    return {
+      seriesId: this.id,
+      datumIndex,
+      distance: 0,
+      x: this.center.x + Math.sin(mid) * sector.outerRadius * 0.9,
+      y: this.center.y - Math.cos(mid) * sector.outerRadius * 0.9,
+    };
+  }
+
   override tooltipFor(datumIndex: number): TooltipContentData {
     const node = this.nodes[datumIndex];
     if (!node) return { rows: [] };

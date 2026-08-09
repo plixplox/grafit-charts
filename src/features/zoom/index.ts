@@ -1,7 +1,7 @@
-import type { ZoomWindow } from '@/shared/kernel';
+import type { DomainAnchor, ZoomWindow } from '@/shared/kernel';
 import type { Switchable } from '@/shared/options';
 
-export type { ZoomWindow };
+export type { DomainAnchor, ZoomWindow };
 
 export interface ZoomOptions extends Switchable {
   /** Which axes are zoomable ('x' by default). */
@@ -27,7 +27,7 @@ export interface ZoomOptions extends Switchable {
    */
   visibleCount?: number;
   /** Which end of the domain `visibleCount` starts from ('start' by default). */
-  visibleAnchor?: 'start' | 'end';
+  visibleAnchor?: DomainAnchor;
 }
 
 export const FULL_WINDOW: ZoomWindow = [0, 1];
@@ -68,7 +68,7 @@ export function panWindow(window: ZoomWindow, deltaRatio: number): ZoomWindow {
  * Window showing `count` of `total` items, anchored to one end of the domain.
  * The full window comes back when the count covers everything or makes no sense.
  */
-export function windowForCount(count: number, total: number, anchor: 'start' | 'end' = 'start'): ZoomWindow {
+export function windowForCount(count: number, total: number, anchor: DomainAnchor = 'start'): ZoomWindow {
   if (!Number.isFinite(count) || count < 1 || total <= 0 || count >= total) return FULL_WINDOW;
   const span = Math.floor(count) / total;
   return anchor === 'start' ? [0, span] : [1 - span, 1];

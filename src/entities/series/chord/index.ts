@@ -170,6 +170,13 @@ export class ChordSeries extends StandaloneSeries<ChordSeriesOptions> {
     return undefined;
   }
 
+  override nodeAt(datumIndex: number): SeriesPick | undefined {
+    const node = this.nodeList[datumIndex];
+    if (!node) return undefined;
+    const at = this.pointAt((node.startAngle + node.endAngle) / 2, this.outerRadius);
+    return { seriesId: this.id, datumIndex, distance: 0, x: at.x, y: at.y };
+  }
+
   override tooltipFor(datumIndex: number): TooltipContentData {
     const node = this.nodeList[datumIndex];
     if (!node) return { rows: [] };

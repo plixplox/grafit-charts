@@ -17,7 +17,7 @@ import type {
   SeriesPick,
   StackSegment,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction, Switchable, FontOptions } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, Fraction, Switchable, FontOptions, LabelOverlapOptions } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
 import { Group, Marker, Path, type MarkerShape, Text } from '@/shared/scene';
 import { extent, NO_OVERFLOW } from '@/shared/util';
@@ -42,7 +42,8 @@ export interface AreaSeriesOptions extends SeriesBaseOptions {
   };
   /** Value labels at points: top (by default) / bottom / left / right. */
   label?: Switchable &
-    FontOptions & {
+    FontOptions &
+    LabelOverlapOptions & {
       placement?: 'top' | 'bottom' | 'left' | 'right';
       formatter?: (params: { value: number; datum: Datum }) => string;
     };
@@ -128,6 +129,7 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
     if (this.points.length === 0) return;
 
     const group = new Group();
+    const labels = new Group();
     const fillPath = new Path();
     fillPath.fill = this.mainColor();
     fillPath.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.35;
@@ -209,11 +211,11 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
         label.fontFamily = font.family;
         label.fill = labelOptions.color ?? this.env.theme.foregroundColor;
         label.outline = this.env.theme.backgroundColor;
-        group.append(label);
+        if (this.labelFits(ctx, label, labelOptions.avoidOverlap)) labels.append(label);
       }
     }
 
-    ctx.layer.append(group);
+    this.appendGroups(ctx, group, labels);
   }
 
   pickInRect(x0: number, y0: number, x1: number, y1: number): number[] {
@@ -236,6 +238,12 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
       }
     }
     return best;
+  }
+
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const point = this.points.find((candidate) => candidate.index === datumIndex);
+    if (!point) return undefined;
+    return { seriesId: this.id, datumIndex, distance: 0, x: point.x, y: point.y };
   }
 }
 

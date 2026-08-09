@@ -24,18 +24,21 @@ Chart-level blocks (`legend`, `tooltip`, `highlight`, `zoom`, `selection`,
 A uniform structure shared by line/area/scatter/bubble/bar/histogram/range-bar/
 waterfall/heatmap/treemap/funnel/pyramid/sunburst/sankey/chord:
 
-| Sub-option   | Type                 | Default                                    | Description                              |
-| ------------ | -------------------- | ------------------------------------------ | ---------------------------------------- |
-| `enabled`    | `boolean`            | `false` (funnel/pyramid/treemap — on)      | show labels                              |
-| `placement`  | depends on the series | `top` (heatmap/treemap — `center`)        | label position                           |
-| `formatter`  | `(params) => string` | the value                                  | content; params depend on the series     |
-| `fontSize`   | `Pixels`          | `11` (funnel/pyramid — `12`)               | font size                                |
-| `fontWeight` | `string \| number`   | `normal`                                   | font weight                              |
-| `fontFamily` | `string`             | theme font                                 | typeface                                 |
-| `color`      | `ColorValue`           | foreground; inside an element — auto-contrast | text color                            |
+| Sub-option     | Type                  | Default                                    | Description                              |
+| -------------- | --------------------- | ------------------------------------------ | ---------------------------------------- |
+| `enabled`      | `boolean`             | `false` (funnel/pyramid/treemap — on)      | show labels                              |
+| `placement`    | depends on the series | `top` (heatmap/treemap — `center`)         | label position                           |
+| `formatter`    | `(params) => string`  | the value                                  | content; params depend on the series     |
+| `avoidOverlap` | `boolean`             | `false`                                    | drop labels that collide with each other |
+| `fontSize`     | `Pixels`              | `11` (funnel/pyramid — `12`)               | font size                                |
+| `fontWeight`   | `string \| number`    | `normal`                                   | font weight                              |
+| `fontFamily`   | `string`              | theme font                                 | typeface                                 |
+| `color`        | `ColorValue`          | foreground; inside an element — auto-contrast | text color                            |
 
 Labels inside elements (`inner-*` bars, cells, tiles, sectors, bubble
-`inside`) get a halo in the element's color.
+`inside`) get a halo in the element's color. Placements per series type, the
+drawing order and overlap handling are covered on the
+[Value labels](/guide/labels) page.
 
 ## Markers (`marker`)
 

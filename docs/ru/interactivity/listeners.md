@@ -48,8 +48,10 @@ listeners: {
 },
 ```
 
-Обратное направление — через [`getState`/`setState`](/ru/interactivity/state)
-или `updateDelta`.
+Обратное направление — управление чартом из приложения — через методы
+[программного управления](/ru/interactivity/control):
+`chart.setSelection(targets, { silent: true })` выделит из таблицы, не отскочив
+обратно в листенер выше.
 
 ## Замечания
 

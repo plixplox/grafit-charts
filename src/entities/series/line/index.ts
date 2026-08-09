@@ -9,7 +9,7 @@ import {
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { CartesianGeometry, CartesianRenderContext, Insets, LabelOverflowContext, SeriesModule, SeriesPick } from '@/shared/kernel';
-import type { ColorValue, Datum, FontOptions, Pixels, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Switchable } from '@/shared/options';
 import { Group, Marker, Path, Text, type MarkerShape } from '@/shared/scene';
 import { NO_OVERFLOW } from '@/shared/util';
 
@@ -27,7 +27,8 @@ export interface LineSeriesOptions extends SeriesBaseOptions {
   };
   /** Value labels at points: top (by default) / bottom / left / right. */
   label?: Switchable &
-    FontOptions & {
+    FontOptions &
+    LabelOverlapOptions & {
       placement?: 'top' | 'bottom' | 'left' | 'right';
       formatter?: (params: { value: number; datum: Datum }) => string;
     };
@@ -103,6 +104,7 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
     if (!this.visible) return;
 
     const group = new Group();
+    const labels = new Group();
     const path = new Path();
     path.stroke = this.mainColor();
     path.strokeWidth = this.options.strokeWidth ?? this.env.theme.strokeWidth;
@@ -159,7 +161,7 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
         label.fontFamily = font.family;
         label.fill = labelOptions.color ?? this.env.theme.foregroundColor;
         label.outline = this.env.theme.backgroundColor;
-        group.append(label);
+        if (this.labelFits(ctx, label, labelOptions.avoidOverlap)) labels.append(label);
       }
     }
 
@@ -167,7 +169,7 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
       group.opacity = ctx.dimOpacity ?? DEFAULT_DIM_OPACITY;
     }
     group.opacity *= ctx.animationT ?? 1;
-    ctx.layer.append(group);
+    this.appendGroups(ctx, group, labels);
   }
 
   pickInRect(x0: number, y0: number, x1: number, y1: number): number[] {
@@ -190,6 +192,12 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
       }
     }
     return best;
+  }
+
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const point = this.points.find((candidate) => candidate.index === datumIndex);
+    if (!point) return undefined;
+    return { seriesId: this.id, datumIndex, distance: 0, x: point.x, y: point.y };
   }
 }
 

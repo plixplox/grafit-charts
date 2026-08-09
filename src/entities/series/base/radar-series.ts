@@ -162,6 +162,12 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
     return best;
   }
 
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const point = this.points.find((candidate) => candidate.index === datumIndex);
+    if (!point) return undefined;
+    return { seriesId: this.id, datumIndex, distance: 0, x: point.x, y: point.y };
+  }
+
   tooltipFor(datumIndex: number): TooltipContentData {
     const datum = this.data[datumIndex];
     if (!datum) return { rows: [] };

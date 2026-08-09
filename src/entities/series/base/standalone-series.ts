@@ -73,6 +73,12 @@ export abstract class StandaloneSeries<
     return undefined;
   }
 
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const hit = this.hits.find((candidate) => candidate.index === datumIndex);
+    if (!hit) return undefined;
+    return { seriesId: this.id, datumIndex, distance: 0, x: hit.anchorX, y: hit.anchorY };
+  }
+
   legendItems(): LegendItemDescriptor[] {
     return [];
   }

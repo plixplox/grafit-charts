@@ -1,5 +1,5 @@
-import type { ZoomWindow } from '@/shared/kernel';
-import type { Datum, Switchable } from '@/shared/options';
+import type { SelectedNode, ZoomWindow } from '@/shared/kernel';
+import type { Switchable } from '@/shared/options';
 
 export interface SelectionItemStyle {
   stroke?: string;
@@ -22,21 +22,14 @@ export interface SelectionOptions extends Switchable {
   inactiveOpacity?: number;
 }
 
-export interface SelectedItem {
-  seriesId: string;
-  datumIndex: number;
-  datum: Datum;
-}
+/** One picked-out datum — the shape the widgets hand back for both events. */
+export type SelectedItem = SelectedNode;
 
 export interface SelectionChangeEvent {
   items: SelectedItem[];
 }
 
-export interface NodeClickEvent {
-  seriesId: string;
-  datumIndex: number;
-  datum: Datum;
-}
+export type NodeClickEvent = SelectedNode;
 
 export interface ZoomChangeEvent {
   /** Visible domain fractions 0..1 per axis. */

@@ -18,6 +18,8 @@ export interface StandaloneSeriesInstance {
   setData(data: Datum[]): void;
   update(ctx: StandaloneRenderContext): void;
   pick(x: number, y: number): SeriesPick | undefined;
+  /** pick() run backwards: the node of a datum, for tooltips addressed by index. */
+  nodeAt?(datumIndex: number): SeriesPick | undefined;
   tooltipFor(datumIndex: number): TooltipContentData;
   legendItems(): LegendItemDescriptor[];
 }

@@ -378,6 +378,14 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     return undefined;
   }
 
+  nodeAt(datumIndex: number): SeriesPick | undefined {
+    const sector = this.sectors.find((candidate) => candidate.index === datumIndex);
+    if (!sector) return undefined;
+    const mid = (sector.startAngle + sector.endAngle) / 2;
+    const anchor = PolarSeries.pointAt(this.center.x, this.center.y, mid, sector.outerRadius * 0.85);
+    return { seriesId: this.id, datumIndex, distance: 0, x: anchor.x, y: anchor.y };
+  }
+
   tooltipFor(datumIndex: number): TooltipContentData {
     const data = this.data;
     const datum = data[datumIndex];

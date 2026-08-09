@@ -12,6 +12,7 @@ import type {
 } from '@/shared/kernel';
 import type { ColorValue, Datum, Switchable, Showable } from '@/shared/options';
 import { BandScale, TimeScale, toTimestamp, type AnyScale } from '@/shared/scale';
+import type { Group, Text } from '@/shared/scene';
 import { extent, NO_OVERFLOW } from '@/shared/util';
 
 export interface SeriesTooltipRendererParams {
@@ -122,6 +123,35 @@ export abstract class CartesianSeries<O extends SeriesBaseOptions = SeriesBaseOp
   }
 
   protected lastCtx: CartesianRenderContext | undefined;
+
+  /**
+   * Whether a label gets to stay: with label.avoidOverlap on, the ones whose
+   * box is already taken by a label drawn earlier are left out. The text node
+   * carries its own anchor and font, so it describes its box itself.
+   */
+  protected labelFits(ctx: CartesianRenderContext, label: Text, avoidOverlap: boolean | undefined): boolean {
+    if (avoidOverlap !== true || !ctx.labelGuard) return true;
+    return ctx.labelGuard.admits({
+      text: label.text,
+      x: label.x,
+      y: label.y,
+      align: label.textAlign,
+      baseline: label.textBaseline,
+      fontSize: label.fontSize,
+      font: `${label.fontWeight} ${label.fontSize}px ${label.fontFamily}`,
+    });
+  }
+
+  /**
+   * Marks go into the series layer, value labels into the layer above it —
+   * text stays readable whatever a later series or a neighbouring mark draws
+   * over its place. The labels inherit the dimming of their marks.
+   */
+  protected appendGroups(ctx: CartesianRenderContext, marks: Group, labels: Group): void {
+    labels.opacity = marks.opacity;
+    ctx.layer.append(marks);
+    (ctx.labelLayer ?? ctx.layer).append(labels);
+  }
 
   /** Category coordinate (band center), time-based or numeric position. */
   protected static positionOn(scale: AnyScale, value: unknown): number {

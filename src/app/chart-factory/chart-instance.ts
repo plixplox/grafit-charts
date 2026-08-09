@@ -8,6 +8,7 @@ import { localize } from '@/features/locale';
 import { Animator } from '@/shared/animation';
 import { InteractionManager } from '@/shared/interaction';
 import { warnMissingFeature, type ChartKind } from '@/shared/kernel';
+import type { DomainAnchor, ImperativeOptions, NodeRef, SelectedNode, ZoomWindow } from '@/shared/kernel';
 import { deepMerge, type DeepPartial } from '@/shared/options';
 import { DomCanvas, FontWatcher, RenderScheduler, Scene, watchDocumentFonts, type CanvasFactory } from '@/shared/scene';
 
@@ -22,6 +23,28 @@ export interface ChartInstance {
   setState(state: ChartState): Promise<void>;
   /** Resolves after the scheduled render — including the redraw a still-loading web font triggers. */
   waitForUpdate(): Promise<void>;
+  /**
+   * Everything the pointer does, addressed by datum. These are the interactions
+   * themselves, not fake events: they run the same code a real hover or click
+   * does, so the listeners fire — pass `{ silent: true }` to keep them quiet,
+   * which is what an app driving the chart from its own state usually wants.
+   *
+   * They render on the same schedule as the rest: await `waitForUpdate()` when
+   * the next line depends on the frame being on screen.
+   */
+  showTooltip(target: NodeRef): boolean;
+  hideTooltip(): void;
+  /** Runs a click on a node: nodeClick plus the selection it would cause. */
+  clickNode(target: NodeRef, options?: ImperativeOptions): boolean;
+  getSelection(): SelectedNode[];
+  setSelection(targets: NodeRef[], options?: ImperativeOptions): void;
+  clearSelection(options?: ImperativeOptions): void;
+  isZoomed(): boolean;
+  /** Zoom window per axis, as fractions of the full domain. */
+  zoomTo(window: { x?: ZoomWindow; y?: ZoomWindow }, options?: ImperativeOptions): void;
+  /** Window sized to a number of items, the way zoom.visibleCount sizes it at startup. */
+  zoomToCount(count: number, options?: ImperativeOptions & { anchor?: DomainAnchor }): void;
+  resetZoom(options?: ImperativeOptions): void;
   getImageDataURL(options?: DownloadOptions): string;
   download(options?: DownloadOptions): void;
   destroy(): void;
@@ -273,6 +296,43 @@ export function createChart(options: ChartOptions): ChartInstance {
       await fontsSettled;
       await scheduler.settled;
     },
+    showTooltip(target) {
+      if (!widget.showTooltip) return warnUnsupported('showTooltip', chartKind);
+      return widget.showTooltip(target);
+    },
+    hideTooltip() {
+      if (widget.hideTooltip) widget.hideTooltip();
+      else warnUnsupported('hideTooltip', chartKind);
+    },
+    clickNode(target, imperative) {
+      if (!widget.clickNode) return warnUnsupported('clickNode', chartKind);
+      return widget.clickNode(target, imperative);
+    },
+    getSelection() {
+      return widget.getSelection?.() ?? [];
+    },
+    setSelection(targets, imperative) {
+      if (widget.setSelection) widget.setSelection(targets, imperative);
+      else warnUnsupported('setSelection', chartKind);
+    },
+    clearSelection(imperative) {
+      if (widget.setSelection) widget.setSelection([], imperative);
+      else warnUnsupported('clearSelection', chartKind);
+    },
+    isZoomed() {
+      return widget.isZoomed();
+    },
+    zoomTo(window, imperative) {
+      if (widget.zoomTo) widget.zoomTo(window, imperative);
+      else warnUnsupported('zoomTo', chartKind);
+    },
+    zoomToCount(count, imperative) {
+      if (widget.zoomToCount) widget.zoomToCount(count, imperative);
+      else warnUnsupported('zoomToCount', chartKind);
+    },
+    resetZoom(imperative) {
+      widget.resetZoom(imperative);
+    },
     getImageDataURL(downloadOptions) {
       return canvasDataUrl(compositeCanvas(), downloadOptions);
     },
@@ -292,6 +352,21 @@ export function createChart(options: ChartOptions): ChartInstance {
       scene.destroy();
     },
   };
+}
+
+const warnedCalls = new Set<string>();
+
+/**
+ * A pie has no zoom and a treemap has no selection: the call is a no-op there,
+ * and silence would read as a bug. Warned once per chart kind and method.
+ */
+function warnUnsupported(method: string, chartKind: ChartKind): false {
+  const key = `${chartKind}.${method}`;
+  if (!warnedCalls.has(key)) {
+    warnedCalls.add(key);
+    console.warn(`grafit: ${method}() is not supported by the ${chartKind} chart — the call did nothing.`);
+  }
+  return false;
 }
 
 /** Validates module registration and required series options. */
