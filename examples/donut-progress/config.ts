@@ -13,7 +13,7 @@ export function createOptions(): ChartOptions {
         innerRadiusRatio: 0.78,
         rotation: 0,
         fills: ['#21a06c', '#e8eaee'],
-        calloutLabel: { enabled: false },
+        label: { enabled: false },
         innerLabels: [
           { text: '68%', fontSize: 26, fontWeight: 'bold' },
           { text: 'of plan complete', fontSize: 12 },

@@ -15,7 +15,7 @@ export function createOptions(): ChartOptions {
         innerRadiusRatio: 0.55,
         sectorSpacing: 6,
         cornerRadius: 8,
-        calloutLabel: { enabled: true },
+        label: { placement: 'outside' },
         calloutLine: {
           radial: { length: 12, strokeWidth: 1 },
           horizontal: { length: 16, stroke: '#9aa1ad', strokeWidth: 1 },

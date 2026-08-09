@@ -13,7 +13,7 @@ export function createOptions(): ChartOptions {
         innerRadiusRatio: 0.62,
         sectorSpacing: 3,
         cornerRadius: 4,
-        calloutLabel: { enabled: false },
+        label: { enabled: false },
         innerLabels: [
           { text: 'Total', fontSize: 13 },
           { text: '$86K', fontSize: 24, fontWeight: 'bold' },

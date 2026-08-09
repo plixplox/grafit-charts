@@ -1,7 +1,12 @@
 # Pie и Donut
 
 Полярные серии долей. `angleField` задаёт значение сектора, `labelField` — имя
-(легенда, выносные подписи, тултип).
+(легенда, подписи секторов, тултип).
+
+Подпись сектора — одна подпись из двух частей, имени и значения, у каждой свой
+шрифт и цвет. `label.placement` решает, где ей быть целиком: `'outside'` — на
+выноске рядом с кругом, `'inside'` — внутри сектора. Подписи внутри получают
+ореол цвета сектора и автоматический контрастный цвет текста.
 
 ::: chart-example pie-basic
 
@@ -17,7 +22,7 @@
 
 ::: chart-example donut-basic
 
-## Поворот, цвета, подписи долей
+## Поворот, цвета, подписи внутри секторов
 
 ::: chart-example pie-rotation
 
@@ -62,20 +67,28 @@
 | `angleName`                          | `string`                                     | имя `angleField`      | подпись значения в тултипе                                              |
 | `sectorSpacing`                      | `Pixels`                                  | `0`                   | зазор постоянной ширины между секторами                                 |
 | `cornerRadius`                       | `Pixels`                                  | `0`                   | скругление углов секторов                                               |
-| `calloutLabel.enabled`               | `boolean`                                    | вкл. при `labelField` | выносные подписи                                                        |
-| `calloutLabel.fontSize`              | `Pixels`                                  | `11`                  | шрифт выносной подписи                                                  |
-| `calloutLabel.fontFamily`            | `string`                                     | шрифт темы            | гарнитура                                                               |
-| `calloutLabel.color`                 | `ColorValue`                                   | foreground            | цвет текста                                                             |
+| `label.enabled`                      | `boolean`                                    | вкл. при `labelField` | подписи секторов                                                        |
+| `label.placement`                    | `'outside' \| 'inside'`                      | `'outside'`           | снаружи на выноске или внутри сектора                                   |
+| `label.layout`                       | `'stacked' \| 'inline'`                      | `'stacked'`           | значение отдельной строкой под именем или в одну строку с ним           |
+| `label.separator`                    | `string`                                     | `' · '`               | разделитель частей однострочной подписи                                 |
+| `label.positionRatio`                | `Fraction`                                      | `0.7`                 | позиция вдоль радиуса (при `placement: 'inside'`)                       |
+| `label.category.enabled`             | `boolean`                                    | вкл. при `labelField` | имя сектора в подписи                                                   |
+| `label.category.fontSize`            | `Pixels`                                  | `11`                  | шрифт имени                                                             |
+| `label.category.fontFamily`          | `string`                                     | шрифт темы            | гарнитура                                                               |
+| `label.category.fontWeight`          | `string \| number`                           | `normal`              | насыщенность                                                            |
+| `label.category.color`               | `ColorValue`                                   | foreground / автоконтраст | цвет текста                                                         |
+| `label.value.enabled`                | `boolean`                                    | `false`               | значение сектора в подписи                                              |
+| `label.value.type`                   | `'percent' \| 'value'`                       | `'percent'`           | доля от суммы или значение `angleField`                                 |
+| `label.value.format`                 | `string`                                     | —                     | строка формата (`',.2f'`, `'.1%'`)                                      |
+| `label.value.formatter`              | `({ datum, label, value, share }) => string` | —                     | полный контроль над текстом                                             |
+| `label.value.fontSize`               | `Pixels`                                  | `11`                  | шрифт значения                                                          |
+| `label.value.color`                  | `ColorValue`                                   | foreground / автоконтраст | цвет текста                                                         |
 | `calloutLine.radial.length`          | `Pixels`                                  | `20`                  | длина радиального отрезка                                               |
 | `calloutLine.radial.stroke`          | `ColorValue`                                   | цвет сектора          | цвет радиального отрезка                                                |
 | `calloutLine.radial.strokeWidth`     | `Pixels`                                  | `1`                   | толщина                                                                 |
 | `calloutLine.horizontal.length`      | `Pixels`                                  | `20`                  | длина хвоста к подписи                                                  |
 | `calloutLine.horizontal.stroke`      | `ColorValue`                                   | как radial            | цвет хвоста                                                             |
 | `calloutLine.horizontal.strokeWidth` | `Pixels`                                  | как radial            | толщина хвоста                                                          |
-| `sectorLabel.enabled`                | `boolean`                                    | `false`               | доля в % внутри сектора                                                 |
-| `sectorLabel.positionRatio`          | `Fraction`                                      | `0.7`                 | позиция вдоль радиуса                                                   |
-| `sectorLabel.fontSize`               | `Pixels`                                  | `11`                  | шрифт                                                                   |
-| `sectorLabel.color`                  | `ColorValue`                                   | автоконтраст          | цвет (ореол цвета сектора)                                              |
 | `legendValue.enabled`                | `boolean`                                    | `false`               | значение сектора в легенде                                              |
 | `legendValue.formatter`              | `({ datum, label, value, color }) => string` | значение              | формат значения                                                         |
 | `tooltip.renderer`                   | `({ datum, label, value, color }) => …`      | —                     | кастомный тултип                                                        |

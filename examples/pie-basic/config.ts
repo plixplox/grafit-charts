@@ -11,7 +11,8 @@ export function createOptions(): ChartOptions {
         angleField: 'share',
         angleName: 'Share, %',
         labelField: 'browser',
-        sectorLabel: { enabled: true },
+        // name and share read as one label, the share in its own smaller line
+        label: { value: { enabled: true } },
       },
     ],
   };

@@ -13,7 +13,8 @@ export function createOptions(): ChartOptions {
         labelField: 'device',
         sectorSpacing: 3,
         cornerRadius: 7,
-        sectorLabel: { enabled: true },
+        // one-line label: the name, the separator and the value in a row
+        label: { layout: 'inline', value: { enabled: true, type: 'value', format: '.0f' } },
       },
     ],
   };

@@ -5,7 +5,7 @@ import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LegendItemDescriptor, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { Datum, ColorValue, Degrees, FontOptions, Pixels, Fraction, Switchable } from '@/shared/options';
 import { Group, Line, Sector, Text } from '@/shared/scene';
-import { contrastTextColor } from '@/shared/util';
+import { contrastTextColor, formatValue } from '@/shared/util';
 
 export interface PieLikeSeriesOptions extends PolarSeriesBaseOptions {
   /** Key of the value that determines the sector angle. */
@@ -19,8 +19,12 @@ export interface PieLikeSeriesOptions extends PolarSeriesBaseOptions {
   rotation?: Degrees;
   /** Fraction of the available radius used by the chart (0.85 by default). */
   outerRadiusRatio?: Fraction;
-  /** Outside labels with a callout line. */
-  calloutLabel?: Switchable & FontOptions;
+  /**
+   * Sector labels: the name and the value of a sector, drawn as one label so
+   * the two always read together. `placement` puts the whole label outside the
+   * pie on a callout line or inside the sector.
+   */
+  label?: PieLabelOptions;
   /**
    * Callout line made of two segments; each is configured separately.
    * By default the color is the sector color.
@@ -31,8 +35,6 @@ export interface PieLikeSeriesOptions extends PolarSeriesBaseOptions {
     /** Horizontal segment toward the label. */
     horizontal?: CalloutSegmentOptions;
   };
-  /** Labels inside sectors (share as a percentage). */
-  sectorLabel?: Switchable & FontOptions & { positionRatio?: Fraction };
   /** Sector stroke (none by default; use sectorSpacing for gaps). */
   stroke?: ColorValue;
   strokeWidth?: Pixels;
@@ -45,6 +47,45 @@ export interface PieLikeSeriesOptions extends PolarSeriesBaseOptions {
   tooltip?: Switchable & {
     renderer?: (params: PieTooltipRendererParams) => TooltipContentData | string;
   };
+}
+
+/** Where the whole sector label goes. */
+export type PieLabelPlacement = 'outside' | 'inside';
+
+/** How the two parts of a sector label sit together. */
+export type PieLabelLayout = 'stacked' | 'inline';
+
+export interface PieLabelOptions extends Switchable {
+  /** 'outside' (default) — beside the pie on a callout line; 'inside' — in the sector. */
+  placement?: PieLabelPlacement;
+  /** 'stacked' (default) — the value on its own line under the name; 'inline' — one line. */
+  layout?: PieLabelLayout;
+  /** What separates the two parts of an inline label (' · ' by default). */
+  separator?: string;
+  /** Position along the sector radius, inside placement only (0.7 by default). */
+  positionRatio?: Fraction;
+  /** Sector name, from `labelField`. On by default whenever there is a name to show. */
+  category?: Switchable & FontOptions;
+  /** Sector value — its share of the total by default. Off until asked for. */
+  value?: PieValueLabelOptions;
+}
+
+export interface PieValueLabelOptions extends Switchable, FontOptions {
+  /** 'percent' (default) — share of the total; 'value' — the `angleField` value itself. */
+  type?: 'percent' | 'value';
+  /** Serializable format string for the 'value' type (',.2f', '.0%'). */
+  format?: string;
+  formatter?: (params: PieLabelFormatterParams) => string;
+}
+
+export interface PieLabelFormatterParams {
+  datum: Datum;
+  /** Sector name (labelField). */
+  label: string;
+  /** Value of angleField. */
+  value: unknown;
+  /** Share of the total, 0..1. */
+  share: number;
 }
 
 export interface PieTooltipRendererParams {
@@ -79,8 +120,22 @@ const CALLOUT_SECTOR_GAP = 2;
 const CALLOUT_TEXT_GAP = 3;
 /** Sectors narrower than this get no callout label. */
 const CALLOUT_MIN_SWEEP = 0.12;
+/** A label inside the sector needs more of a sector than a callout does. */
+const INSIDE_MIN_SWEEP = 0.25;
 /** However long the labels are, the pie keeps this share of the free radius. */
 const MIN_CALLOUT_RADIUS_RATIO = 0.35;
+/** Baseline-to-baseline breathing room between the two lines of a stacked label. */
+const LABEL_LINE_GAP = 2;
+const DEFAULT_SEPARATOR = ' · ';
+
+/** One styled run of a sector label: the name, the value, or what separates them. */
+interface LabelPart {
+  text: string;
+  fontSize: number;
+  fontFamily: string;
+  fontWeight?: string;
+  color: ColorValue;
+}
 
 /** Shared pie/donut implementation; the difference is innerRadiusRatio and center labels. */
 export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeriesOptions> extends PolarSeries<O> {
@@ -115,6 +170,131 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     return key ? String(datum[key]) : String(index);
   }
 
+  /** Whether the name of a sector is part of its label. */
+  private get categoryShown(): boolean {
+    return this.options.label?.category?.enabled !== false && this.options.labelField !== undefined;
+  }
+
+  /** The value is off until asked for — a pie reads as shares without it. */
+  private get valueShown(): boolean {
+    return this.options.label?.value?.enabled === true;
+  }
+
+  private get labelsShown(): boolean {
+    return this.options.label?.enabled !== false && (this.categoryShown || this.valueShown);
+  }
+
+  private get labelsInside(): boolean {
+    return this.options.label?.placement === 'inside';
+  }
+
+  /** Text of the value part: the share of the total unless the raw value was asked for. */
+  private valueText(datum: Datum | undefined, index: number, value: number, total: number): string {
+    const options = this.options.label?.value;
+    const share = total > 0 ? value / total : 0;
+    const raw = datum ? datum[this.options.angleField] : value;
+    if (options?.formatter && datum) {
+      return options.formatter({ datum, label: this.labelFor(datum, index), value: raw, share });
+    }
+    if (options?.type === 'value') return options.format ? formatValue(options.format, raw) : String(raw);
+    return options?.format ? formatValue(options.format, share) : `${Math.round(share * 100)}%`;
+  }
+
+  /**
+   * The label of one sector, part by part. Each part carries its own font and
+   * colour: the name and the value are one label, styled separately. An inline
+   * label keeps the separator between them as a part of its own, so it picks up
+   * the font of the name it follows.
+   */
+  private labelParts(datum: Datum | undefined, index: number, value: number, total: number): LabelPart[] {
+    const options = this.options.label;
+    const theme = this.env.theme;
+    const inside = this.labelsInside;
+    const defaultColor = inside ? contrastTextColor(this.colorFor(index)) : theme.foregroundColor;
+    const part = (text: string, font: (Switchable & FontOptions) | undefined): LabelPart => ({
+      text,
+      fontSize: font?.fontSize ?? themeFont(theme, FONT_STEP.label),
+      fontFamily: font?.fontFamily ?? theme.fontFamily,
+      fontWeight: font?.fontWeight !== undefined ? String(font.fontWeight) : undefined,
+      color: font?.color ?? defaultColor,
+    });
+
+    const parts: LabelPart[] = [];
+    if (this.categoryShown) parts.push(part(this.labelFor(datum, index), options?.category));
+    if (this.valueShown) {
+      if (parts.length > 0 && options?.layout === 'inline') {
+        parts.push({ ...part(options.separator ?? DEFAULT_SEPARATOR, options.category), text: options.separator ?? DEFAULT_SEPARATOR });
+      }
+      parts.push(part(this.valueText(datum, index, value, total), options?.value));
+    }
+    return parts;
+  }
+
+  private static partFont(part: LabelPart): string {
+    return `${part.fontWeight ?? 'normal'} ${part.fontSize}px ${part.fontFamily}`;
+  }
+
+  /** Rows the parts are drawn in: one row per part when stacked, all in one when inline. */
+  private labelRows(parts: LabelPart[]): LabelPart[][] {
+    return this.options.label?.layout === 'inline' ? (parts.length > 0 ? [parts] : []) : parts.map((one) => [one]);
+  }
+
+  /** Size of the whole label block — what the layout has to find room for. */
+  private labelSize(parts: LabelPart[], measureText: (text: string, font: string) => number): { width: number; height: number } {
+    const rows = this.labelRows(parts);
+    let width = 0;
+    let height = 0;
+    rows.forEach((row, index) => {
+      width = Math.max(
+        width,
+        row.reduce((sum, one) => sum + measureText(one.text, PieLikeSeries.partFont(one)), 0),
+      );
+      height += Math.max(...row.map((one) => one.fontSize)) + (index > 0 ? LABEL_LINE_GAP : 0);
+    });
+    return { width, height };
+  }
+
+  /**
+   * Draws the label block anchored at (x, y): `align` places the whole block
+   * horizontally, the block is always centred on y. `outline` haloes the text
+   * against the sector it sits on.
+   */
+  private drawLabel(
+    group: Group,
+    parts: LabelPart[],
+    x: number,
+    y: number,
+    align: 'left' | 'right' | 'center',
+    measureText: (text: string, font: string) => number,
+    outline?: ColorValue,
+  ): void {
+    const rows = this.labelRows(parts);
+    if (rows.length === 0) return;
+    const { height } = this.labelSize(parts, measureText);
+    let rowTop = y - height / 2;
+    for (const row of rows) {
+      const rowHeight = Math.max(...row.map((one) => one.fontSize));
+      const rowWidth = row.reduce((sum, one) => sum + measureText(one.text, PieLikeSeries.partFont(one)), 0);
+      let cursor = align === 'left' ? x : align === 'right' ? x - rowWidth : x - rowWidth / 2;
+      for (const one of row) {
+        const node = new Text();
+        node.text = one.text;
+        node.x = cursor;
+        node.y = rowTop + rowHeight / 2;
+        node.textAlign = 'left';
+        node.textBaseline = 'middle';
+        node.fontSize = one.fontSize;
+        node.fontFamily = one.fontFamily;
+        if (one.fontWeight !== undefined) node.fontWeight = one.fontWeight;
+        node.fill = one.color;
+        if (outline) node.outline = outline;
+        group.append(node);
+        cursor += measureText(one.text, PieLikeSeries.partFont(one));
+      }
+      rowTop += rowHeight + LABEL_LINE_GAP;
+    }
+  }
+
   update(ctx: PolarRenderContext): void {
     this.lastCtx = ctx;
     this.sectors = [];
@@ -128,7 +308,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     const total = values.reduce((sum, value) => sum + value, 0);
     if (total <= 0) return;
 
-    const calloutEnabled = this.options.calloutLabel?.enabled !== false && this.options.labelField !== undefined;
+    const calloutEnabled = this.labelsShown && !this.labelsInside;
     // 85% of the free space by default, less when the callout labels need the room
     const outerRadius = Math.min(
       ctx.radius * (this.options.outerRadiusRatio ?? 0.85),
@@ -141,7 +321,13 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
 
     const group = new Group();
-    const callouts: Array<{ index: number; midAngle: number; outerRadius: number; actualOuterRadius: number }> = [];
+    const callouts: Array<{
+      index: number;
+      midAngle: number;
+      outerRadius: number;
+      actualOuterRadius: number;
+      parts: LabelPart[];
+    }> = [];
     const renderedAngles = new Map<number, { start: number; end: number }>();
     let cursor = rotation;
     values.forEach((value, index) => {
@@ -194,34 +380,31 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
 
       const midAngle = (geometry.startAngle + geometry.endAngle) / 2;
 
-      if (calloutEnabled && sweep > 0.12) {
+      if (calloutEnabled && sweep > CALLOUT_MIN_SWEEP) {
         // label layout is based on the base radius (hover only moves the line start)
-        callouts.push({ index, midAngle, outerRadius, actualOuterRadius: geometry.outerRadius });
+        callouts.push({
+          index,
+          midAngle,
+          outerRadius,
+          actualOuterRadius: geometry.outerRadius,
+          parts: this.labelParts(data[index], index, value, total),
+        });
       }
 
-      if (this.options.sectorLabel?.enabled === true && sweep > 0.25) {
-        const ratio = this.options.sectorLabel.positionRatio ?? 0.7;
+      if (this.labelsShown && this.labelsInside && sweep > INSIDE_MIN_SWEEP) {
+        const ratio = this.options.label?.positionRatio ?? 0.7;
         const at = PolarSeries.pointAt(
           centerX,
           centerY,
           midAngle,
           geometry.innerRadius + (geometry.outerRadius - geometry.innerRadius) * ratio,
         );
-        const label = new Text();
-        label.text = `${Math.round((value / total) * 100)}%`;
-        label.x = at.x;
-        label.y = at.y;
-        label.textAlign = 'center';
-        label.textBaseline = 'middle';
-        label.fontSize = this.options.sectorLabel.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
-        label.fontFamily = this.options.sectorLabel.fontFamily ?? this.env.theme.fontFamily;
-        label.fill = this.options.sectorLabel.color ?? contrastTextColor(this.colorFor(index));
-        label.outline = this.colorFor(index);
-        group.append(label);
+        const parts = this.labelParts(data[index], index, value, total);
+        this.drawLabel(group, parts, at.x, at.y, 'center', ctx.measureText, this.colorFor(index));
       }
     });
     this.lastAngles = renderedAngles;
-    this.renderCallouts(group, callouts, centerX, centerY);
+    this.renderCallouts(group, callouts, centerX, centerY, ctx.measureText);
     layer.append(group);
   }
 
@@ -235,8 +418,6 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     const { area, centerX, centerY } = ctx;
     const radial = this.options.calloutLine?.radial?.length ?? CALLOUT_LENGTH;
     const tail = this.options.calloutLine?.horizontal?.length ?? CALLOUT_TAIL;
-    const fontSize = this.options.calloutLabel?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
-    const font = `normal ${fontSize}px ${this.options.calloutLabel?.fontFamily ?? this.env.theme.fontFamily}`;
     const rotation = ((this.options.rotation ?? 0) * Math.PI) / 180;
     // the label starts where the radial and the tail segments end
     const stem = CALLOUT_SECTOR_GAP + radial;
@@ -248,7 +429,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       const midAngle = cursor + sweep / 2;
       cursor += sweep;
       if (value <= 0 || sweep <= CALLOUT_MIN_SWEEP) return;
-      const width = ctx.measureText(this.labelFor(this.data[index], index), font);
+      const { width, height } = this.labelSize(this.labelParts(this.data[index], index, value, total), ctx.measureText);
       const sin = Math.sin(midAngle);
       const cos = Math.cos(midAngle);
       // horizontal: the stem, the tail and the text share the room on their side
@@ -256,10 +437,10 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       if (Math.abs(sin) > 0.001) {
         fitted = Math.min(fitted, (sideways - tail - CALLOUT_TEXT_GAP - width) / Math.abs(sin) - stem);
       }
-      // vertical: the label row itself, at whatever height the elbow sits
+      // vertical: the label block itself, at whatever height the elbow sits
       const upright = cos >= 0 ? centerY - area.y : area.y + area.height - centerY;
       if (Math.abs(cos) > 0.001) {
-        fitted = Math.min(fitted, (upright - fontSize / 2) / Math.abs(cos) - stem);
+        fitted = Math.min(fitted, (upright - height / 2) / Math.abs(cos) - stem);
       }
     });
     return Math.max(fitted, ctx.radius * MIN_CALLOUT_RADIUS_RATIO);
@@ -271,15 +452,16 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
    */
   private renderCallouts(
     group: Group,
-    callouts: Array<{ index: number; midAngle: number; outerRadius: number; actualOuterRadius: number }>,
+    callouts: Array<{ index: number; midAngle: number; outerRadius: number; actualOuterRadius: number; parts: LabelPart[] }>,
     centerX: number,
     centerY: number,
+    measureText: (text: string, font: string) => number,
   ): void {
     if (callouts.length === 0) return;
     const radial = this.options.calloutLine?.radial;
     const horizontal = this.options.calloutLine?.horizontal;
-    const fontSize = this.options.calloutLabel?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
-    const minGap = fontSize + 6;
+    // two-line labels need two lines' worth of room between neighbours
+    const minGap = callouts.reduce((max, one) => Math.max(max, this.labelSize(one.parts, measureText).height), 0) + 6;
 
     const entries = callouts.map((callout) => {
       const elbow = PolarSeries.pointAt(centerX, centerY, callout.midAngle, callout.outerRadius + 2 + (radial?.length ?? CALLOUT_LENGTH));
@@ -288,6 +470,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
         midAngle: callout.midAngle,
         actualOuterRadius: callout.actualOuterRadius,
         minRadius: callout.outerRadius + 4,
+        parts: callout.parts,
         elbow,
         rightSide: Math.sin(callout.midAngle) >= 0,
         labelY: elbow.y,
@@ -347,16 +530,14 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       tail.strokeWidth = horizontal?.strokeWidth ?? radial?.strokeWidth ?? 1;
       group.append(tail);
 
-      const label = new Text();
-      label.text = this.labelFor(this.data[entry.index], entry.index);
-      label.fontSize = fontSize;
-      label.fontFamily = this.options.calloutLabel?.fontFamily ?? this.env.theme.fontFamily;
-      label.fill = this.options.calloutLabel?.color ?? this.env.theme.foregroundColor;
-      label.x = endX + (entry.rightSide ? 3 : -3);
-      label.y = entry.labelY;
-      label.textAlign = entry.rightSide ? 'left' : 'right';
-      label.textBaseline = 'middle';
-      group.append(label);
+      this.drawLabel(
+        group,
+        entry.parts,
+        endX + (entry.rightSide ? CALLOUT_TEXT_GAP : -CALLOUT_TEXT_GAP),
+        entry.labelY,
+        entry.rightSide ? 'left' : 'right',
+        measureText,
+      );
     }
   }
 
