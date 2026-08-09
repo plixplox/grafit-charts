@@ -562,11 +562,31 @@ export class CartesianChart implements SyncMember {
     const gradientApi = this.feature<GradientLegendApi>('gradient-legend', colorInfo !== undefined);
     if (!gradientApi) colorInfo = undefined;
     const gradientSpacing = gradientOptions?.spacing ?? 10;
+    // the strip the scale is drawn in: taken out of the area here and kept for the
+    // render, so what was reserved and what is drawn are one and the same rect
+    let gradientRect: LayoutRect | undefined;
     if (colorInfo && gradientApi) {
-      if (gradientOptions?.position === 'bottom') {
-        avail.height -= gradientApi.HEIGHT + gradientSpacing;
-      } else {
-        avail.width -= gradientApi.WIDTH + Math.max(0, gradientSpacing - 10);
+      // the ends of the scale are measured: a formatter is free to make them long
+      const extent = gradientApi.extent(gradientOptions, { info: colorInfo, theme: this.theme, measureText });
+      const taken = extent + gradientSpacing;
+      switch (gradientOptions?.position ?? 'right') {
+        case 'top':
+          gradientRect = { x: avail.x, y: avail.y, width: avail.width, height: extent };
+          avail.y += taken;
+          avail.height -= taken;
+          break;
+        case 'bottom':
+          avail.height -= taken;
+          gradientRect = { x: avail.x, y: avail.y + avail.height + gradientSpacing, width: avail.width, height: extent };
+          break;
+        case 'left':
+          gradientRect = { x: avail.x, y: avail.y, width: extent, height: avail.height };
+          avail.x += taken;
+          avail.width -= taken;
+          break;
+        default:
+          avail.width -= taken;
+          gradientRect = { x: avail.x + avail.width + gradientSpacing, y: avail.y, width: extent, height: avail.height };
       }
     }
 
@@ -624,6 +644,7 @@ export class CartesianChart implements SyncMember {
       slots,
       navigatorRect,
       colorInfo,
+      gradientRect,
     };
     this.scene.markDirty();
     this.renderDynamicLayers();
@@ -694,6 +715,8 @@ export class CartesianChart implements SyncMember {
         slots: Map<string, { index: number; count: number }>;
         navigatorRect: LayoutRect | undefined;
         colorInfo: ColorScaleInfo | undefined;
+        /** Strip the colour scale was given during layout. */
+        gradientRect: LayoutRect | undefined;
       }
     | undefined;
 
@@ -710,7 +733,7 @@ export class CartesianChart implements SyncMember {
     seriesLayer.clear();
     seriesLabelLayer.clear();
     overlayLayer.clear();
-    const { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, navigatorRect, colorInfo } = cache;
+    const { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, navigatorRect, colorInfo, gradientRect } = cache;
     const plot = this.plot;
     // the labels of the whole frame share one guard, so series avoid each other too
     const labelGuard = new LabelPlacements((text, font) => this.scene.measureText(text, font));
@@ -752,14 +775,12 @@ export class CartesianChart implements SyncMember {
     }
 
     const gradientApi = this.registry.getFeature<GradientLegendApi>('gradient-legend');
-    if (colorInfo && gradientApi) {
-      const gradientOptions = this.inputs.gradientLegend;
-      const spacing = gradientOptions?.spacing ?? 10;
-      const rect =
-        gradientOptions?.position === 'bottom'
-          ? { x: plot.x, y: plot.y + plot.height + spacing + 24, width: plot.width, height: gradientApi.HEIGHT - 12 }
-          : { x: plot.x + plot.width + spacing, y: plot.y, width: gradientApi.WIDTH - 10, height: plot.height };
-      gradientApi.render(overlayLayer, rect, colorInfo, this.theme, gradientOptions);
+    if (colorInfo && gradientApi && gradientRect) {
+      // the strip keeps the room layout gave it across, and runs the length of the plot along
+      const rect = gradientApi.isHorizontal(this.inputs.gradientLegend?.position)
+        ? { ...gradientRect, x: plot.x, width: plot.width }
+        : { ...gradientRect, y: plot.y, height: plot.height };
+      gradientApi.render(overlayLayer, rect, colorInfo, this.theme, this.inputs.gradientLegend);
     }
     if (this.navigator?.enabled && navigatorRect) {
       this.navigator.render(overlayLayer, navigatorRect, this.zoomX, this.theme, this.miniChartValues(data));

@@ -5,9 +5,9 @@ import type { CartesianRenderContext, ColorScaleInfo, SeriesModule, SeriesPick, 
 import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Switchable } from '@/shared/options';
 import { BandScale, ColorScale } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
-import { contrastTextColor, extent } from '@/shared/util';
+import { contrastTextColor, extent, formatValue } from '@/shared/util';
 
-export interface HeatmapSeriesOptions extends Omit<SeriesBaseOptions, 'tooltip'> {
+export interface HeatmapSeriesOptions extends SeriesBaseOptions<HeatmapTooltipRendererParams> {
   type: 'heatmap';
   /** Horizontal category. */
   xField: string;
@@ -26,8 +26,25 @@ export interface HeatmapSeriesOptions extends Omit<SeriesBaseOptions, 'tooltip'>
     LabelOverlapOptions & {
       /** Placement within the cell (center by default). */
       placement?: 'center' | 'top' | 'bottom' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-      formatter?: (params: { value: number; datum: Datum }) => string;
+      /** Serializable format string (',.2f', '.0%'); `formatter` wins over it. */
+      format?: string;
+      formatter?: (params: HeatmapValueParams) => string;
     };
+}
+
+export interface HeatmapValueParams {
+  /** Value of colorField. */
+  value: number;
+  datum: Datum;
+}
+
+export interface HeatmapTooltipRendererParams extends HeatmapValueParams {
+  /** Value of xField — the horizontal category. */
+  xValue: unknown;
+  /** Value of yField — the vertical category. */
+  yValue: unknown;
+  /** Colour the scale gave this cell. */
+  color: ColorValue;
 }
 
 interface CellRect {
@@ -137,7 +154,7 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
 
       if (this.options.label?.enabled === true) {
         const label = new Text();
-        label.text = this.options.label.formatter ? this.options.label.formatter({ value, datum }) : String(value);
+        label.text = this.labelText(value, datum);
         const placement = this.options.label.placement ?? 'center';
         const inset = 7;
         const horizontal = placement.includes('left') ? 'left' : placement.includes('right') ? 'right' : 'center';
@@ -189,17 +206,47 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
     };
   }
 
+  /** Text of a cell label: the formatter, then the format string, then the raw value. */
+  private labelText(value: number, datum: Datum): string {
+    const label = this.options.label;
+    if (label?.formatter) return label.formatter({ value, datum });
+    return this.valueText(value);
+  }
+
+  /**
+   * A value spelled out the way `label.format` asks for. The tooltip reads it
+   * too — a format is about the number itself — while `label.formatter` stays
+   * with the cell it was written for.
+   */
+  private valueText(value: number): string {
+    const format = this.options.label?.format;
+    return format ? formatValue(format, value) : String(value);
+  }
+
   override tooltipFor(datumIndex: number): TooltipContentData {
     const datum = this.lastCtx?.data[datumIndex];
     if (!datum) return { rows: [] };
-    const value = datum[this.options.colorField];
+    const raw = datum[this.options.colorField];
+    const value = Number(raw);
+    const color = this.scale.convert(value);
+    const renderer = this.options.tooltip?.renderer;
+    if (renderer) {
+      const result = renderer({
+        datum,
+        value,
+        xValue: datum[this.options.xField],
+        yValue: datum[this.options.yField],
+        color,
+      });
+      return typeof result === 'string' ? { heading: result, rows: [] } : result;
+    }
     return {
       heading: `${String(datum[this.options.xField])} · ${String(datum[this.options.yField])}`,
       rows: [
         {
           label: this.options.colorName ?? this.options.colorField,
-          value: String(value),
-          color: this.scale.convert(Number(value)),
+          value: Number.isNaN(value) ? String(raw) : this.valueText(value),
+          color,
         },
       ],
     };

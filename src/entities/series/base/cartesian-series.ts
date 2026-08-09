@@ -25,7 +25,12 @@ export interface SeriesTooltipRendererParams {
   color: ColorValue;
 }
 
-export interface SeriesBaseOptions extends Showable {
+/**
+ * Options every cartesian series has. `TooltipParams` is what its tooltip
+ * renderer is handed: most series describe a datum by x and y, a series with
+ * categories of its own (heatmap) has more to say and narrows it.
+ */
+export interface SeriesBaseOptions<TooltipParams = SeriesTooltipRendererParams> extends Showable {
   id?: string;
   xField: string;
   xName?: string;
@@ -33,11 +38,11 @@ export interface SeriesBaseOptions extends Showable {
   name?: string;
   showInLegend?: boolean;
   tooltip?: Switchable & {
-    renderer?: (params: SeriesTooltipRendererParams) => string | TooltipContentData;
+    renderer?: (params: TooltipParams) => string | TooltipContentData;
   };
 }
 
-export abstract class CartesianSeries<O extends SeriesBaseOptions = SeriesBaseOptions> implements CartesianSeriesInstance {
+export abstract class CartesianSeries<O extends SeriesBaseOptions<never> = SeriesBaseOptions> implements CartesianSeriesInstance {
   abstract readonly type: string;
   visible: boolean;
 
@@ -98,7 +103,8 @@ export abstract class CartesianSeries<O extends SeriesBaseOptions = SeriesBaseOp
     if (!datum) return { rows: [] };
     const xValue = datum[this.options.xField];
     const yValue = datum[this.options.yField];
-    const renderer = this.options.tooltip?.renderer;
+    // the base contract: a series with params of its own overrides tooltipFor too
+    const renderer = this.options.tooltip?.renderer as ((params: SeriesTooltipRendererParams) => string | TooltipContentData) | undefined;
     if (renderer) {
       const result = renderer({
         datum,
