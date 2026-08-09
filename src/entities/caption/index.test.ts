@@ -25,7 +25,7 @@ function layout(
   subtitle: CaptionOptions | undefined,
   obstacle?: { x: number; y: number; width: number; height: number },
 ) {
-  return layoutCaptions(title, subtitle, theme, 400, 300, padding, { measureText, obstacle });
+  return layoutCaptions(title, subtitle, theme, 400, 300, padding, { measureText, obstacle: obstacle && (() => obstacle) });
 }
 
 describe('layoutCaptions', () => {
@@ -148,6 +148,80 @@ describe('layoutCaptions', () => {
     }
   });
 
+  it('skips disabled and empty captions', () => {
+    const { placements, top } = layout({ text: 'Revenue', enabled: false }, { text: '' });
+    expect(placements).toEqual([]);
+    expect(top).toBe(0);
+  });
+});
+
+/** A floating legend pinned to the right edge, which wraps into whatever width it is given. */
+function legendLike(natural: number, options: { obeys?: boolean } = {}) {
+  const caps: Array<number | undefined> = [];
+  const obstacle = (cap?: number) => {
+    caps.push(cap);
+    const width = options.obeys === false ? natural : Math.min(natural, cap ?? natural);
+    return { x: 380 - width, y: 10, width, height: 40 };
+  };
+  return { obstacle, caps };
+}
+
+function layoutAround(
+  title: CaptionOptions,
+  legend: { obstacle: (cap?: number) => { x: number; y: number; width: number; height: number } },
+) {
+  return layoutCaptions(title, undefined, theme, 400, 300, padding, { measureText, obstacle: legend.obstacle });
+}
+
+describe('captions against a floating legend', () => {
+  it('leaves the legend alone while the caption fits beside it', () => {
+    const legend = legendLike(280);
+    // 'Traffic' is 70px and the gap left of the legend is 70px too — nothing to ask for
+    const { placements } = layoutAround({ text: 'Traffic', textAlign: 'left' }, legend);
+    expect(legend.caps).toEqual([undefined]);
+    expect(placements[0]?.lines[0]?.x).toBe(20);
+  });
+
+  it('asks the legend for the width the caption is missing', () => {
+    const legend = legendLike(320);
+    // the gap is 30px, 'Traffic' needs 70 — the legend is measured again 40px narrower
+    const { placements } = layoutAround({ text: 'Traffic', textAlign: 'left' }, legend);
+    expect(legend.caps).toEqual([undefined, 280]);
+    const line = placements[0]?.lines[0];
+    expect(line?.x).toBe(20);
+    // and the text now ends before the narrowed legend
+    expect((line?.x ?? 0) + measureText('Traffic')).toBeLessThanOrEqual(380 - 280 - 10);
+  });
+
+  it('keeps the legend at half the width however much the caption asks for', () => {
+    const legend = legendLike(340);
+    // one 240px word against a 30px gap: the legend would have to shrink past half
+    layoutAround({ text: 'Extraordinarily-long-word', textAlign: 'left' }, legend);
+    expect(legend.caps).toEqual([undefined]);
+  });
+
+  it('puts the legend back when it cannot give the width up', () => {
+    const legend = legendLike(320, { obeys: false });
+    layoutAround({ text: 'Traffic', textAlign: 'left' }, legend);
+    // asked, refused, and measured once more the way it was
+    expect(legend.caps).toEqual([undefined, 280, undefined]);
+  });
+
+  it('asks for nothing when the legend is clear of the caption line', () => {
+    const legend = { obstacle: () => ({ x: 60, y: 250, width: 320, height: 40 }), caps: [] as Array<number | undefined> };
+    const { placements } = layoutCaptions({ text: 'Traffic', textAlign: 'left' }, undefined, theme, 400, 300, padding, {
+      measureText,
+      obstacle: (cap) => {
+        legend.caps.push(cap);
+        return legend.obstacle();
+      },
+    });
+    expect(legend.caps).toEqual([undefined]);
+    expect(placements[0]?.lines[0]?.x).toBe(20);
+  });
+});
+
+describe('layoutCaptions edge cases', () => {
   it('skips disabled and empty captions', () => {
     const { placements, top } = layout({ text: 'Revenue', enabled: false }, { text: '' });
     expect(placements).toEqual([]);

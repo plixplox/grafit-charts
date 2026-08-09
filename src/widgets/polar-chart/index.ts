@@ -172,9 +172,15 @@ export class PolarChart implements ChartWidget {
       legend?.enabled && legend.floating
         ? { x: padding.left, y: padding.top, width: width - padding.left - padding.right, height: height - padding.top - padding.bottom }
         : undefined;
-    // captions wrap around the floating legend box, so it has to be measured first
+    // captions wrap around the floating legend box, so it has to be measured
+    // first — and measured again within a cap when they run out of room beside it
     const obstacle =
-      floatRect && hasCaptions(this.inputs.title, this.inputs.subtitle) ? legend?.captionObstacle(floatRect, measureText) : undefined;
+      floatRect && legend && hasCaptions(this.inputs.title, this.inputs.subtitle)
+        ? (cap?: number) => {
+            legend.limitWidth(cap);
+            return legend.captionObstacle(floatRect, measureText);
+          }
+        : undefined;
     const captions = renderCaptions(captionLayer, this.inputs.title, this.inputs.subtitle, this.theme, width, height, padding, {
       measureText,
       obstacle,

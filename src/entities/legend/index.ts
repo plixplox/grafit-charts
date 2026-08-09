@@ -230,6 +230,8 @@ export class Legend {
   private pages = 1;
   private pagerHits: Array<{ id: string; x: number; y: number; width: number; height: number }> = [];
   private warnedUnresolved = false;
+  /** Width the captions left the legend, when they had to take some of it back. */
+  private widthCap: number | undefined;
 
   constructor(
     private readonly options: LegendOptions | undefined,
@@ -256,6 +258,17 @@ export class Legend {
 
   setItems(items: LegendItemDescriptor[]): void {
     this.items = items;
+    // a cap belongs to one layout of one set of items, never to the next
+    this.widthCap = undefined;
+  }
+
+  /**
+   * Caps the width the legend may take, whatever room it is measured within.
+   * A floating legend that leaves the captions no column of their own is asked
+   * to fit into less and wrap onto more rows instead.
+   */
+  limitWidth(px: number | undefined): void {
+    this.widthCap = px !== undefined ? Math.max(0, px) : undefined;
   }
 
   private get fontSize(): number {
@@ -371,7 +384,7 @@ export class Legend {
       return this.size;
     }
     const pad = this.padding;
-    const innerWidth = Math.max(0, maxWidth - pad.left - pad.right);
+    const innerWidth = Math.max(0, Math.min(maxWidth, this.widthCap ?? maxWidth) - pad.left - pad.right);
     const innerHeight = Math.max(0, maxHeight - pad.top - pad.bottom);
     // a shared row height keeps the pagination row math valid with per-item marker/font sizes
     const itemHeight = items.reduce((max, item) => Math.max(max, this.itemMarkerSize(item), this.itemFontSize(item)), 0);

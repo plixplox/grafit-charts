@@ -52,14 +52,21 @@ const LINE_HEIGHT = 1.25;
 const OBSTACLE_GAP = 10;
 /** Passes allowed for the 'bottom' zone to settle (its start depends on its own height). */
 const SETTLE_PASSES = 3;
+/** Passes allowed for the captions and the obstacle to settle on a width each can live with. */
+const FIT_PASSES = 3;
+/** Share of the width an obstacle keeps whatever the captions ask for. */
+const MIN_OBSTACLE_SHARE = 0.5;
 
 export interface CaptionLayoutContext {
   measureText: (text: string, font: string) => number;
   /**
    * Box the captions flow around — a floating legend, in scene coordinates.
-   * Lines overlapping it vertically are laid out in the wider side gap.
+   * Lines overlapping it vertically are laid out in the wider side gap. Asked
+   * again with a width cap when a line has nowhere to go beside the box: the
+   * legend gives up width rather than have the caption land on it. Undefined
+   * (or a callback returning it) — there is nothing to flow around.
    */
-  obstacle?: LayoutRect;
+  obstacle?: (widthCap?: number) => LayoutRect | undefined;
 }
 
 /** Horizontal room available to a caption line. */
@@ -83,6 +90,8 @@ interface CaptionPlacement {
   /** Height of the whole block: the lines plus the vertical padding. */
   height: number;
   lines: CaptionLine[];
+  /** Width the widest line is missing in the gap the obstacle left it (0 — everything fits). */
+  shortfall: number;
 }
 
 function captionShown(options: CaptionOptions | undefined): boolean {
@@ -109,14 +118,20 @@ export function hasCaptions(title: CaptionOptions | undefined, subtitle: Caption
   return captionShown(title) || captionShown(subtitle);
 }
 
-/** Room for a line spanning [top, bottom): the full width, or the wider side of the obstacle. */
-function lineSpan(full: Span, top: number, bottom: number, obstacle: LayoutRect | undefined): Span {
-  if (!obstacle || bottom <= obstacle.y || top >= obstacle.y + obstacle.height) return full;
+/**
+ * Room for a line spanning [top, bottom): the full width, or the wider side of
+ * the obstacle. `gap` is the width that side really has — undefined for a line
+ * clear of the obstacle. What a line cannot fit in its gap is what the obstacle
+ * is later asked to give up.
+ */
+function lineSpan(full: Span, top: number, bottom: number, obstacle: LayoutRect | undefined): { span: Span; gap?: number } {
+  if (!obstacle || bottom <= obstacle.y || top >= obstacle.y + obstacle.height) return { span: full };
   const before: Span = { left: full.left, right: Math.min(full.right, obstacle.x - OBSTACLE_GAP) };
   const after: Span = { left: Math.max(full.left, obstacle.x + obstacle.width + OBSTACLE_GAP), right: full.right };
   const widest = after.right - after.left > before.right - before.left ? after : before;
+  const gap = Math.max(0, widest.right - widest.left);
   // the obstacle leaves no usable gap — keep the full width instead of squeezing the text to nothing
-  return widest.right - widest.left > 0 ? widest : full;
+  return { span: gap > 0 ? widest : full, gap };
 }
 
 /**
@@ -128,24 +143,24 @@ function wrapText(
   text: string,
   font: string,
   measureText: (text: string, font: string) => number,
-  spanAt: (index: number) => Span,
+  spanAt: (index: number) => { span: Span; gap?: number },
   wrap: boolean,
-): Array<{ text: string; span: Span }> {
-  const lines: Array<{ text: string; span: Span }> = [];
+): Array<{ text: string; span: Span; gap?: number }> {
+  const lines: Array<{ text: string; span: Span; gap?: number }> = [];
   for (const paragraph of text.split('\n')) {
-    let span = spanAt(lines.length);
+    let room = spanAt(lines.length);
     let current = '';
     for (const word of paragraph.split(/\s+/).filter(Boolean)) {
       const candidate = current ? `${current} ${word}` : word;
-      if (wrap && current && measureText(candidate, font) > span.right - span.left) {
-        lines.push({ text: current, span });
-        span = spanAt(lines.length);
+      if (wrap && current && measureText(candidate, font) > room.span.right - room.span.left) {
+        lines.push({ text: current, ...room });
+        room = spanAt(lines.length);
         current = word;
       } else {
         current = candidate;
       }
     }
-    lines.push({ text: current, span });
+    lines.push({ text: current, ...room });
   }
   return lines;
 }
@@ -163,6 +178,7 @@ function layoutCaption(
   blockTop: number,
   zone: 'top' | 'bottom',
   context: CaptionLayoutContext,
+  obstacle: LayoutRect | undefined,
 ): CaptionPlacement | undefined {
   const metrics = captionMetrics(role, options, theme, zone);
   if (!metrics || !options) return undefined;
@@ -173,16 +189,23 @@ function layoutCaption(
   const step = fontSize * LINE_HEIGHT;
   const textTop = blockTop + padding.top;
   const room: Span = { left: full.left + padding.left, right: full.right - padding.right };
-  const spanAt = (index: number) => lineSpan(room, textTop + index * step, textTop + index * step + fontSize, context.obstacle);
+  const spanAt = (index: number) => lineSpan(room, textTop + index * step, textTop + index * step + fontSize, obstacle);
 
   const align = options.textAlign ?? 'center';
-  const lines = wrapText(options.text ?? '', font, context.measureText, spanAt, options.wrap !== false).map(({ text, span }, index) => ({
-    text,
-    align,
-    x: align === 'left' ? span.left : align === 'right' ? span.right : (span.left + span.right) / 2,
-    y: textTop + index * step,
-  }));
-  return { role, options, fontSize, height: padding.top + fontSize + (lines.length - 1) * step + padding.bottom, lines };
+  let shortfall = 0;
+  const lines = wrapText(options.text ?? '', font, context.measureText, spanAt, options.wrap !== false).map(
+    ({ text, span, gap }, index) => {
+      // a line the obstacle narrowed: what it still does not fit is what the obstacle has to give up
+      if (gap !== undefined) shortfall = Math.max(shortfall, context.measureText(text, font) - gap);
+      return {
+        text,
+        align,
+        x: align === 'left' ? span.left : align === 'right' ? span.right : (span.left + span.right) / 2,
+        y: textTop + index * step,
+      };
+    },
+  );
+  return { role, options, fontSize, height: padding.top + fontSize + (lines.length - 1) * step + padding.bottom, lines, shortfall };
 }
 
 function drawCaption(layer: Group, placement: CaptionPlacement, theme: ThemeContext): void {
@@ -210,6 +233,12 @@ function drawCaption(layer: Group, placement: CaptionPlacement, theme: ThemeCont
  * text wraps within the available width, flowing around `context.obstacle`.
  * Returns the placements plus the space consumed from each edge, chart padding
  * excluded.
+ *
+ * When a line has nowhere to go beside the obstacle, the obstacle is asked to
+ * fit into a narrower width and the whole layout is taken again — a floating
+ * legend gives up the room the caption is missing instead of being written
+ * over. It gives up no more than half the width: past that its own labels
+ * would be the ones with nowhere to go.
  */
 export function layoutCaptions(
   title: CaptionOptions | undefined,
@@ -228,36 +257,56 @@ export function layoutCaptions(
   const zone = (position: 'top' | 'bottom') =>
     entries.filter(([, options]) => (options?.position === 'bottom' ? position === 'bottom' : position === 'top'));
 
-  const placements: CaptionPlacement[] = [];
-  let top = 0;
-  for (const [role, options] of zone('top')) {
-    const placement = layoutCaption(role, options, theme, full, padding.top + top, 'top', context);
-    if (!placement) continue;
-    placements.push(placement);
-    top += placement.height;
-  }
-
-  // the 'bottom' zone starts at its own height above the edge, and that height
-  // may grow once the lines flow around the obstacle — re-run until it settles
-  const bottomEntries = zone('bottom');
-  let bottom = 0;
-  let bottomPlacements: CaptionPlacement[] = [];
-  for (let pass = 0; pass < SETTLE_PASSES && bottomEntries.length > 0; pass++) {
-    const start = height - padding.bottom - bottom;
-    let cursor = start;
-    bottomPlacements = [];
-    for (const [role, options] of bottomEntries) {
-      const placement = layoutCaption(role, options, theme, full, cursor, 'bottom', context);
+  const place = (obstacle: LayoutRect | undefined) => {
+    const placements: CaptionPlacement[] = [];
+    let top = 0;
+    for (const [role, options] of zone('top')) {
+      const placement = layoutCaption(role, options, theme, full, padding.top + top, 'top', context, obstacle);
       if (!placement) continue;
-      bottomPlacements.push(placement);
-      cursor += placement.height;
+      placements.push(placement);
+      top += placement.height;
     }
-    const settled = cursor - start === bottom;
-    bottom = cursor - start;
-    if (settled) break;
-  }
 
-  return { placements: [...placements, ...bottomPlacements], top, bottom };
+    // the 'bottom' zone starts at its own height above the edge, and that height
+    // may grow once the lines flow around the obstacle — re-run until it settles
+    const bottomEntries = zone('bottom');
+    let bottom = 0;
+    let bottomPlacements: CaptionPlacement[] = [];
+    for (let pass = 0; pass < SETTLE_PASSES && bottomEntries.length > 0; pass++) {
+      const start = height - padding.bottom - bottom;
+      let cursor = start;
+      bottomPlacements = [];
+      for (const [role, options] of bottomEntries) {
+        const placement = layoutCaption(role, options, theme, full, cursor, 'bottom', context, obstacle);
+        if (!placement) continue;
+        bottomPlacements.push(placement);
+        cursor += placement.height;
+      }
+      const settled = cursor - start === bottom;
+      bottom = cursor - start;
+      if (settled) break;
+    }
+
+    const all = [...placements, ...bottomPlacements];
+    return { placements: all, top, bottom, shortfall: all.reduce((max, one) => Math.max(max, one.shortfall), 0) };
+  };
+
+  let obstacle = context.obstacle?.();
+  let result = place(obstacle);
+  const floor = (full.right - full.left) * MIN_OBSTACLE_SHARE;
+  for (let pass = 1; pass < FIT_PASSES && obstacle && result.shortfall > 0; pass++) {
+    const cap = obstacle.width - Math.ceil(result.shortfall);
+    if (cap < floor) break;
+    const narrowed = context.obstacle?.(cap);
+    if (!narrowed || narrowed.width >= obstacle.width) {
+      // the obstacle is as narrow as it goes — leave it the way it was
+      context.obstacle?.();
+      break;
+    }
+    obstacle = narrowed;
+    result = place(obstacle);
+  }
+  return result;
 }
 
 /**
