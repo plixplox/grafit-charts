@@ -19,6 +19,8 @@ When building with [grafit-charts/core](/guide/bundle), the legend is a separate
 | `avoidCaptions`         | `boolean`                                | `true`       | floating only: title/subtitle flow around the legend box |
 | `toggleSeries`          | `boolean`                                | `true`       | click toggles visibility     |
 | `maxRows`               | `number`                                 | `2`          | rows per page in a horizontal legend |
+| `maxWidth`              | `Pixels`                                 | the chart    | width the legend never goes past ([below](#size-limits)) |
+| `maxHeight`             | `Pixels`                                 | the chart    | height the legend never goes past ([below](#size-limits)) |
 | `reverse`               | `boolean`                                | `false`      | render the items back to front |
 | `item.marker`           | `LegendMarkerOptions`                    | —            | marker glyph ([below](#markers)) |
 | `item.label.fontSize`   | `Pixels`                              | `12`         | label font size              |
@@ -41,6 +43,21 @@ When building with [grafit-charts/core](/guide/bundle), the legend is a separate
 The item name is the series `name` (or `yField` if no name is set). `showInLegend: false` on a series removes its item.
 
 Items that don't fit are paginated: arrows `‹ 1/3 ›` appear at the bottom of the legend (a horizontal legend fits `maxRows` rows per page, two by default). For pie/donut, clicking an item hides the sector.
+
+## Size limits
+
+A legend takes what its items need, and with long series names a vertical one takes it from the plot. `maxWidth` and `maxHeight` bound it; what they mean follows the orientation the `position` sets:
+
+| Legend                  | `maxWidth`                                              | `maxHeight`                                  |
+| ----------------------- | ------------------------------------------------------- | -------------------------------------------- |
+| vertical (`left`/`right`) | labels that no longer fit are cut with an ellipsis     | items past it move to the next page          |
+| horizontal (`top`/`bottom`) | items wrap onto the next row within it               | caps the rows per page, along with `maxRows`  |
+
+```js
+legend: { position: 'right', maxWidth: 160 },
+```
+
+A label is cut to the room its item has whether or not `maxWidth` is set — the chart width is the limit either way, so a name too long for the chart never runs off it.
 
 ## Floating placement
 

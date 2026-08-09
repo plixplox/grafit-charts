@@ -131,6 +131,19 @@ export interface LegendOptions extends Switchable {
   item?: LegendItemStyleOptions;
   /** Rows per page for a horizontal legend; 2 by default. A vertical one pages by height. */
   maxRows?: number;
+  /**
+   * Width the legend never goes past. A vertical legend (`left`/`right`) is what
+   * this is usually for — it stops long names from eating the plot, and a label
+   * that no longer fits is cut with an ellipsis. A horizontal one wraps within
+   * it instead.
+   */
+  maxWidth?: Pixels;
+  /**
+   * Height the legend never goes past: rows beyond it are paginated. On a
+   * horizontal legend this caps the rows per page along with `maxRows`, on a
+   * vertical one the items per page.
+   */
+  maxHeight?: Pixels;
   /** Renders the items back to front. */
   reverse?: boolean;
   /** Custom items; fully replaces the auto-derived series items. */
@@ -215,6 +228,18 @@ interface PlacedItem {
   y: number;
   width: number;
   height: number;
+  /** The label as it is drawn — cut short when the item had to fit a narrower legend. */
+  label: string;
+}
+
+/** Text cut to the room it has, with an ellipsis where it was cut. */
+export function ellipsize(text: string, font: string, room: number, measureText: (text: string, font: string) => number): string {
+  if (room <= 0) return '';
+  if (measureText(text, font) <= room) return text;
+  let cut = text.length;
+  while (cut > 0 && measureText(`${text.slice(0, cut)}…`, font) > room) cut--;
+  // not even one character and the ellipsis fit: the ellipsis alone says the same
+  return cut > 0 ? `${text.slice(0, cut)}…` : '…';
 }
 
 export const LEGEND_PAGER_PREV = '__legend_prev';
@@ -384,45 +409,51 @@ export class Legend {
       return this.size;
     }
     const pad = this.padding;
-    const innerWidth = Math.max(0, Math.min(maxWidth, this.widthCap ?? maxWidth) - pad.left - pad.right);
-    const innerHeight = Math.max(0, maxHeight - pad.top - pad.bottom);
+    // the room the layout offers, narrowed by whatever the options and the captions asked for
+    const roomWidth = Math.min(maxWidth, this.widthCap ?? Infinity, this.options?.maxWidth ?? Infinity);
+    const roomHeight = Math.min(maxHeight, this.options?.maxHeight ?? Infinity);
+    const innerWidth = Math.max(0, roomWidth - pad.left - pad.right);
+    const innerHeight = Math.max(0, roomHeight - pad.top - pad.bottom);
     // a shared row height keeps the pagination row math valid with per-item marker/font sizes
     const itemHeight = items.reduce((max, item) => Math.max(max, this.itemMarkerSize(item), this.itemFontSize(item)), 0);
     const horizontal = this.position === 'top' || this.position === 'bottom';
-    const widths = items.map((item) => {
+    // an item wider than the legend gives up the end of its label rather than the edge of the chart
+    const entries = items.map((item) => {
       const font = this.itemFont(item);
-      return (
-        this.itemMarkerWidth(item) +
-        this.markerGap +
-        measureText(item.label, font) +
-        (item.value ? this.valueGap + measureText(item.value, this.itemValueFont(item)) : 0)
-      );
+      const fixed =
+        this.itemMarkerWidth(item) + this.markerGap + (item.value ? this.valueGap + measureText(item.value, this.itemValueFont(item)) : 0);
+      const label = ellipsize(item.label, font, innerWidth - fixed, measureText);
+      return { item, label, width: fixed + measureText(label, font) };
     });
 
     // layout of all items: rows (horizontal) or a column (vertical)
     const all: PlacedItem[] = [];
     let x = 0;
     let y = 0;
-    items.forEach((item, index) => {
-      const width = widths[index] ?? 0;
+    entries.forEach(({ item, label, width }) => {
       if (horizontal) {
         if (x > 0 && x + width > innerWidth) {
           x = 0;
           y += itemHeight + this.rowGap;
         }
-        all.push({ item, x, y, width, height: itemHeight });
+        all.push({ item, label, x, y, width, height: itemHeight });
         x += width + this.itemGap;
       } else {
-        all.push({ item, x: 0, y, width, height: itemHeight });
+        all.push({ item, label, x: 0, y, width, height: itemHeight });
         y += itemHeight + this.rowGap;
       }
     });
 
-    // pagination: horizontal — at most maxRows rows, vertical — by height
+    // pagination: horizontal — at most maxRows rows, vertical — by height; the
+    // pager only takes its own room once there is more than one page to reach
     const rowStep = itemHeight + this.rowGap;
     const maxRows = Math.max(1, Math.floor(this.options?.maxRows ?? MAX_ROWS));
-    const pageCapacityRows = horizontal ? maxRows : Math.max(1, Math.floor((innerHeight - PAGER_HEIGHT) / rowStep));
+    // n rows take n · rowStep less the gap the last one does not need
+    const rowsWithin = (room: number) => Math.max(1, Math.floor((room + this.rowGap) / rowStep));
+    const capacityIn = (room: number) => (horizontal ? Math.min(maxRows, rowsWithin(room)) : rowsWithin(room));
     const totalRows = all.length > 0 ? Math.floor((all[all.length - 1]?.y ?? 0) / rowStep) + 1 : 0;
+    const roomForRows = horizontal && this.options?.maxHeight === undefined ? Infinity : innerHeight;
+    const pageCapacityRows = totalRows > capacityIn(roomForRows) ? capacityIn(roomForRows - PAGER_HEIGHT) : capacityIn(roomForRows);
     this.pages = Math.max(1, Math.ceil(totalRows / pageCapacityRows));
     this.page = Math.min(this.page, this.pages - 1);
 
@@ -529,7 +560,7 @@ export class Legend {
       itemGroup.append(this.renderMarker(placed, markerWidth));
 
       const label = new Text();
-      label.text = placed.item.label;
+      label.text = placed.label;
       label.x = placed.x + markerWidth + this.markerGap;
       label.y = placed.y + placed.height / 2;
       label.textBaseline = 'middle';

@@ -1,6 +1,6 @@
-import { Legend, placeLegendBox, resolveLegendItems, type LegendOptions } from './index';
+import { ellipsize, Legend, placeLegendBox, resolveLegendItems, type LegendOptions } from './index';
 import type { LegendItemDescriptor, ThemeContext } from '@/shared/kernel';
-import { Group } from '@/shared/scene';
+import { Group, Text, type SceneNode } from '@/shared/scene';
 import { describe, expect, it, vi } from 'vitest';
 
 const descriptors: LegendItemDescriptor[] = [
@@ -251,5 +251,103 @@ describe('captionObstacle', () => {
     const legend = new Legend({ floating: true }, theme);
     legend.setItems([]);
     expect(legend.captionObstacle(rect, measureText)).toBeUndefined();
+  });
+});
+
+describe('ellipsize', () => {
+  const measureText = (text: string) => text.length * 10;
+
+  it('leaves text that fits alone', () => {
+    expect(ellipsize('Revenue', 'font', 70, measureText)).toBe('Revenue');
+  });
+
+  it('cuts to the room it has and marks the cut', () => {
+    // 5 characters of room: 4 of the word plus the ellipsis
+    expect(ellipsize('Revenue', 'font', 50, measureText)).toBe('Reve…');
+  });
+
+  it('falls back to the ellipsis alone when not even one character fits', () => {
+    expect(ellipsize('Revenue', 'font', 10, measureText)).toBe('…');
+  });
+
+  it('draws nothing at all without room', () => {
+    expect(ellipsize('Revenue', 'font', 0, measureText)).toBe('');
+  });
+});
+
+describe('size limits', () => {
+  const measureText = (text: string) => text.length * 10;
+  const long: LegendItemDescriptor[] = [
+    { seriesId: 'a', label: 'Revenue from subscriptions', color: '#111', visible: true },
+    { seriesId: 'b', label: 'Revenue from services', color: '#222', visible: true },
+  ];
+
+  /** Label texts the legend actually draws. */
+  function labelsOf(options: LegendOptions, items = long, width = 1000, height = 300): string[] {
+    const legend = new Legend(options, theme);
+    legend.setItems(items);
+    legend.measure(measureText, width, height);
+    const layer = new Group();
+    legend.render(layer, { x: 0, y: 0, width, height });
+    const texts = (node: SceneNode): Text[] =>
+      node instanceof Text ? [node] : (((node as unknown as { children?: SceneNode[] }).children ?? []).flatMap(texts) as Text[]);
+    return texts(layer).map((node) => node.text);
+  }
+
+  const measure = (options: LegendOptions, items = long, width = 1000, height = 300) => {
+    const legend = new Legend(options, theme);
+    legend.setItems(items);
+    return legend.measure(measureText, width, height);
+  };
+
+  it('keeps a vertical legend within maxWidth', () => {
+    const free = measure({ position: 'right' });
+    const capped = measure({ position: 'right', maxWidth: 140 });
+    expect(free.width).toBeGreaterThan(140);
+    expect(capped.width).toBeLessThanOrEqual(140);
+  });
+
+  it('cuts the labels that no longer fit rather than the chart', () => {
+    expect(labelsOf({ position: 'right', maxWidth: 140 })).toEqual(['Revenue fro…', 'Revenue fro…']);
+  });
+
+  it('leaves the labels whole while they fit', () => {
+    expect(labelsOf({ position: 'right' })).toEqual(['Revenue from subscriptions', 'Revenue from services']);
+  });
+
+  it('wraps a horizontal legend within maxWidth instead of cutting it', () => {
+    const oneRow = measure({ position: 'bottom' }).height;
+    const wrapped = measure({ position: 'bottom', maxWidth: 320 });
+    expect(wrapped.width).toBeLessThanOrEqual(320);
+    expect(wrapped.height).toBeGreaterThan(oneRow);
+  });
+
+  it('paginates a vertical legend that runs past maxHeight', () => {
+    const four = [...long, ...long.map((item) => ({ ...item, seriesId: `${item.seriesId}2` }))];
+    const full = measure({ position: 'right' }, four);
+    const capped = measure({ position: 'right', maxHeight: 60 }, four);
+    expect(capped.height).toBeLessThanOrEqual(60);
+    expect(capped.height).toBeLessThan(full.height);
+  });
+
+  it('caps the rows of a horizontal legend along with maxRows', () => {
+    const items = Array.from({ length: 8 }, (_, index) => ({
+      seriesId: `s${index}`,
+      label: `Series ${index}`,
+      color: '#111',
+      visible: true,
+    }));
+    // narrow enough for one item per row, so maxRows would allow two rows
+    const byRows = measure({ position: 'bottom', maxRows: 2 }, items, 140);
+    const byHeight = measure({ position: 'bottom', maxRows: 2, maxHeight: 40 }, items, 140);
+    expect(byHeight.height).toBeLessThan(byRows.height);
+  });
+
+  it('gives the pager its room only once there is a page to reach', () => {
+    // exactly two rows' worth of height: without a pager both items are one page
+    const rowStep = measure({ position: 'right' }, long).height;
+    const tight = measure({ position: 'right', maxHeight: rowStep }, long);
+    expect(tight.height).toBe(rowStep);
+    expect(labelsOf({ position: 'right', maxHeight: rowStep })).toHaveLength(2);
   });
 });
