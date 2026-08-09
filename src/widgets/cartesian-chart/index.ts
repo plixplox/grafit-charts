@@ -1,4 +1,5 @@
 import { bindSeriesToValueAxes } from './axis-binding';
+import { labelFrame } from './label-frame';
 import { renderBackground, type BackgroundOptions } from '@/entities/background';
 import { hasCaptions, renderCaptions, type CaptionOptions } from '@/entities/caption';
 import type { GradientLegendApi, GradientLegendOptions } from '@/entities/gradient-legend';
@@ -572,8 +573,12 @@ export class CartesianChart implements SyncMember {
 
     // iterative layout: axis thickness depends on labels, labels depend on range
     let plot: LayoutRect = { ...avail };
+    // the scales stop short of the plot edges by the room the value labels take,
+    // so those labels stay inside the plot instead of crossing the axis
+    let frame: LayoutRect = { ...avail };
     for (let pass = 0; pass < LAYOUT_PASSES; pass++) {
-      for (const axis of this.axes) axis.layout(plot);
+      for (const axis of this.axes) axis.layout(frame);
+      const overflow = this.labelOverflow(frame, plot, measureText, { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, barePlot });
       const inset = { top: 0, right: 0, bottom: 0, left: 0 };
       // an axis-less chart reserves no axis zones, but its labels still need room
       if (!barePlot) {
@@ -581,17 +586,19 @@ export class CartesianChart implements SyncMember {
           inset[axis.position] = Math.max(inset[axis.position], axis.measure(measureText));
         }
       }
-      // labels hanging over the plot edges want the same room as the axis zones do
-      const overflow = this.labelOverflow(plot, measureText, { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, barePlot });
-      for (const side of SIDES) inset[side] = Math.max(inset[side], Math.ceil(overflow[side]));
+      // tick labels hang over the ends of their axis: that room comes out of the chart area
+      for (const side of SIDES) inset[side] = Math.max(inset[side], Math.ceil(overflow.axes[side]));
+      // an axis-less chart has no scales to pull in — its labels take the room outside
+      if (barePlot) for (const side of SIDES) inset[side] = Math.max(inset[side], Math.ceil(overflow.series[side]));
       plot = {
         x: avail.x + inset.left,
         y: avail.y + inset.top,
         width: Math.max(0, avail.width - inset.left - inset.right),
         height: Math.max(0, avail.height - inset.top - inset.bottom),
       };
+      frame = barePlot ? plot : labelFrame(plot, overflow.series);
     }
-    for (const axis of this.axes) axis.layout(plot);
+    for (const axis of this.axes) axis.layout(frame);
     this.plot = plot;
 
     if (!barePlot) {
@@ -617,12 +624,15 @@ export class CartesianChart implements SyncMember {
   }
 
   /**
-   * Room the labels need outside the plot rect: tick labels hang over the ends
-   * of their axis, value labels sit beside their marks. Both are measured
-   * against the plot the current pass produced, so the layout converges on a
-   * rect where every label still fits the chart area.
+   * Room the labels ask for, kept in two piles because the layout owes them
+   * different things: a tick label hangs over the end of its own axis and the
+   * chart area has to grow for it, while a value label belongs inside the plot
+   * and the scales pull in instead. Value labels are therefore measured against
+   * the frame the scales already run in — a label sticking out of it by the same
+   * amount every pass is what the layout converges on.
    */
   private labelOverflow(
+    frame: LayoutRect,
     plot: LayoutRect,
     measureText: MeasureText,
     cache: {
@@ -635,33 +645,34 @@ export class CartesianChart implements SyncMember {
       slots: Map<string, { index: number; count: number }>;
       barePlot: boolean;
     },
-  ): Insets {
-    let overflow = NO_OVERFLOW;
+  ): { axes: Insets; series: Insets } {
+    let axes = NO_OVERFLOW;
     if (!cache.barePlot) {
       for (const axis of this.axes) {
-        overflow = maxOverflow(overflow, axis.labelOverflow?.(measureText, plot) ?? NO_OVERFLOW);
+        axes = maxOverflow(axes, axis.labelOverflow?.(measureText, plot) ?? NO_OVERFLOW);
       }
     }
+    let series = NO_OVERFLOW;
     const { xAxis, yAxis } = cache;
-    if (!xAxis || !yAxis) return overflow;
-    for (const series of this.series) {
-      if (!series.visible || !series.labelOverflow) continue;
-      const scales = seriesScales(xAxis, yAxis, cache.valueAxisOf.get(series.id), cache.swapped);
-      overflow = maxOverflow(
-        overflow,
-        series.labelOverflow({
+    if (!xAxis || !yAxis) return { axes, series };
+    for (const instance of this.series) {
+      if (!instance.visible || !instance.labelOverflow) continue;
+      const scales = seriesScales(xAxis, yAxis, cache.valueAxisOf.get(instance.id), cache.swapped);
+      series = maxOverflow(
+        series,
+        instance.labelOverflow({
           data: cache.data,
           xScale: scales.xScale,
           yScale: scales.yScale,
           swapped: cache.swapped,
-          plot,
-          stack: cache.stacks.get(series.id),
-          group: cache.slots.get(series.id),
+          plot: frame,
+          stack: cache.stacks.get(instance.id),
+          group: cache.slots.get(instance.id),
           measureText,
         }),
       );
     }
-    return overflow;
+    return { axes, series };
   }
 
   private renderCache:
