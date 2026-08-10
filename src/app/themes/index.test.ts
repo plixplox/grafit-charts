@@ -27,7 +27,7 @@ describe('built-in themes', () => {
       },
       axis: { line: true, tick: false, gridLine: true, strokeWidth: 1, gridDash: [4, 4] },
     });
-    expect(resolveTheme('dark').backgroundColor).toBe('#15181c');
+    expect(resolveTheme('dark').backgroundColor).toBe('#181612');
     expect(resolveTheme('dark').palette.fills).toEqual(resolveTheme('default').palette.fills);
   });
 
@@ -59,7 +59,7 @@ describe('resolveTheme', () => {
     expect(theme.mutedColor).toBe('#abcdef');
     expect(theme.fontSize).toBe(14);
     // untouched tokens keep coming from the base
-    expect(theme.backgroundColor).toBe('#15181c');
+    expect(theme.backgroundColor).toBe('#181612');
   });
 
   it('merges the axis block field by field', () => {

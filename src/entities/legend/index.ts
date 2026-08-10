@@ -6,6 +6,7 @@ import {
   type Fraction,
   type FontOptions,
   type FontWeight,
+  type Length,
   type Padding,
   type PaddingValue,
   type Pixels,
@@ -13,6 +14,7 @@ import {
   type Switchable,
 } from '@/shared/options';
 import { Group, Line, Marker, Rect, resolveShadow, Text, type MarkerShape } from '@/shared/scene';
+import { resolveLength } from '@/shared/util';
 
 export type LegendPlacement =
   | AxisPosition
@@ -132,18 +134,19 @@ export interface LegendOptions extends Switchable {
   /** Rows per page for a horizontal legend; 2 by default. A vertical one pages by height. */
   maxRows?: number;
   /**
-   * Width the legend never goes past. A vertical legend (`left`/`right`) is what
-   * this is usually for — it stops long names from eating the plot, and a label
-   * that no longer fits is cut with an ellipsis. A horizontal one wraps within
-   * it instead.
+   * Width the legend never goes past, in pixels or as a percentage of the room
+   * it was offered (`'40%'`). A vertical legend (`left`/`right`) is what this is
+   * usually for — it stops long names from eating the plot, and a label that no
+   * longer fits is cut with an ellipsis. A horizontal one wraps within it instead.
    */
-  maxWidth?: Pixels;
+  maxWidth?: Length;
   /**
-   * Height the legend never goes past: rows beyond it are paginated. On a
-   * horizontal legend this caps the rows per page along with `maxRows`, on a
-   * vertical one the items per page.
+   * Height the legend never goes past, in pixels or as a percentage of the room
+   * it was offered (`'30%'`): rows beyond it are paginated. On a horizontal
+   * legend this caps the rows per page along with `maxRows`, on a vertical one
+   * the items per page.
    */
-  maxHeight?: Pixels;
+  maxHeight?: Length;
   /** Renders the items back to front. */
   reverse?: boolean;
   /** Custom items; fully replaces the auto-derived series items. */
@@ -409,9 +412,12 @@ export class Legend {
       return this.size;
     }
     const pad = this.padding;
+    // a percentage cap is read against the room the layout offered, before the options narrow it
+    const widthLimit = resolveLength(this.options?.maxWidth, maxWidth) ?? Infinity;
+    const heightLimit = resolveLength(this.options?.maxHeight, maxHeight) ?? Infinity;
     // the room the layout offers, narrowed by whatever the options and the captions asked for
-    const roomWidth = Math.min(maxWidth, this.widthCap ?? Infinity, this.options?.maxWidth ?? Infinity);
-    const roomHeight = Math.min(maxHeight, this.options?.maxHeight ?? Infinity);
+    const roomWidth = Math.min(maxWidth, this.widthCap ?? Infinity, widthLimit);
+    const roomHeight = Math.min(maxHeight, heightLimit);
     const innerWidth = Math.max(0, roomWidth - pad.left - pad.right);
     const innerHeight = Math.max(0, roomHeight - pad.top - pad.bottom);
     // a shared row height keeps the pagination row math valid with per-item marker/font sizes
@@ -452,7 +458,7 @@ export class Legend {
     const rowsWithin = (room: number) => Math.max(1, Math.floor((room + this.rowGap) / rowStep));
     const capacityIn = (room: number) => (horizontal ? Math.min(maxRows, rowsWithin(room)) : rowsWithin(room));
     const totalRows = all.length > 0 ? Math.floor((all[all.length - 1]?.y ?? 0) / rowStep) + 1 : 0;
-    const roomForRows = horizontal && this.options?.maxHeight === undefined ? Infinity : innerHeight;
+    const roomForRows = horizontal && heightLimit === Infinity ? Infinity : innerHeight;
     const pageCapacityRows = totalRows > capacityIn(roomForRows) ? capacityIn(roomForRows - PAGER_HEIGHT) : capacityIn(roomForRows);
     this.pages = Math.max(1, Math.ceil(totalRows / pageCapacityRows));
     this.page = Math.min(this.page, this.pages - 1);

@@ -1,6 +1,7 @@
+import { resolveValue, type ComputedAnnotationValue } from './stats';
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LayoutRect, ThemeContext } from '@/shared/kernel';
-import type { ColorValue, FontOptions, Pixels } from '@/shared/options';
+import type { ColorValue, Datum, FontOptions, Pixels } from '@/shared/options';
 import { BandScale, TimeScale, toTimestamp, type AnyScale } from '@/shared/scale';
 import { Group, Line, Path, Rect, Text } from '@/shared/scene';
 
@@ -8,22 +9,29 @@ interface AnnotationLabel extends FontOptions {
   text?: string;
 }
 
+/** A line knows the number it ended up on, so its label can say it. */
+interface LineAnnotationLabel extends AnnotationLabel {
+  formatter?: (value: number) => string;
+}
+
 export type AnnotationOptions =
   | {
       type: 'horizontal-line';
-      value: number;
+      /** A level, or the statistic that decides it: `{ stat: 'mean', field: 'price' }`. */
+      value: number | ComputedAnnotationValue;
       stroke?: ColorValue;
       strokeWidth?: Pixels;
       lineDash?: Pixels[];
-      label?: AnnotationLabel;
+      label?: LineAnnotationLabel;
     }
   | {
       type: 'vertical-line';
-      value: unknown;
+      /** A category, a date, a number — or a statistic over a field. */
+      value: unknown | ComputedAnnotationValue;
       stroke?: ColorValue;
       strokeWidth?: Pixels;
       lineDash?: Pixels[];
-      label?: AnnotationLabel;
+      label?: LineAnnotationLabel;
     }
   | {
       type: 'line';
@@ -44,7 +52,8 @@ export type AnnotationOptions =
   | {
       type: 'range';
       axis: 'x' | 'y';
-      range: [unknown, unknown];
+      /** Both ends take a statistic too: `[{ stat: 'percentile', percentile: 5, … }, …]`. */
+      range: [unknown | ComputedAnnotationValue, unknown | ComputedAnnotationValue];
       fill?: ColorValue;
       fillOpacity?: number;
       label?: AnnotationLabel;
@@ -56,6 +65,8 @@ export interface AnnotationsRenderArgs {
   xScale: AnyScale;
   yScale: AnyScale;
   theme: ThemeContext;
+  /** Rows the computed values are taken over; without them only plain values draw. */
+  data?: Datum[];
 }
 
 function coordOn(scale: AnyScale, value: unknown): number {
@@ -67,10 +78,16 @@ function coordOn(scale: AnyScale, value: unknown): number {
 /** Declarative annotations in data coordinates (interactive drawing — later). */
 export function renderAnnotations(annotations: AnnotationOptions[], args: AnnotationsRenderArgs): void {
   const { layer, plot, xScale, yScale, theme } = args;
+  const data = args.data ?? [];
+  /** A statistic with nothing to compute over leaves its annotation undrawn. */
+  const resolve = (value: unknown): unknown => resolveValue(value, data);
+
   for (const annotation of annotations) {
     switch (annotation.type) {
       case 'horizontal-line': {
-        const y = coordOn(yScale, annotation.value);
+        const value = resolve(annotation.value);
+        if (value === undefined) break;
+        const y = coordOn(yScale, value);
         if (Number.isNaN(y)) break;
         const line = new Line();
         line.x1 = plot.x;
@@ -80,11 +97,13 @@ export function renderAnnotations(annotations: AnnotationOptions[], args: Annota
         line.strokeWidth = annotation.strokeWidth ?? 1;
         line.lineDash = annotation.lineDash ?? [5, 4];
         layer.append(line);
-        appendLabel(layer, theme, annotation.label, plot.x + plot.width - 4, y - 4, 'right', annotation.stroke);
+        appendLabel(layer, theme, lineLabel(annotation.label, value), plot.x + plot.width - 4, y - 4, 'right', annotation.stroke);
         break;
       }
       case 'vertical-line': {
-        const x = coordOn(xScale, annotation.value);
+        const value = resolve(annotation.value);
+        if (value === undefined) break;
+        const x = coordOn(xScale, value);
         if (Number.isNaN(x)) break;
         const line = new Line();
         line.y1 = plot.y;
@@ -94,7 +113,7 @@ export function renderAnnotations(annotations: AnnotationOptions[], args: Annota
         line.strokeWidth = annotation.strokeWidth ?? 1;
         line.lineDash = annotation.lineDash ?? [5, 4];
         layer.append(line);
-        appendLabel(layer, theme, annotation.label, x + 4, plot.y + 12, 'left', annotation.stroke);
+        appendLabel(layer, theme, lineLabel(annotation.label, value), x + 4, plot.y + 12, 'left', annotation.stroke);
         break;
       }
       case 'line': {
@@ -129,8 +148,11 @@ export function renderAnnotations(annotations: AnnotationOptions[], args: Annota
       }
       case 'range': {
         const scale = annotation.axis === 'x' ? xScale : yScale;
-        const c0 = coordOn(scale, annotation.range[0]);
-        const c1 = coordOn(scale, annotation.range[1]);
+        const from = resolve(annotation.range[0]);
+        const to = resolve(annotation.range[1]);
+        if (from === undefined || to === undefined) break;
+        const c0 = coordOn(scale, from);
+        const c1 = coordOn(scale, to);
         if (Number.isNaN(c0) || Number.isNaN(c1)) break;
         const rect = new Rect();
         if (annotation.axis === 'x') {
@@ -162,6 +184,16 @@ export function renderAnnotations(annotations: AnnotationOptions[], args: Annota
   }
 }
 
+/**
+ * The label of a line, with `formatter` given the number the line landed on —
+ * that is the whole point of a computed level: "p95 = 214 ms" without anyone
+ * typing 214.
+ */
+function lineLabel(label: LineAnnotationLabel | undefined, value: unknown): AnnotationLabel | undefined {
+  if (!label?.formatter || typeof value !== 'number') return label;
+  return { ...label, text: label.formatter(value) };
+}
+
 function appendLabel(
   layer: Group,
   theme: ThemeContext,
@@ -183,6 +215,9 @@ function appendLabel(
   node.fill = label.color ?? accent ?? theme.foregroundColor;
   layer.append(node);
 }
+
+export { isComputedValue, computeStat, resolveValue } from './stats';
+export type { AnnotationStat, ComputedAnnotationValue } from './stats';
 
 /** Feature API for widgets (via registry.getFeature('annotations')). */
 export const annotationsApi = { render: renderAnnotations };

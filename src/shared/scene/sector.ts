@@ -2,6 +2,13 @@ import { SceneNode } from './node';
 import type { ColorValue, Pixels } from '@/shared/options';
 
 /**
+ * However narrow a sector is, the gaps beside it never take more than this
+ * share of its angular width: a sliver is drawn as a sliver rather than
+ * swallowed by its own spacing.
+ */
+const MAX_GAP_SHARE = 0.4;
+
+/**
  * Annular sector. Angles in radians, 0 points up (12 o'clock),
  * increasing clockwise.
  */
@@ -36,21 +43,28 @@ export class Sector extends SceneNode {
     if (span <= 0 || this.outerRadius <= 0) return;
     const R = this.outerRadius;
     const Rin = this.innerRadius;
-    const inset = this.edgeInset;
+    // A gap of a constant width covers a wider angle the closer to the centre it
+    // gets, and on a narrow sector it covers the sector itself. The gap is the
+    // one that gives way: it is capped at MAX_GAP_SHARE of the span where the
+    // sector is thinnest, so whatever is left over is still drawn.
+    const thinnest = Rin > 0 ? Rin : R;
+    const inset = Math.min(this.edgeInset, thinnest * Math.sin((span * MAX_GAP_SHARE) / 2));
     // angular offset of the edge at a given radius: r·sin(φ) = inset ⇒ the edge is
     // a straight line parallel to the radial line at distance inset
     const ofs = (radius: number) => (inset > 0 && radius > 0 ? Math.asin(Math.min(1, inset / radius)) : 0);
-    if (span - 2 * ofs(R) <= 0.02) return; // the gaps consumed the entire sector
 
     const half = span / 2;
     const mid = this.startAngle + half;
     // convergence apex of the offset edges (for pie and narrow rings)
     const apexRadius = inset > 0 ? inset / Math.max(Math.sin(half), 1e-4) : 0;
-    const isRing = Rin > 0 && apexRadius < Rin && span - 2 * ofs(Rin) > 0.02;
+    const isRing = Rin > 0 && apexRadius < Rin;
     const s0 = this.startAngle;
     const s1 = this.endAngle;
     const A = Sector.toCanvasAngle;
-    const r = Math.min(this.cornerRadius, (R - (isRing ? Rin : apexRadius)) / 2);
+    // rounding is bounded by the sector both ways: half its radial depth, and
+    // half its width — a narrow sector rounds to a lozenge, never inside out
+    const halfWidth = R * Math.sin((span - 2 * ofs(R)) / 2);
+    const r = Math.min(this.cornerRadius, (R - (isRing ? Rin : apexRadius)) / 2, halfWidth);
 
     ctx.beginPath();
     if (r > 0.5) {

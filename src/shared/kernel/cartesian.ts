@@ -159,6 +159,12 @@ export interface LabelBox {
   fontSize: number;
   /** Canvas font spec of the label: `${weight} ${size}px ${family}`. */
   font: string;
+  /**
+   * Size of the box when the text does not describe it: a pie sector label is
+   * several runs over two lines, and only the series knows how big it came out.
+   */
+  width?: number;
+  height?: number;
 }
 
 /**
@@ -291,6 +297,16 @@ export interface CartesianSeriesInstance {
   /** mode 'shared' — the rows go into a combined multi-series tooltip, so each row needs its own marker. */
   tooltipFor(datumIndex: number, mode?: 'single' | 'shared'): TooltipContentData;
   legendItems(): LegendItemDescriptor[];
+  /**
+   * The data, handed over before the layout: a series whose legend items come
+   * out of the data (histogram groups) has to name them before anything draws.
+   */
+  setData?(data: Datum[]): void;
+  /**
+   * Toggles one item of a series that puts several in the legend — those items
+   * are addressed as `<seriesId>#<index>`.
+   */
+  toggleItem?(index: number): void;
 }
 
 export interface SeriesColors {

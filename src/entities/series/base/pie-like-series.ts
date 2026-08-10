@@ -2,8 +2,8 @@ import { PolarSeries, type PolarSeriesBaseOptions } from './polar-series';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import { FONT_STEP, themeFont } from '@/shared/kernel';
-import type { LegendItemDescriptor, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
-import type { Datum, ColorValue, Degrees, FontOptions, Pixels, Fraction, Switchable } from '@/shared/options';
+import type { LabelGuard, LegendItemDescriptor, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
+import type { Datum, ColorValue, Degrees, FontOptions, LabelOverlapOptions, Pixels, Fraction, Switchable } from '@/shared/options';
 import { Group, Line, Sector, Text } from '@/shared/scene';
 import { contrastTextColor, formatValue } from '@/shared/util';
 
@@ -55,7 +55,7 @@ export type PieLabelPlacement = 'outside' | 'inside';
 /** How the two parts of a sector label sit together. */
 export type PieLabelLayout = 'stacked' | 'inline';
 
-export interface PieLabelOptions extends Switchable {
+export interface PieLabelOptions extends Switchable, LabelOverlapOptions {
   /** 'outside' (default) — beside the pie on a callout line; 'inside' — in the sector. */
   placement?: PieLabelPlacement;
   /** 'stacked' (default) — the value on its own line under the name; 'inline' — one line. */
@@ -68,6 +68,21 @@ export interface PieLabelOptions extends Switchable {
   category?: Switchable & FontOptions;
   /** Sector value — its share of the total by default. Off until asked for. */
   value?: PieValueLabelOptions;
+  /**
+   * Drop a label there is no room for (default false). Off, every sector gets
+   * its label and crowded ones are left to overlap; on, the labels stack in
+   * rows down each side of the pie and the narrowest sectors are the ones that
+   * lose theirs once a side runs out of rows.
+   */
+  avoidOverlap?: boolean;
+  /**
+   * Share of the total a sector needs before it is worth labelling, 0..1 (0 by
+   * default — every sector is). `0.02` reads as "label what is at least two
+   * percent" and leaves a long tail of slivers unlabelled, which is usually
+   * what makes a crowded pie legible. Combines with avoidOverlap: this decides
+   * which sectors are worth a label, that one whether there is room for it.
+   */
+  minShare?: Fraction;
 }
 
 export interface PieValueLabelOptions extends Switchable, FontOptions {
@@ -118,9 +133,13 @@ const CALLOUT_TAIL = 20;
 const CALLOUT_SECTOR_GAP = 2;
 /** Gap between the end of the tail and the text. */
 const CALLOUT_TEXT_GAP = 3;
-/** Sectors narrower than this get no callout label. */
+/**
+ * While the sectors are still growing their labels would slide around, so a
+ * label waits until its sector is this wide — or until the angles have settled,
+ * whichever comes first. A label inside a sector needs more of one than a
+ * callout does.
+ */
 const CALLOUT_MIN_SWEEP = 0.12;
-/** A label inside the sector needs more of a sector than a callout does. */
 const INSIDE_MIN_SWEEP = 0.25;
 /** However long the labels are, the pie keeps this share of the free radius. */
 const MIN_CALLOUT_RADIUS_RATIO = 0.35;
@@ -186,6 +205,61 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
 
   private get labelsInside(): boolean {
     return this.options.label?.placement === 'inside';
+  }
+
+  private get avoidsOverlap(): boolean {
+    return this.options.label?.avoidOverlap === true;
+  }
+
+  /** Whether a sector is big enough to be worth a label (label.minShare). */
+  private worthLabelling(value: number, total: number): boolean {
+    const minShare = this.options.label?.minShare ?? 0;
+    return minShare <= 0 || (total > 0 && value / total >= minShare);
+  }
+
+  /** Baseline-to-baseline room one callout label takes: they stack in rows beside the pie. */
+  private calloutRowHeight(ctx: PolarRenderContext, values: number[], total: number): number {
+    let height = 0;
+    values.forEach((value, index) => {
+      if (value <= 0) return;
+      height = Math.max(height, this.labelSize(this.labelParts(this.data[index], index, value, total), ctx.measureText).height);
+    });
+    return height + 6;
+  }
+
+  /**
+   * Which sectors get a callout label. Every one worth labelling by default —
+   * crowded labels are left to overlap rather than withheld. With
+   * label.avoidOverlap on the room has a say too: the labels stack in rows down
+   * each side of the pie, and once a side runs out of rows the narrowest
+   * sectors there are the ones that lose their label.
+   */
+  private calloutCandidates(ctx: PolarRenderContext, values: number[], total: number): Set<number> {
+    const drawn = new Set<number>();
+    values.forEach((value, index) => {
+      if (value > 0 && this.worthLabelling(value, total)) drawn.add(index);
+    });
+    if (!this.avoidsOverlap) return drawn;
+
+    const rotation = ((this.options.rotation ?? 0) * Math.PI) / 180;
+    const entries: Array<{ index: number; sweep: number; rightSide: boolean }> = [];
+    let cursor = rotation;
+    values.forEach((value, index) => {
+      const sweep = (value / total) * Math.PI * 2;
+      const midAngle = cursor + sweep / 2;
+      cursor += sweep;
+      if (drawn.has(index)) entries.push({ index, sweep, rightSide: Math.sin(midAngle) >= 0 });
+    });
+    const rows = Math.max(1, Math.floor(ctx.area.height / this.calloutRowHeight(ctx, values, total)));
+    const kept = new Set<number>();
+    for (const side of [true, false]) {
+      entries
+        .filter((entry) => entry.rightSide === side)
+        .sort((a, b) => b.sweep - a.sweep)
+        .slice(0, rows)
+        .forEach((entry) => kept.add(entry.index));
+    }
+    return kept;
   }
 
   /** Text of the value part: the share of the total unless the raw value was asked for. */
@@ -255,6 +329,30 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
   }
 
   /**
+   * Whether the label block gets to keep its spot. Without label.avoidOverlap
+   * every label is drawn; with it on the block asks the frame's guard for the
+   * room it measured for itself — the parts are several runs over two lines,
+   * so no single piece of text describes the box.
+   */
+  private fitsGuard(ctx: PolarRenderContext, parts: LabelPart[], x: number, y: number, align: 'left' | 'right' | 'center'): boolean {
+    const guard: LabelGuard | undefined = this.avoidsOverlap ? ctx.labelGuard : undefined;
+    if (!guard) return true;
+    const { width, height } = this.labelSize(parts, ctx.measureText);
+    const first = parts[0];
+    return guard.admits({
+      text: parts.map((one) => one.text).join(''),
+      x,
+      y,
+      align,
+      baseline: 'middle',
+      fontSize: first?.fontSize ?? 0,
+      font: first ? PieLikeSeries.partFont(first) : '',
+      width,
+      height,
+    });
+  }
+
+  /**
    * Draws the label block anchored at (x, y): `align` places the whole block
    * horizontally, the block is always centred on y. `outline` haloes the text
    * against the sector it sits on.
@@ -309,10 +407,12 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     if (total <= 0) return;
 
     const calloutEnabled = this.labelsShown && !this.labelsInside;
+    // taken from the finished layout, so the set does not change under the animation
+    const labelled = calloutEnabled ? this.calloutCandidates(ctx, values, total) : new Set<number>();
     // 85% of the free space by default, less when the callout labels need the room
     const outerRadius = Math.min(
       ctx.radius * (this.options.outerRadiusRatio ?? 0.85),
-      calloutEnabled ? this.calloutFittedRadius(ctx, values, total) : Infinity,
+      calloutEnabled ? this.calloutFittedRadius(ctx, values, total, labelled) : Infinity,
     );
     const innerRadius = outerRadius * this.innerRadiusRatio();
     const t = ctx.animationT ?? 1;
@@ -320,14 +420,21 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     const highlighted =
       ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
 
+    // while the sectors are still growing the labels of the small ones would
+    // slide around; they join once the angles have settled
+    const settled = (ctx.animationT ?? 1) >= 1 && (ctx.transitionT ?? 1) >= 1;
+
     const group = new Group();
     const callouts: Array<{
       index: number;
       midAngle: number;
+      sweep: number;
       outerRadius: number;
       actualOuterRadius: number;
       parts: LabelPart[];
     }> = [];
+    // collected and drawn after every sector, so no sector covers a label
+    const inside: Array<{ index: number; sweep: number; x: number; y: number; parts: LabelPart[] }> = [];
     const renderedAngles = new Map<number, { start: number; end: number }>();
     let cursor = rotation;
     values.forEach((value, index) => {
@@ -380,18 +487,19 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
 
       const midAngle = (geometry.startAngle + geometry.endAngle) / 2;
 
-      if (calloutEnabled && sweep > CALLOUT_MIN_SWEEP) {
+      if (labelled.has(index) && (settled || sweep > CALLOUT_MIN_SWEEP)) {
         // label layout is based on the base radius (hover only moves the line start)
         callouts.push({
           index,
           midAngle,
+          sweep,
           outerRadius,
           actualOuterRadius: geometry.outerRadius,
           parts: this.labelParts(data[index], index, value, total),
         });
       }
 
-      if (this.labelsShown && this.labelsInside && sweep > INSIDE_MIN_SWEEP) {
+      if (this.labelsShown && this.labelsInside && this.worthLabelling(value, total) && (settled || sweep > INSIDE_MIN_SWEEP)) {
         const ratio = this.options.label?.positionRatio ?? 0.7;
         const at = PolarSeries.pointAt(
           centerX,
@@ -399,12 +507,12 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
           midAngle,
           geometry.innerRadius + (geometry.outerRadius - geometry.innerRadius) * ratio,
         );
-        const parts = this.labelParts(data[index], index, value, total);
-        this.drawLabel(group, parts, at.x, at.y, 'center', ctx.measureText, this.colorFor(index));
+        inside.push({ index, sweep, x: at.x, y: at.y, parts: this.labelParts(data[index], index, value, total) });
       }
     });
     this.lastAngles = renderedAngles;
-    this.renderCallouts(group, callouts, centerX, centerY, ctx.measureText);
+    this.renderInsideLabels(group, inside, ctx);
+    this.renderCallouts(group, callouts, centerX, centerY, ctx);
     layer.append(group);
   }
 
@@ -414,7 +522,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
    * clears the area. Angles are taken from the finished layout — a radius tied
    * to the entrance animation would make the pie breathe while it grows.
    */
-  private calloutFittedRadius(ctx: PolarRenderContext, values: number[], total: number): number {
+  private calloutFittedRadius(ctx: PolarRenderContext, values: number[], total: number, labelled: Set<number>): number {
     const { area, centerX, centerY } = ctx;
     const radial = this.options.calloutLine?.radial?.length ?? CALLOUT_LENGTH;
     const tail = this.options.calloutLine?.horizontal?.length ?? CALLOUT_TAIL;
@@ -428,7 +536,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       const sweep = (value / total) * Math.PI * 2;
       const midAngle = cursor + sweep / 2;
       cursor += sweep;
-      if (value <= 0 || sweep <= CALLOUT_MIN_SWEEP) return;
+      if (!labelled.has(index)) return;
       const { width, height } = this.labelSize(this.labelParts(this.data[index], index, value, total), ctx.measureText);
       const sin = Math.sin(midAngle);
       const cos = Math.cos(midAngle);
@@ -447,17 +555,40 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
   }
 
   /**
+   * Labels inside the sectors. There is nowhere to move one, so with
+   * label.avoidOverlap on the widest sectors ask first and a label landing on
+   * a spot already taken is left out; without it every label is drawn.
+   */
+  private renderInsideLabels(
+    group: Group,
+    inside: Array<{ index: number; sweep: number; x: number; y: number; parts: LabelPart[] }>,
+    ctx: PolarRenderContext,
+  ): void {
+    const dropped = new Set<number>();
+    if (this.avoidsOverlap) {
+      for (const label of [...inside].sort((a, b) => b.sweep - a.sweep)) {
+        if (!this.fitsGuard(ctx, label.parts, label.x, label.y, 'center')) dropped.add(label.index);
+      }
+    }
+    for (const label of inside) {
+      if (dropped.has(label.index)) continue;
+      this.drawLabel(group, label.parts, label.x, label.y, 'center', ctx.measureText, this.colorFor(label.index));
+    }
+  }
+
+  /**
    * Callout labels: always two segments with fixed angles.
    * Collisions are resolved by changing the length of the first (radial) segment.
    */
   private renderCallouts(
     group: Group,
-    callouts: Array<{ index: number; midAngle: number; outerRadius: number; actualOuterRadius: number; parts: LabelPart[] }>,
+    callouts: Array<{ index: number; midAngle: number; sweep: number; outerRadius: number; actualOuterRadius: number; parts: LabelPart[] }>,
     centerX: number,
     centerY: number,
-    measureText: (text: string, font: string) => number,
+    ctx: PolarRenderContext,
   ): void {
     if (callouts.length === 0) return;
+    const measureText = ctx.measureText;
     const radial = this.options.calloutLine?.radial;
     const horizontal = this.options.calloutLine?.horizontal;
     // two-line labels need two lines' worth of room between neighbours
@@ -468,6 +599,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       return {
         index: callout.index,
         midAngle: callout.midAngle,
+        sweep: callout.sweep,
         actualOuterRadius: callout.actualOuterRadius,
         minRadius: callout.outerRadius + 4,
         parts: callout.parts,
@@ -488,23 +620,67 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
         if (last && lastEntry && entry.elbow.y < lastEntry.labelY + minGap) {
           last.push(entry);
           const mean = last.reduce((sum, item) => sum + item.elbow.y, 0) / last.length;
+          // a cluster too tall for the chart is squeezed into it instead of
+          // hanging off the canvas: the labels crowd, but every one is on screen
+          const step = Math.min(minGap, (ctx.area.height - minGap) / (last.length - 1));
           last.forEach((item, i) => {
-            item.labelY = mean + (i - (last.length - 1) / 2) * minGap;
+            item.labelY = mean + (i - (last.length - 1) / 2) * step;
           });
         } else {
           clusters.push([entry]);
         }
       }
+      // a tall cluster spread around its mean can run off the top or the bottom;
+      // the whole cluster slides back in, so the labels keep their spacing
+      for (const cluster of clusters) {
+        const first = cluster[0];
+        const last = cluster[cluster.length - 1];
+        if (!first || !last) continue;
+        const above = ctx.area.y + minGap / 2 - first.labelY;
+        const below = last.labelY - (ctx.area.y + ctx.area.height - minGap / 2);
+        const shift = above > 0 ? above : below > 0 ? -below : 0;
+        if (shift !== 0) cluster.forEach((item) => (item.labelY += shift));
+      }
+      // the sideways room an elbow has before its tail and text leave the area
+      const sideways = side ? ctx.area.x + ctx.area.width - centerX : centerX - ctx.area.x;
       for (const entry of sideEntries) {
         const cosMid = Math.cos(entry.midAngle);
-        if (Math.abs(cosMid) < 0.05) continue;
-        const t = Math.max(entry.minRadius, (centerY - entry.labelY) / cosMid);
-        entry.elbow = PolarSeries.pointAt(centerX, centerY, entry.midAngle, t);
-        entry.labelY = entry.elbow.y;
+        if (Math.abs(cosMid) >= 0.05) {
+          const sinMid = Math.abs(Math.sin(entry.midAngle));
+          // a label pushed far from its own angle asks for a long radial line;
+          // it is cut off at the edge of the area rather than run past it
+          const reach = sideways - (horizontal?.length ?? CALLOUT_TAIL) - CALLOUT_TEXT_GAP - this.labelSize(entry.parts, measureText).width;
+          const limit = sinMid > 0.001 ? Math.max(0, reach) / sinMid : Infinity;
+          const t = Math.max(entry.minRadius, Math.min((centerY - entry.labelY) / cosMid, limit));
+          entry.elbow = PolarSeries.pointAt(centerX, centerY, entry.midAngle, t);
+          entry.labelY = entry.elbow.y;
+        }
+        // the two segments are one line, so the elbow is the label's height by
+        // definition. Beside a sector at 3 or 9 o'clock no radial length reaches
+        // that height — the segment leans instead of leaving a gap behind.
+        entry.elbow = { x: entry.elbow.x, y: entry.labelY };
+      }
+    }
+
+    // where the text of an entry starts, once the elbows are final
+    const anchorX = (entry: (typeof entries)[number]): number => {
+      const direction = entry.rightSide ? 1 : -1;
+      return entry.elbow.x + ((horizontal?.length ?? CALLOUT_TAIL) + CALLOUT_TEXT_GAP) * direction;
+    };
+
+    // avoidOverlap gives the guard the last word. The widest sectors ask first,
+    // so a side that has run out of room drops the narrowest labels on it.
+    const dropped = new Set<number>();
+    if (this.avoidsOverlap) {
+      for (const entry of [...entries].sort((a, b) => b.sweep - a.sweep)) {
+        if (!this.fitsGuard(ctx, entry.parts, anchorX(entry), entry.labelY, entry.rightSide ? 'left' : 'right')) {
+          dropped.add(entry.index);
+        }
       }
     }
 
     for (const entry of entries) {
+      if (dropped.has(entry.index)) continue;
       const sectorColor = this.colorFor(entry.index);
       const direction = entry.rightSide ? 1 : -1;
       // starts at the current (possibly popped-out) sector edge: on hover
@@ -530,14 +706,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       tail.strokeWidth = horizontal?.strokeWidth ?? radial?.strokeWidth ?? 1;
       group.append(tail);
 
-      this.drawLabel(
-        group,
-        entry.parts,
-        endX + (entry.rightSide ? CALLOUT_TEXT_GAP : -CALLOUT_TEXT_GAP),
-        entry.labelY,
-        entry.rightSide ? 'left' : 'right',
-        measureText,
-      );
+      this.drawLabel(group, entry.parts, anchorX(entry), entry.labelY, entry.rightSide ? 'left' : 'right', measureText);
     }
   }
 

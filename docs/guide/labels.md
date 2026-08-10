@@ -44,6 +44,30 @@ A label placed inside its mark gets a halo in the mark's colour and its text
 colour flips to whatever reads on that fill, so it stays legible over a dark
 bar as well as a light one.
 
+## Sector labels
+
+A pie or a donut labels a sector rather than a mark, so its label is put
+together differently: the name and the value are one label of two parts, each
+with its own font and colour, and `label.placement` moves the whole of it.
+`'inside'` centres it in the sector over a halo of the sector colour:
+
+::: chart-example pie-rotation
+
+`'outside'` — the default — puts it beside the pie on a two-segment callout
+line. Callout labels crowd near the top and the bottom of the circle, where
+neighbouring sectors point almost the same way, so the pie spreads them down
+its sides and gives up radius until the longest of them fits the chart area.
+
+Which sectors get a label at all is `label.minShare`: below that share of the
+total a sector is drawn but left unlabelled, which is what keeps a long tail
+of slivers from burying the numbers that matter.
+
+::: chart-example donut-significant
+
+The [Pie and Donut](/series/pie) page has the full set: `layout` for putting
+the two parts in one row, `separator`, `positionRatio`, per-part fonts and the
+callout line options.
+
 ## Drawing order
 
 Labels are drawn above **all** the marks of the chart, not just the ones of
@@ -80,10 +104,19 @@ The rules are worth knowing before you turn it on:
   inside the mark (`placement: 'inner-top'`) or shorten it with a `formatter`.
 - **Boxes get a 2px gap.** Two labels count as touching while less than that
   separates them.
-- **Cartesian series and funnel/pyramid take the option.** Pie and donut spread
-  crowded callout labels along their side of the circle instead of dropping any,
-  and treemap prints a label only where the tile has room for it; sunburst,
-  sankey and chord draw every label they are given.
+- **Cartesian series, funnel/pyramid and pie/donut take the option.** A pie
+  spreads crowded callout labels along its side of the circle whether or not the
+  option is on; what the option adds is dropping the ones the spreading could
+  not find room for, narrowest sector first — and `label.minShare` there leaves
+  a long tail of slivers unlabelled outright. Treemap prints a label only where
+  the tile has room for it; sunburst, sankey and chord draw every label they are
+  given.
+
+On a pie the option works on the callout labels the spreading could not
+separate — with no threshold to pick, the sides of the circle hold as many
+labels as they have rows for:
+
+::: chart-example donut-crowded
 
 Shortening the text is often the better fix — `formatter` gives you full
 control:

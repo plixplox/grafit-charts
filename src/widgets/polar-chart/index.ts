@@ -24,7 +24,7 @@ import type {
 import { resolvePadding, type Datum, type PaddingValue } from '@/shared/options';
 import { BandScale, LinearScale } from '@/shared/scale';
 import { Circle, Group, Line, Path, Text, type Scene } from '@/shared/scene';
-import { textBounds, type Bounds } from '@/shared/util';
+import { LabelPlacements, textBounds, type Bounds } from '@/shared/util';
 
 export interface PolarChartInputs {
   data?: Datum[];
@@ -299,6 +299,9 @@ export class PolarChart implements ChartWidget {
     }
 
     const slots = this.assignAngleSlots(visibleSeries);
+    // one guard for the whole frame: series are asked in drawing order, so of
+    // two labels after the same spot the one drawn first keeps it
+    const labelGuard = new LabelPlacements(measureText);
     for (const series of this.series) {
       series.update({
         data,
@@ -308,6 +311,7 @@ export class PolarChart implements ChartWidget {
         area: avail,
         measureText,
         layer: seriesLayer,
+        labelGuard,
         highlight: this.inputs.highlight?.enabled !== false ? (this.highlight ?? this.fadeHighlight) : undefined,
         dimOpacity: this.effectiveDimOpacity(),
         highlightT: this.switchFrom ? this.popT : this.hoverT,

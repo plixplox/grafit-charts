@@ -38,6 +38,31 @@ The series `tooltip.renderer` receives the whole `datum`, so the tooltip can dis
 
 ::: chart-example donut-spacing
 
+## A long tail of small sectors
+
+A narrow sector is drawn however narrow it gets: the gap `sectorSpacing` asks
+for gives way rather than eating the sector it was meant to separate.
+
+Every sector gets a label too, whatever its size — by default the crowded ones
+simply overlap. Two options thin them out, and they answer different questions.
+
+`label.minShare` decides which sectors are worth a label at all: below that
+share of the total a sector is drawn but left unlabelled. This is what makes a
+long tail readable — the numbers that carry the chart get their callout, the
+slivers stay in the ring and in the tooltip.
+
+::: chart-example donut-significant
+
+`label.avoidOverlap` decides whether there is room for a label. The labels stack
+in rows down each side of the pie, and once a side runs out of rows the
+narrowest sectors on it are the ones that lose theirs — no threshold to pick,
+but which labels survive depends on the size of the chart.
+
+::: chart-example donut-crowded
+
+The two combine: `minShare` picks the sectors worth labelling, `avoidOverlap`
+guarantees that what is left never collides.
+
 ## Values in the legend
 
 `legendValue` shows the sector value to the right of the label; the tooltip here is
@@ -72,6 +97,8 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `label.layout`                       | `'stacked' \| 'inline'`                      | `'stacked'`              | the value on its own line under the name, or in a row with it             |
 | `label.separator`                    | `string`                                     | `' · '`                  | what separates the parts of an inline label                               |
 | `label.positionRatio`                | `Fraction`                                   | `0.7`                    | position along the radius (inside placement)                              |
+| `label.minShare`                     | `Fraction`                                   | `0`                      | share of the total a sector needs before it is worth a label              |
+| `label.avoidOverlap`                 | `boolean`                                    | `false`                  | drop the labels there is no room for instead of letting them overlap      |
 | `label.category.enabled`             | `boolean`                                    | on with `labelField`     | the sector name as part of the label                                      |
 | `label.category.fontSize`            | `Pixels`                                     | `11`                     | name font                                                                 |
 | `label.category.fontFamily`          | `string`                                     | theme font               | font family                                                               |

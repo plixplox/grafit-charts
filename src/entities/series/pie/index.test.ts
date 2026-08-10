@@ -1,6 +1,8 @@
 import { PieSeries, type PieSeriesOptions } from './index';
 import type { PolarRenderContext, SeriesEnv } from '@/shared/kernel';
-import { Group, Text } from '@/shared/scene';
+import type { Datum } from '@/shared/options';
+import { Group, Line, Text } from '@/shared/scene';
+import { LabelPlacements } from '@/shared/util';
 import { describe, expect, it } from 'vitest';
 
 const env: SeriesEnv = {
@@ -28,30 +30,36 @@ const data = [
 /** 10px per character — keeps the expectations arithmetic. */
 const measureText = (text: string) => text.length * 10;
 
-/** Text nodes the series draws, in drawing order. */
-function labels(options: Partial<PieSeriesOptions>): Text[] {
+/** Nodes of the given kind the series draws, in drawing order. */
+function render<T>(kind: abstract new (...args: never[]) => T, options: Partial<PieSeriesOptions>, rows: Datum[], areaHeight = 300): T[] {
   const series = new PieSeries({ type: 'pie', angleField: 'share', labelField: 'browser', ...options }, env);
-  series.setData(data);
+  series.setData(rows);
   const layer = new Group();
   const ctx: PolarRenderContext = {
-    data,
+    data: rows,
     centerX: 200,
     centerY: 150,
     radius: 100,
-    area: { x: 0, y: 0, width: 400, height: 300 },
+    area: { x: 0, y: 0, width: 400, height: areaHeight },
     measureText,
     layer,
+    labelGuard: new LabelPlacements(measureText),
   };
   series.update(ctx);
-  const found: Text[] = [];
+  const found: T[] = [];
   const walk = (node: { children?: unknown[] }) => {
     for (const child of node.children ?? []) {
-      if (child instanceof Text) found.push(child);
+      if (child instanceof kind) found.push(child);
       else walk(child as { children?: unknown[] });
     }
   };
   walk(layer as unknown as { children?: unknown[] });
   return found;
+}
+
+/** Text nodes the series draws, in drawing order. */
+function labels(options: Partial<PieSeriesOptions>, rows: Datum[] = data, areaHeight = 300): Text[] {
+  return render(Text, options, rows, areaHeight);
 }
 
 describe('sector labels', () => {
@@ -100,5 +108,72 @@ describe('sector labels', () => {
 
   it('draws nothing at all with labels off', () => {
     expect(labels({ label: { enabled: false } })).toEqual([]);
+  });
+});
+
+describe('callout lines', () => {
+  /** Twelve equal sectors, rotated so that one of them points due right. */
+  const wheel = Array.from({ length: 12 }, (_, index) => ({ browser: `Sector number ${index}`, share: 1 }));
+
+  it('joins the radial segment to the tail', () => {
+    // the two segments are one line: beside a sector at 3 or 9 o'clock no
+    // radial length reaches a label the clustering has moved, and the segment
+    // has to lean rather than leave the tail hanging
+    const drawn = render(Line, { rotation: 75, label: { value: { enabled: true } } }, wheel);
+    expect(drawn).toHaveLength(24);
+    for (let index = 0; index < drawn.length; index += 2) {
+      const radial = drawn[index];
+      const tail = drawn[index + 1];
+      expect([tail?.x1, tail?.y1]).toEqual([radial?.x2, radial?.y2]);
+    }
+  });
+});
+
+describe('sector labels that avoid overlap', () => {
+  /** One sector of everything and a sliver of half a percent. */
+  const sliver = [
+    { browser: 'Chrome', share: 199 },
+    { browser: 'Lynx', share: 1 },
+  ];
+
+  it('labels a sector however narrow it is, overlap and all', () => {
+    expect(labels({}, sliver).map((node) => node.text)).toEqual(['Chrome', 'Lynx']);
+    expect(labels({ label: { avoidOverlap: true } }, sliver).map((node) => node.text)).toEqual(['Chrome', 'Lynx']);
+  });
+
+  it('leaves a sector under minShare unlabelled, callout or inside', () => {
+    // the sliver is half a percent of the total, the threshold is two
+    expect(labels({ label: { minShare: 0.02 } }, sliver).map((node) => node.text)).toEqual(['Chrome']);
+    expect(labels({ label: { minShare: 0.02, placement: 'inside' } }, sliver).map((node) => node.text)).toEqual(['Chrome']);
+    // and it keeps its label right up to the threshold
+    expect(labels({ label: { minShare: 0.005 } }, sliver).map((node) => node.text)).toEqual(['Chrome', 'Lynx']);
+  });
+
+  it('hands the rows of a crowded side to the widest sectors', () => {
+    // 40px of height is two rows a side: 'Chrome' has the right side to itself,
+    // and of the five on the left only the two widest keep their label
+    const crowded = [
+      { browser: 'Chrome', share: 40 },
+      { browser: 'Safari', share: 30 },
+      { browser: 'Edge', share: 12 },
+      { browser: 'Firefox', share: 8 },
+      { browser: 'Opera', share: 6 },
+      { browser: 'Lynx', share: 4 },
+    ];
+    const texts = labels({ label: { avoidOverlap: true } }, crowded, 40).map((node) => node.text);
+    expect(texts.sort()).toEqual(['Chrome', 'Edge', 'Safari']);
+  });
+
+  it('drops an inside label that runs into one already drawn', () => {
+    // at 10px per character these two names are wider than the halves they sit
+    // in, and both are centred on the same horizontal line
+    const pair = [
+      { browser: 'Chrome Canary Dev', share: 50 },
+      { browser: 'Safari Technology', share: 50 },
+    ];
+    const inside: Partial<PieSeriesOptions> = { label: { placement: 'inside' } };
+    // by default they simply overlap
+    expect(labels(inside, pair).map((node) => node.text)).toEqual(['Chrome Canary Dev', 'Safari Technology']);
+    expect(labels({ label: { ...inside.label, avoidOverlap: true } }, pair).map((node) => node.text)).toEqual(['Chrome Canary Dev']);
   });
 });

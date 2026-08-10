@@ -158,7 +158,6 @@ function mainSidebar(locale: DocsLocale) {
       collapsed: false,
       items: [
         { text: t.seriesOptions, link: `${base}/guide/series-options` },
-        { text: t.labels, link: `${base}/guide/labels` },
         { text: t.axes, link: `${base}/guide/axes` },
       ],
     },
@@ -166,6 +165,7 @@ function mainSidebar(locale: DocsLocale) {
       text: t.chartComponents,
       collapsed: false,
       items: [
+        { text: t.labels, link: `${base}/guide/labels` },
         { text: t.captions, link: `${base}/interactivity/captions` },
         { text: t.legend, link: `${base}/interactivity/legend` },
         { text: t.tooltip, link: `${base}/interactivity/tooltip` },

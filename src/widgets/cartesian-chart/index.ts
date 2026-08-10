@@ -461,6 +461,8 @@ export class CartesianChart implements SyncMember {
     const padding = resolvePadding(this.inputs.padding, DEFAULT_PADDING);
     const measureText = (text: string, font: string) => this.scene.measureText(text, font);
     const legend = this.legend;
+    // a series whose legend items come from the data (histogram groups) needs it before the first draw
+    for (const series of this.series) series.setData?.(this.inputs.data ?? []);
     if (legend?.enabled) legend.setItems(this.series.flatMap((series) => series.legendItems()));
     // a floating legend is anchored to the whole chart area (captions included) and reserves no space
     const floatRect: LayoutRect | undefined =
@@ -770,6 +772,8 @@ export class CartesianChart implements SyncMember {
           xScale: xAxis.scale,
           yScale: yAxis.scale,
           theme: this.theme,
+          // annotations pinned to a statistic (mean, p95) recompute with the data
+          data: this.inputs.data ?? [],
         });
       }
     }
@@ -1087,6 +1091,20 @@ export class CartesianChart implements SyncMember {
       this.requestRender();
       return;
     }
+    // items of a series that has several (histogram groups): id in the form "<seriesId>#<index>"
+    const hashIndex = seriesId.lastIndexOf('#');
+    if (hashIndex > 0) {
+      const owner = this.series.find((instance) => instance.id === seriesId.slice(0, hashIndex));
+      const itemIndex = Number(seriesId.slice(hashIndex + 1));
+      if (owner?.toggleItem && Number.isFinite(itemIndex)) {
+        owner.toggleItem(itemIndex);
+        const item = owner.legendItems().find((entry) => entry.seriesId === seriesId);
+        this.inputs.listeners?.legendItemClick?.({ seriesId, visible: item?.visible !== false });
+        this.layoutAndRender();
+        this.requestRender();
+      }
+      return;
+    }
     const series = this.series.find((instance) => instance.id === seriesId);
     if (!series) return;
     series.visible = !series.visible;
@@ -1274,8 +1292,11 @@ export class CartesianChart implements SyncMember {
     if (!annotations?.length || !cache?.xAxis || !cache.yAxis) return undefined;
     for (let i = 0; i < annotations.length; i++) {
       const annotation = annotations[i];
+      // a line the data decides (a computed stat) cannot be dragged: it snaps back on the next frame
+      const declared: unknown = (annotation as { value?: unknown })?.value;
+      if (typeof declared === 'object' && declared !== null && 'stat' in declared) continue;
       if (annotation?.type === 'horizontal-line') {
-        const py = (cache.yAxis.scale as LinearScale).convert(annotation.value);
+        const py = (cache.yAxis.scale as LinearScale).convert(Number(declared));
         if (Math.abs(py - y) <= 5 && x >= this.plot.x && x <= this.plot.x + this.plot.width) return i;
       } else if (annotation?.type === 'vertical-line') {
         const scale = cache.xAxis.scale;

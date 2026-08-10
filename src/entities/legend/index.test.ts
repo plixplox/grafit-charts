@@ -343,6 +343,36 @@ describe('size limits', () => {
     expect(byHeight.height).toBeLessThan(byRows.height);
   });
 
+  it('reads a percentage cap against the room the layout offered', () => {
+    // 30% of the 1000 the layout hands over — the same limit as the pixel form
+    expect(measure({ position: 'right', maxWidth: '30%' })).toEqual(measure({ position: 'right', maxWidth: 300 }));
+    expect(labelsOf({ position: 'right', maxWidth: '14%' })).toEqual(labelsOf({ position: 'right', maxWidth: 140 }));
+  });
+
+  it('follows the room a percentage cap is read against', () => {
+    const wide = measure({ position: 'right', maxWidth: '30%' }, long, 1000);
+    const narrow = measure({ position: 'right', maxWidth: '30%' }, long, 600);
+    expect(wide.width).toBeGreaterThan(narrow.width);
+  });
+
+  it('paginates a horizontal legend within a percentage of the height', () => {
+    const items = Array.from({ length: 8 }, (_, index) => ({
+      seriesId: `s${index}`,
+      label: `Series ${index}`,
+      color: '#111',
+      visible: true,
+    }));
+    const byRows = measure({ position: 'bottom', maxRows: 2 }, items, 140, 300);
+    // 40 of the 300 the layout offers — the pixel form of the same cap
+    const byHeight = measure({ position: 'bottom', maxRows: 2, maxHeight: '13.34%' }, items, 140, 300);
+    expect(byHeight.height).toBeLessThan(byRows.height);
+    expect(byHeight).toEqual(measure({ position: 'bottom', maxRows: 2, maxHeight: 40 }, items, 140, 300));
+  });
+
+  it('ignores a malformed cap instead of collapsing the legend', () => {
+    expect(measure({ position: 'right', maxWidth: '160px' as '160%' })).toEqual(measure({ position: 'right' }));
+  });
+
   it('gives the pager its room only once there is a page to reach', () => {
     // exactly two rows' worth of height: without a pager both items are one page
     const rowStep = measure({ position: 'right' }, long).height;

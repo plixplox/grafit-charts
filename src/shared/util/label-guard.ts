@@ -24,7 +24,8 @@ export class LabelPlacements implements LabelGuard {
 
   /** Takes the box for the label when it is free; false — the spot is occupied. */
   admits(box: LabelBox): boolean {
-    const bounds = textBounds(box.x, box.y, this.measureText(box.text, box.font), box.fontSize, box.align, box.baseline);
+    const width = box.width ?? this.measureText(box.text, box.font);
+    const bounds = textBounds(box.x, box.y, width, box.height ?? box.fontSize, box.align, box.baseline);
     if (this.taken.some((other) => collides(other, bounds, this.gap))) return false;
     this.taken.push(bounds);
     return true;

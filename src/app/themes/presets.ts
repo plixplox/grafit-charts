@@ -74,7 +74,7 @@ export const BUILT_IN: Record<ThemeName, ThemeContext> = {
   }),
   dark: theme({
     fills: FILLS,
-    backgroundColor: '#15181c',
+    backgroundColor: '#181612',
     foregroundColor: '#e8eaed',
     mutedColor: '#8b919c',
     axisColor: '#343a43',

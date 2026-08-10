@@ -192,3 +192,43 @@ test('a pie chart drives its tooltip and selection but warns off the zoom', asyn
     console.warn = original;
   }
 });
+
+/** A click where a pointer would put it: container-relative coordinates. */
+function clickAt(container: HTMLElement, x: number, y: number): void {
+  const rect = container.getBoundingClientRect();
+  const init = { clientX: rect.left + x, clientY: rect.top + y, bubbles: true, pointerId: 1 };
+  container.dispatchEvent(new PointerEvent('pointerdown', init));
+  container.dispatchEvent(new PointerEvent('pointerup', init));
+}
+
+test('a legend click switches one group of a grouped histogram off', async () => {
+  const rows = [
+    { duration: 2, plan: 'Free' },
+    { duration: 4, plan: 'Free' },
+    { duration: 12, plan: 'Free' },
+    { duration: 6, plan: 'Pro' },
+    { duration: 16, plan: 'Pro' },
+  ];
+  const clicks: Array<{ seriesId: string; visible: boolean }> = [];
+  await withChart(
+    {
+      data: rows,
+      series: [{ type: 'histogram', xField: 'duration', groupField: 'plan', binWidth: 10 }],
+      animation: { enabled: false },
+      width: 480,
+      height: 300,
+      listeners: { legendItemClick: (event) => void clicks.push(event) },
+    },
+    async (chart, container) => {
+      // the legend sits along the bottom; sweep it until an item answers
+      for (let y = 270; y < 300 && clicks.length === 0; y += 4) {
+        for (let x = 0; x < 480 && clicks.length === 0; x += 4) clickAt(container, x, y);
+      }
+      await chart.waitForUpdate();
+      // group items are addressed as "<seriesId>#<index>" — the series itself stays visible
+      expect(clicks).toHaveLength(1);
+      expect(clicks[0]!.seriesId).toMatch(/#\d+$/);
+      expect(clicks[0]!.visible).toBe(false);
+    },
+  );
+});

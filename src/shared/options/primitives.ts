@@ -6,6 +6,10 @@ export type ColorValue = string;
 export type Fraction = number;
 export type Pixels = number;
 export type Degrees = number;
+/** A share of the room a length is measured against, written CSS-style: `'40%'`. */
+export type Percentage = `${number}%`;
+/** A length in pixels, or a percentage of the room the option is measured against. */
+export type Length = Pixels | Percentage;
 
 export interface Switchable {
   enabled?: boolean;

@@ -19,8 +19,8 @@ When building with [grafit-charts/core](/guide/bundle), the legend is a separate
 | `avoidCaptions`         | `boolean`                                | `true`       | floating only: title/subtitle flow around the legend box |
 | `toggleSeries`          | `boolean`                                | `true`       | click toggles visibility     |
 | `maxRows`               | `number`                                 | `2`          | rows per page in a horizontal legend |
-| `maxWidth`              | `Pixels`                                 | the chart    | width the legend never goes past ([below](#size-limits)) |
-| `maxHeight`             | `Pixels`                                 | the chart    | height the legend never goes past ([below](#size-limits)) |
+| `maxWidth`              | `Length`                                 | the chart    | width the legend never goes past ([below](#size-limits)) |
+| `maxHeight`             | `Length`                                 | the chart    | height the legend never goes past ([below](#size-limits)) |
 | `reverse`               | `boolean`                                | `false`      | render the items back to front |
 | `item.marker`           | `LegendMarkerOptions`                    | —            | marker glyph ([below](#markers)) |
 | `item.label.fontSize`   | `Pixels`                              | `12`         | label font size              |
@@ -56,6 +56,14 @@ A legend takes what its items need, and with long series names a vertical one ta
 ```js
 legend: { position: 'right', maxWidth: 160 },
 ```
+
+Both take pixels or a percentage string — `'40%'` is read against the room the layout offered the legend: the chart minus its padding and the captions, or the whole chart area for a floating legend. A cap that keeps its share of the chart as it resizes is what a responsive chart usually wants:
+
+```js
+legend: { position: 'right', maxWidth: '25%' },
+```
+
+A malformed value (`'160px'`, `'%'`) is ignored and the legend stays unbounded.
 
 A label is cut to the room its item has whether or not `maxWidth` is set — the chart width is the limit either way, so a name too long for the chart never runs off it.
 

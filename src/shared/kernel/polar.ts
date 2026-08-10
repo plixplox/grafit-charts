@@ -1,6 +1,7 @@
 /** Contracts of the polar family (pie/donut/radar/radial). */
 import type {
   HighlightState,
+  LabelGuard,
   LayoutRect,
   LegendItemDescriptor,
   MeasureText,
@@ -22,6 +23,8 @@ export interface PolarRenderContext {
   area: LayoutRect;
   measureText: MeasureText;
   layer: Group;
+  /** Room the labels of the frame have taken (label.avoidOverlap); without it nothing is hidden. */
+  labelGuard?: LabelGuard;
   highlight?: HighlightState;
   animationT?: number;
   /** Opacity of the other series while highlighting. */
