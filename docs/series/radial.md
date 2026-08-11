@@ -25,14 +25,14 @@ Inverted layout: categories are rings along the radius, the value is an arc alon
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
 
-| Option        | Type         | Default       | Description    |
-| ------------- | ------------ | ------------- | -------------- |
-| `angleField`  | `string`     | —             | data keys      |
-| `radiusField` | `string`     | —             | data keys      |
-| `name`        | `string`     | `radiusField` | series name    |
-| `fill`        | `ColorValue` | palette       | sector fill    |
-| `fillOpacity` | `Fraction`   | `0.85`        | sector fill    |
-| `stroke`      | `ColorValue` | background    | stroke         |
-| `strokeWidth` | `Pixels`     | `1`           | stroke         |
-| `groupGap`    | `Fraction`   | `0.2`         | gap between sectors of one group (radial-column) |
-| `sectorSpacing` | `Pixels`   | `1`           | constant-width gap between adjacent sectors |
+| Option          | Type         | Default       | Description                                      |
+| --------------- | ------------ | ------------- | ------------------------------------------------ |
+| `angleField`    | `string`     | —             | data keys                                        |
+| `radiusField`   | `string`     | —             | data keys                                        |
+| `name`          | `string`     | `radiusField` | series name                                      |
+| `fill`          | `ColorValue` | palette       | sector fill                                      |
+| `fillOpacity`   | `Fraction`   | `0.85`        | sector fill                                      |
+| `stroke`        | `ColorValue` | background    | stroke                                           |
+| `strokeWidth`   | `Pixels`     | `1`           | stroke                                           |
+| `groupGap`      | `Fraction`   | `0.2`         | gap between sectors of one group (radial-column) |
+| `sectorSpacing` | `Pixels`     | `1`           | constant-width gap between adjacent sectors      |

@@ -6,13 +6,18 @@
 
 ```ts
 const state = chart.getState();
-// { zoom: { x: [0.25, 0.75] }, hiddenSeries: ['line-1'] }
+// { zoom: { x: [0.25, 0.75] }, hiddenSeries: ['line-1', 'histogram-0#1'] }
 localStorage.setItem('chart-state', JSON.stringify(state));
 
 // восстановление — при создании или на живом инстансе
 Charts.create({ ...options, initialState: JSON.parse(saved) });
 await chart.setState(JSON.parse(saved));
 ```
+
+В `hiddenSeries` попадают и элементы серии, которая кладёт в легенду несколько
+пунктов, — секторы pie/donut и группы гистограммы, в виде `'seriesId#index'`. Они
+восстанавливаются вместе со всем остальным, и, поскольку серии пересобираются на
+каждом `update()`, именно это не даёт фильтру легенды слетать при любой правке опций.
 
 ## Синхронизация чартов
 

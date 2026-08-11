@@ -17,6 +17,7 @@ import type {
   LabelOverflowContext,
   LegendItemDescriptor,
   SeriesModule,
+  SeriesNodeInfo,
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
@@ -25,7 +26,30 @@ import { LinearScale } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
 
-export interface HistogramSeriesOptions extends Omit<SeriesBaseOptions, 'yField' | 'name'>, BinningOptions {
+/**
+ * What a histogram tooltip is written about: a bin, not a row. The renderer
+ * gets the bin's bounds and both readings of its height — the one the bar
+ * draws and the aggregate it came from.
+ */
+export interface HistogramTooltipRendererParams {
+  /** Lower bound of the bin, inclusive by default. */
+  x0: number;
+  /** Upper bound of the bin. */
+  x1: number;
+  /** What the bar draws — the aggregate restated by `normalize`. */
+  value: number;
+  /** The aggregate before normalization. */
+  raw: number;
+  /** Rows that landed in the bin. */
+  count: number;
+  /** Value of `groupField` for this bar; undefined without grouping. */
+  group?: unknown;
+  /** The group's label, or the series name when nothing splits it. */
+  seriesName: string;
+  color: ColorValue;
+}
+
+export interface HistogramSeriesOptions extends Omit<SeriesBaseOptions<HistogramTooltipRendererParams>, 'yField' | 'name'>, BinningOptions {
   type: 'histogram';
   /** Numeric field used to build the bins. */
   xField: string;
@@ -366,6 +390,26 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
     return undefined;
   }
 
+  /**
+   * The bin a bar index stands for. Without this a listener would read the
+   * index as a row of the data, and a bin is not a row — the rows behind it
+   * are however many landed in it.
+   */
+  nodeInfo(nodeIndex: number): SeriesNodeInfo | undefined {
+    const found = this.sliceAt(nodeIndex);
+    if (!found) return undefined;
+    const { edge, slice, groupIndex } = found;
+    return {
+      kind: 'bin',
+      x0: edge.x0,
+      x1: edge.x1,
+      value: slice.value,
+      raw: slice.raw,
+      count: slice.count,
+      group: this.model.groups[groupIndex]?.key,
+    };
+  }
+
   /** Bins, not datums: the index counts bars — bin by bin, group within bin. */
   nodeAt(nodeIndex: number): SeriesPick | undefined {
     const rect = this.rects.find((candidate) => this.nodeIndex(candidate.binIndex, candidate.groupIndex) === nodeIndex);
@@ -377,6 +421,23 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
     const found = this.sliceAt(nodeIndex);
     if (!found) return { rows: [] };
     const { edge, slice, groupIndex } = found;
+    const group = this.model.groups[groupIndex];
+
+    const renderer = this.options.tooltip?.renderer;
+    if (renderer) {
+      const result = renderer({
+        x0: edge.x0,
+        x1: edge.x1,
+        value: slice.value,
+        raw: slice.raw,
+        count: slice.count,
+        group: group?.key,
+        seriesName: this.model.grouped ? (group?.label ?? this.seriesName) : this.seriesName,
+        color: this.colorFor(groupIndex),
+      });
+      return typeof result === 'string' ? { heading: result, rows: [] } : result;
+    }
+
     const normalized = this.options.normalize !== undefined && this.options.normalize !== 'none';
     const percentOfBin = this.model.grouped && this.groupMode === 'normalized';
     // a share is easier to trust next to the count it came from
@@ -396,6 +457,13 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
     } else {
       this.hiddenGroups.add(groupIndex);
     }
+    this.hiddenVersion += 1;
+  }
+
+  /** The chart handing back the filter it kept across an update. */
+  setHiddenItems(hidden: ReadonlySet<number>): void {
+    this.hiddenGroups.clear();
+    for (const index of hidden) this.hiddenGroups.add(index);
     this.hiddenVersion += 1;
   }
 

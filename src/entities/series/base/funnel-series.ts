@@ -1,6 +1,5 @@
 import { CartesianSeries } from './cartesian-series';
 import type { LabelFont } from './rect-label';
-import { numericValues } from '@/shared/data';
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type {
   CartesianGeometry,
@@ -8,12 +7,45 @@ import type {
   Insets,
   LabelOverflowContext,
   LegendItemDescriptor,
+  MeasureText,
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Switchable, Showable } from '@/shared/options';
-import { Group, Line, Path, Rect, Text } from '@/shared/scene';
-import { contrastTextColor, maxOverflow, overflowOutside, textBounds, NO_OVERFLOW } from '@/shared/util';
+import type {
+  ColorValue,
+  Datum,
+  FontOptions,
+  Formattable,
+  PartLabelBlockOptions,
+  PartLabelLayout,
+  PartNameParams,
+  PartValueLabelOptions,
+  Pixels,
+  Switchable,
+  Showable,
+} from '@/shared/options';
+import { Group, Line, Path, Rect } from '@/shared/scene';
+import {
+  applySelection,
+  contrastTextColor,
+  crowdedOut,
+  drawLabelBlock,
+  formattedText,
+  formatValue,
+  labelBlockSize,
+  labelParts,
+  maxOverflow,
+  overflowOutside,
+  partFont,
+  partText,
+  partTooltip,
+  partValues,
+  textBounds,
+  tooltipContentOf,
+  worthLabelling,
+  NO_OVERFLOW,
+  type LabelPart,
+} from '@/shared/util';
 
 export interface FunnelSeriesBaseOptions extends Showable {
   id?: string;
@@ -21,6 +53,14 @@ export interface FunnelSeriesBaseOptions extends Showable {
   stageField: string;
   /** Stage value. */
   valueField: string;
+  /**
+   * How the value of `stageField` becomes text — for the legend, the tooltip
+   * heading and the name half of a stage label alike. A name is a field value,
+   * and the format of that field belongs to the series rather than to each
+   * place the name is printed in. `label.category` overrides it where a label
+   * wants something shorter than the legend.
+   */
+  stageName?: Formattable<PartNameParams>;
   name?: string;
   fills?: ColorValue[];
   showInLegend?: boolean;
@@ -28,16 +68,48 @@ export interface FunnelSeriesBaseOptions extends Showable {
   itemSpacing?: Pixels;
   /** Fraction of the plot width used by the shape (0.62 by default); independent of labels. */
   widthRatio?: number;
-  /** Labels: inside (auto-contrast) or outside on the right. */
+  /**
+   * Stage labels: the name and the value of a stage, drawn as one block so the
+   * two always read together — each half with its own font, `layout` putting
+   * the value in the same row (default) or on a line of its own. `placement`
+   * moves the whole block inside the segment (auto-contrast) or outside it, on
+   * a callout line to the right.
+   */
   label?: Switchable &
     FontOptions &
-    LabelOverlapOptions & {
+    PartLabelBlockOptions<FunnelLabelFormatterParams> & {
       placement?: 'inside' | 'outside';
+      /** The whole label at once; it wins over `category`/`value`. */
       formatter?: (params: { datum: Datum; stage: string; value: number }) => string;
     };
   /** Line from a segment to its outside label (segment color by default). */
   calloutLine?: Switchable & { length?: Pixels; stroke?: ColorValue; strokeWidth?: Pixels };
+  tooltip?: Switchable & {
+    renderer?: (params: FunnelTooltipRendererParams) => TooltipContentData | string;
+  };
 }
+
+export interface FunnelTooltipRendererParams {
+  datum: Datum;
+  /** Stage name (stageField). */
+  stage: string;
+  /** Value of valueField. */
+  value: unknown;
+  color: ColorValue;
+}
+
+export interface FunnelLabelFormatterParams {
+  datum: Datum;
+  /** Stage name (stageField). */
+  stage: string;
+  /** Value of valueField. */
+  value: unknown;
+  /** Share of the total, 0..1. */
+  share: number;
+}
+
+/** Stage value — the value itself by default; `type: 'percent'` reads it as a share. */
+export type FunnelValueLabelOptions = PartValueLabelOptions<FunnelLabelFormatterParams>;
 
 interface StageGeometry {
   index: number;
@@ -52,7 +124,11 @@ interface StageLayout extends StageGeometry {
   nextWidth: number;
   /** Where the callout line leaves the shape. */
   edgeX: number;
-  text: string;
+  /** The label of the stage, run by run: the name, the separator, the value. */
+  parts: LabelPart[];
+  value: number;
+  /** Whether the stage is a big enough share of the total to be worth a label. */
+  labelled: boolean;
 }
 
 const DEFAULT_WIDTH_RATIO = 0.62;
@@ -95,10 +171,16 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
     const data = this.lastCtx?.data ?? [];
     return data.map((datum, index) => ({
       seriesId: `${this.id}#${index}`,
-      label: String(datum[this.options.stageField]),
+      label: this.stageNameOf(datum),
       color: this.colorFor(index),
       visible: true,
     }));
+  }
+
+  /** Name of a stage: the value of stageField, as `stageName` spells it out. */
+  protected stageNameOf(datum: Datum): string {
+    const raw = datum[this.options.stageField];
+    return partText(raw, this.options.stageName, { datum, value: raw });
   }
 
   /** Font of the stage labels: the options over the theme default. */
@@ -111,10 +193,102 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
     };
   }
 
-  private labelTextFor(datum: Datum, value: number): string {
-    const stage = String(datum[this.options.stageField]);
-    const formatter = this.options.label?.formatter;
-    return formatter ? formatter({ datum, stage, value }) : `${stage} · ${value}`;
+  /** Whether the name of a stage is part of its label. */
+  private get categoryShown(): boolean {
+    return this.options.label?.category?.enabled !== false;
+  }
+
+  /** A funnel reads as "stage · value", so the value is part of the label by default. */
+  private get valueShown(): boolean {
+    return this.options.label?.value?.enabled !== false;
+  }
+
+  private get labelsOutside(): boolean {
+    return this.options.label?.placement === 'outside';
+  }
+
+  /** 'inline' by default: the value follows the name behind a separator. */
+  private get labelLayout(): PartLabelLayout {
+    return this.options.label?.layout ?? 'inline';
+  }
+
+  /**
+   * Text of the name half. The field a stage is named by carries a format of
+   * its own — a date, a code — so the name is formatted like the value beside
+   * it rather than printed raw.
+   */
+  private categoryText(datum: Datum, stage: string, value: number, total: number): string {
+    // a label may want something shorter than the legend, so its own format
+    // wins; without one the stage reads the same wherever its name appears
+    return (
+      formattedText(datum[this.options.stageField], this.options.label?.category, {
+        datum,
+        stage,
+        value: datum[this.options.valueField],
+        share: total > 0 ? value / total : 0,
+      }) ?? stage
+    );
+  }
+
+  /** Text of the value half: the raw value unless a share was asked for. */
+  private valueText(datum: Datum, stage: string, value: number, total: number): string {
+    const options = this.options.label?.value;
+    const share = total > 0 ? value / total : 0;
+    const raw = datum[this.options.valueField];
+    if (options?.formatter) return options.formatter({ datum, stage, value: raw, share });
+    if (options?.type === 'percent') return options.format ? formatValue(options.format, share) : `${Math.round(share * 100)}%`;
+    return options?.format ? formatValue(options.format, raw) : String(raw);
+  }
+
+  /**
+   * The label of one stage, run by run. `label.formatter` speaks for the whole
+   * label when it is given; otherwise the name and the value are two runs, each
+   * with its own font over the label's.
+   */
+  private labelPartsFor(datum: Datum, index: number, value: number, total: number): LabelPart[] {
+    const options = this.options.label;
+    const stage = this.stageNameOf(datum);
+    const font = this.labelFontOf();
+    const defaults = {
+      fontSize: font.size,
+      fontFamily: font.family,
+      fontWeight: font.weight,
+      color: options?.color ?? (this.labelsOutside ? this.env.theme.foregroundColor : contrastTextColor(this.colorFor(index))),
+    };
+    if (options?.formatter) {
+      return labelParts([{ text: options.formatter({ datum, stage, value }) }], defaults, options);
+    }
+    const entries: Array<{ text: string; font?: Switchable & FontOptions }> = [];
+    if (this.categoryShown) entries.push({ text: this.categoryText(datum, stage, value, total), font: options?.category });
+    if (this.valueShown) entries.push({ text: this.valueText(datum, stage, value, total), font: options?.value });
+    return labelParts(entries, defaults, { layout: this.labelLayout, separator: options?.separator });
+  }
+
+  /** Size of the whole label block — what the layout has to find room for. */
+  private labelSize(parts: LabelPart[], measureText: MeasureText): { width: number; height: number } {
+    return labelBlockSize(parts, measureText, this.labelLayout);
+  }
+
+  /**
+   * Whether the label block gets to keep its spot: the runs span several lines,
+   * so no single piece of text describes the box it takes.
+   */
+  private blockFits(ctx: CartesianRenderContext, parts: LabelPart[], x: number, y: number, align: 'left' | 'center'): boolean {
+    const guard = ctx.labelGuard;
+    if (!guard) return true;
+    const { width, height } = this.labelSize(parts, ctx.measureText);
+    const first = parts[0];
+    return guard.admits({
+      text: parts.map((one) => one.text).join(''),
+      x,
+      y,
+      align,
+      baseline: 'middle',
+      fontSize: first?.fontSize ?? 0,
+      font: first ? partFont(first) : '',
+      width,
+      height,
+    });
   }
 
   /** Distance from the shape edge to the start of an outside label. */
@@ -128,7 +302,7 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
    */
   private layoutStages(ctx: CartesianGeometry, t: number): StageLayout[] {
     const { data, plot } = ctx;
-    const values = numericValues(data, this.options.valueField).map((value) => (Number.isNaN(value) || value < 0 ? 0 : value));
+    const values = partValues(data, this.options.valueField);
     const max = Math.max(...values, 0);
     if (max <= 0 || data.length === 0) return [];
 
@@ -136,6 +310,7 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
     const stageHeight = (plot.height - stageGap * (data.length - 1)) / data.length;
     const widthFactor = this.options.widthRatio ?? DEFAULT_WIDTH_RATIO;
     const centerX = plot.x + plot.width / 2;
+    const total = values.reduce((sum, value) => sum + value, 0);
 
     return data.map((datum, index) => {
       const value = values[index] ?? 0;
@@ -150,7 +325,9 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
         height: stageHeight,
         nextWidth,
         edgeX: centerX + (this.trapezoid() ? (width + nextWidth) / 4 : width / 2),
-        text: this.labelTextFor(datum, value),
+        parts: this.labelPartsFor(datum, index, value, total),
+        value,
+        labelled: worthLabelling(value, total, this.options.label?.minShare),
       };
     });
   }
@@ -162,13 +339,13 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
   override labelOverflow(ctx: LabelOverflowContext): Insets {
     const label = this.options.label;
     if (!this.visible || label?.enabled === false || label?.placement !== 'outside') return NO_OVERFLOW;
-    const font = this.labelFontOf();
-    const fontSpec = `${font.weight} ${font.size}px ${font.family}`;
     const reach = this.calloutReach();
     let overflow = NO_OVERFLOW;
     for (const stage of this.layoutStages(ctx, 1)) {
-      const width = ctx.measureText(stage.text, fontSpec);
-      const bounds = textBounds(stage.edgeX + reach, stage.y + stage.height / 2, width, font.size, 'left', 'middle');
+      if (!stage.labelled) continue;
+      // the block, not a single line: a stacked label is taller and only as wide as its widest run
+      const { width, height } = this.labelSize(stage.parts, ctx.measureText);
+      const bounds = textBounds(stage.edgeX + reach, stage.y + stage.height / 2, width, height, 'left', 'middle');
       overflow = maxOverflow(overflow, overflowOutside(bounds, ctx.plot));
     }
     return overflow;
@@ -182,12 +359,16 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
     const centerX = plot.x + plot.width / 2;
     const group = new Group();
     const labels = new Group();
+    // the labels are drawn after every segment, so the guard sees them in the
+    // order of the stage size rather than top to bottom
+    const pending: Array<{ layout: StageLayout; x: number; y: number }> = [];
 
     this.layoutStages(ctx, ctx.animationT ?? 1).forEach((layout) => {
       const { index, width, nextWidth, y, height: stageHeight } = layout;
       const stage: StageGeometry = { index, x: layout.x, y, width, height: stageHeight };
       this.stages.push(stage);
 
+      let mark: Path | Rect;
       if (this.trapezoid()) {
         const path = new Path();
         path.moveTo(centerX - width / 2, y);
@@ -196,7 +377,7 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
         path.lineTo(centerX - nextWidth / 2, y + stageHeight);
         path.closePath();
         path.fill = this.colorFor(index);
-        group.append(path);
+        mark = path;
       } else {
         const node = new Rect();
         node.x = stage.x;
@@ -205,44 +386,60 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
         node.height = stageHeight;
         node.cornerRadius = 3;
         node.fill = this.colorFor(index);
-        group.append(node);
+        mark = node;
       }
+      // the selection reads on a stage exactly as it does on a pie sector:
+      // the picked-out stages are outlined, the rest fade back
+      applySelection(mark, index, ctx, { foreground: this.env.theme.foregroundColor });
+      group.append(mark);
 
-      if (this.options.label?.enabled !== false) {
-        const labelOptions = this.options.label;
-        // label position is shared by all segments; narrow segments stay readable
-        // thanks to a segment-colored outline around the letters
-        const outside = labelOptions?.placement === 'outside';
-        const font = this.labelFontOf();
-        const label = new Text();
-        label.text = layout.text;
-        label.x = outside ? layout.edgeX + this.calloutReach() : centerX;
-        label.y = y + stageHeight / 2;
-        label.textAlign = outside ? 'left' : 'center';
-        label.textBaseline = 'middle';
-        label.fontSize = font.size;
-        label.fontWeight = font.weight;
-        label.fontFamily = font.family;
-        label.fill = labelOptions?.color ?? (outside ? this.env.theme.foregroundColor : contrastTextColor(this.colorFor(index)));
-        if (!outside) label.outline = this.colorFor(index); // halo in the segment color
-        if (this.labelFits(ctx, label, labelOptions?.avoidOverlap)) {
-          // outside label sits next to its segment, connected by a short line —
-          // a label that lost its room takes the line with it
-          const calloutLength = this.options.calloutLine?.length ?? CALLOUT_LENGTH;
-          if (outside && this.options.calloutLine?.enabled !== false) {
-            const callout = new Line();
-            callout.x1 = layout.edgeX + EDGE_GAP;
-            callout.y1 = y + stageHeight / 2;
-            callout.x2 = layout.edgeX + EDGE_GAP + calloutLength;
-            callout.y2 = y + stageHeight / 2;
-            callout.stroke = this.options.calloutLine?.stroke ?? this.colorFor(index);
-            callout.strokeWidth = this.options.calloutLine?.strokeWidth ?? 1;
-            group.append(callout);
-          }
-          labels.append(label);
-        }
+      // the label block is anchored beside the shape (outside) or on the
+      // segment itself, where a segment-coloured halo keeps it readable
+      if (this.options.label?.enabled !== false && layout.labelled && layout.parts.length > 0) {
+        pending.push({
+          layout,
+          x: this.labelsOutside ? layout.edgeX + this.calloutReach() : centerX,
+          y: y + stageHeight / 2,
+        });
       }
     });
+
+    const outside = this.labelsOutside;
+    const dropped =
+      this.options.label?.avoidOverlap === true
+        ? crowdedOut(
+            pending,
+            (entry) => entry.layout.value,
+            (entry) => this.blockFits(ctx, entry.layout.parts, entry.x, entry.y, outside ? 'left' : 'center'),
+          )
+        : new Set<(typeof pending)[number]>();
+    for (const entry of pending) {
+      if (dropped.has(entry)) continue;
+      const { layout } = entry;
+      // outside label sits next to its segment, connected by a short line —
+      // a label that lost its room takes the line with it
+      if (outside && this.options.calloutLine?.enabled !== false) {
+        const calloutLength = this.options.calloutLine?.length ?? CALLOUT_LENGTH;
+        const callout = new Line();
+        callout.x1 = layout.edgeX + EDGE_GAP;
+        callout.y1 = layout.y + layout.height / 2;
+        callout.x2 = layout.edgeX + EDGE_GAP + calloutLength;
+        callout.y2 = layout.y + layout.height / 2;
+        callout.stroke = this.options.calloutLine?.stroke ?? this.colorFor(layout.index);
+        callout.strokeWidth = this.options.calloutLine?.strokeWidth ?? 1;
+        group.append(callout);
+      }
+      drawLabelBlock(
+        labels,
+        layout.parts,
+        entry.x,
+        entry.y,
+        outside ? 'left' : 'center',
+        ctx.measureText,
+        this.labelLayout,
+        outside ? undefined : this.colorFor(layout.index),
+      );
+    }
     this.appendGroups(ctx, group, labels);
   }
 
@@ -268,17 +465,29 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
   }
 
   override tooltipFor(datumIndex: number): TooltipContentData {
-    const datum = this.lastCtx?.data[datumIndex];
+    const data = this.lastCtx?.data ?? [];
+    const datum = data[datumIndex];
     if (!datum) return { rows: [] };
-    return {
-      heading: String(datum[this.options.stageField]),
-      rows: [
-        {
-          label: this.options.name ?? this.options.valueField,
-          value: String(datum[this.options.valueField]),
+    const renderer = this.options.tooltip?.renderer;
+    if (renderer) {
+      return tooltipContentOf(
+        renderer({
+          datum,
+          stage: this.stageNameOf(datum),
+          value: datum[this.options.valueField],
           color: this.colorFor(datumIndex),
-        },
-      ],
-    };
+        }),
+      );
+    }
+    // the share of the total, as a pie reads it: a stage against the whole funnel
+    const values = partValues(data, this.options.valueField);
+    const total = values.reduce((sum, value) => sum + value, 0);
+    return partTooltip({
+      heading: this.stageNameOf(datum),
+      label: this.options.name ?? this.options.valueField,
+      value: datum[this.options.valueField],
+      share: total > 0 ? (values[datumIndex] ?? 0) / total : undefined,
+      color: this.colorFor(datumIndex),
+    });
   }
 }

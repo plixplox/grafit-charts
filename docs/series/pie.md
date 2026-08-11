@@ -4,9 +4,27 @@ Polar share series. `angleField` sets the sector value, `labelField` the name
 (legend, sector labels, tooltip).
 
 A sector label is one label made of two parts — the name and the value — each
-with its own font and colour. `label.placement` decides where the whole of it
-goes: `'outside'` on a callout line, `'inside'` the sector. Inside labels are
-haloed in the sector colour and take an automatic contrast colour.
+with its own font, colour and format. `label.placement` decides where the whole
+of it goes: `'outside'` on a callout line, `'inside'` the sector. Inside labels
+are haloed in the sector colour and take an automatic contrast colour.
+
+The name comes out of `labelField`, and that field has a format like any other.
+`labelName` says how its value becomes text, once for the whole series — the
+legend, the tooltip heading and the name half of the label all read the same.
+It takes `format` (a serializable string) and `formatter` (a function, for what
+a string cannot express):
+
+```js
+labelName: { format: '%d.%m.%Y' },
+```
+
+Where a label wants something shorter than the legend, `label.category` has a
+format of its own and overrides `labelName`; it answers for the name exactly as
+`value.format`/`value.formatter` answer for the number:
+
+```js
+label: { category: { format: '%d.%m' }, value: { enabled: true } },
+```
 
 ::: chart-example pie-basic
 
@@ -80,48 +98,52 @@ A thin ring + `innerLabels` makes a compact indicator:
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
 
-| Option                               | Type                                         | Default                  | Description                                                              |
-| ------------------------------------ | -------------------------------------------- | ------------------------ | ------------------------------------------------------------------------ |
-| `angleField`                         | `string`                                     | —                        | sector value (required)                                                   |
-| `labelField`                         | `string`                                     | —                        | sector name                                                               |
-| `fills`                              | `ColorValue[]`                               | theme palette            | sector colors around the circle                                           |
-| `strokes`                            | `ColorValue[]`                               | theme palette            | sector colors around the circle                                           |
-| `rotation`                           | `Degrees`                                    | `0`                      | start angle                                                               |
-| `outerRadiusRatio`                   | `Fraction`                                   | `0.85`                   | fraction of the available radius used by the chart (labels go in the remaining space) |
-| `innerRadiusRatio` (donut)           | `Fraction`                                   | `0.6`                    | inner radius                                                              |
-| `angleName`                          | `string`                                     | `angleField` name        | value label in the tooltip                                                |
-| `sectorSpacing`                      | `Pixels`                                     | `0`                      | constant-width gap between sectors                                        |
-| `cornerRadius`                       | `Pixels`                                     | `0`                      | sector corner rounding                                                    |
-| `label.enabled`                      | `boolean`                                    | on with `labelField`     | sector labels                                                             |
-| `label.placement`                    | `'outside' \| 'inside'`                      | `'outside'`              | beside the pie on a callout line, or in the sector                        |
-| `label.layout`                       | `'stacked' \| 'inline'`                      | `'stacked'`              | the value on its own line under the name, or in a row with it             |
-| `label.separator`                    | `string`                                     | `' · '`                  | what separates the parts of an inline label                               |
-| `label.positionRatio`                | `Fraction`                                   | `0.7`                    | position along the radius (inside placement)                              |
-| `label.minShare`                     | `Fraction`                                   | `0`                      | share of the total a sector needs before it is worth a label              |
-| `label.avoidOverlap`                 | `boolean`                                    | `false`                  | drop the labels there is no room for instead of letting them overlap      |
-| `label.category.enabled`             | `boolean`                                    | on with `labelField`     | the sector name as part of the label                                      |
-| `label.category.fontSize`            | `Pixels`                                     | `11`                     | name font                                                                 |
-| `label.category.fontFamily`          | `string`                                     | theme font               | font family                                                               |
-| `label.category.fontWeight`          | `string \| number`                           | `normal`                 | font weight                                                               |
-| `label.category.color`               | `ColorValue`                                 | foreground / auto contrast | text color                                                              |
-| `label.value.enabled`                | `boolean`                                    | `false`                  | the sector value as part of the label                                     |
-| `label.value.type`                   | `'percent' \| 'value'`                       | `'percent'`              | share of the total, or the `angleField` value                             |
-| `label.value.format`                 | `string`                                     | —                        | format string (`',.2f'`, `'.1%'`)                                         |
-| `label.value.formatter`              | `({ datum, label, value, share }) => string` | —                        | full control over the text                                                |
-| `label.value.fontSize`               | `Pixels`                                     | `11`                     | value font                                                                |
-| `label.value.color`                  | `ColorValue`                                 | foreground / auto contrast | text color                                                              |
-| `calloutLine.radial.length`          | `Pixels`                                     | `20`                     | radial segment length                                                     |
-| `calloutLine.radial.stroke`          | `ColorValue`                                 | sector color             | radial segment color                                                      |
-| `calloutLine.radial.strokeWidth`     | `Pixels`                                     | `1`                      | width                                                                     |
-| `calloutLine.horizontal.length`      | `Pixels`                                     | `20`                     | length of the tail toward the label                                       |
-| `calloutLine.horizontal.stroke`      | `ColorValue`                                 | same as radial           | tail color                                                                |
-| `calloutLine.horizontal.strokeWidth` | `Pixels`                                     | same as radial           | tail width                                                                |
-| `legendValue.enabled`                | `boolean`                                    | `false`                  | sector value in the legend                                                |
-| `legendValue.formatter`              | `({ datum, label, value, color }) => string` | value                    | value format                                                              |
-| `tooltip.renderer`                   | `({ datum, label, value, color }) => …`      | —                        | custom tooltip                                                            |
-| `innerLabels[]`                      | `{ text, fontSize?, fontWeight?, color? }`   | —                        | lines in the donut center                                                 |
-| `innerCircle.fill`                   | `ColorValue`                                 | —                        | donut center fill                                                         |
-| `innerRadiusRatio`                   | `Fraction`                                   | `0.6`                    | donut inner radius                                                        |
+| Option                               | Type                                         | Default                    | Description                                                                           |
+| ------------------------------------ | -------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------- |
+| `angleField`                         | `string`                                     | —                          | sector value (required)                                                               |
+| `labelField`                         | `string`                                     | —                          | sector name                                                                           |
+| `fills`                              | `ColorValue[]`                               | theme palette              | sector colors around the circle                                                       |
+| `strokes`                            | `ColorValue[]`                               | theme palette              | sector colors around the circle                                                       |
+| `rotation`                           | `Degrees`                                    | `0`                        | start angle                                                                           |
+| `outerRadiusRatio`                   | `Fraction`                                   | `0.85`                     | fraction of the available radius used by the chart (labels go in the remaining space) |
+| `innerRadiusRatio` (donut)           | `Fraction`                                   | `0.6`                      | inner radius                                                                          |
+| `angleName`                          | `string`                                     | `angleField` name          | value label in the tooltip                                                            |
+| `labelName.format`                   | `string`                                     | —                          | how the `labelField` value becomes text: legend, tooltip heading, label               |
+| `labelName.formatter`                | `({ datum, value }) => string`               | —                          | the same, when a format string cannot express it                                      |
+| `sectorSpacing`                      | `Pixels`                                     | `0`                        | constant-width gap between sectors                                                    |
+| `cornerRadius`                       | `Pixels`                                     | `0`                        | sector corner rounding                                                                |
+| `label.enabled`                      | `boolean`                                    | on with `labelField`       | sector labels                                                                         |
+| `label.placement`                    | `'outside' \| 'inside'`                      | `'outside'`                | beside the pie on a callout line, or in the sector                                    |
+| `label.layout`                       | `'stacked' \| 'inline'`                      | `'stacked'`                | the value on its own line under the name, or in a row with it                         |
+| `label.separator`                    | `string`                                     | `' · '`                    | what separates the parts of an inline label                                           |
+| `label.positionRatio`                | `Fraction`                                   | `0.7`                      | position along the radius (inside placement)                                          |
+| `label.minShare`                     | `Fraction`                                   | `0`                        | share of the total a sector needs before it is worth a label                          |
+| `label.avoidOverlap`                 | `boolean`                                    | `false`                    | drop the labels there is no room for instead of letting them overlap                  |
+| `label.category.enabled`             | `boolean`                                    | on with `labelField`       | the sector name as part of the label                                                  |
+| `label.category.format`              | `string`                                     | —                          | format string for the name field (`'%d.%m.%Y'`, `',.0f'`)                             |
+| `label.category.formatter`           | `({ datum, label, value, share }) => …`      | —                          | text of the name half                                                                 |
+| `label.category.fontSize`            | `Pixels`                                     | `11`                       | name font                                                                             |
+| `label.category.fontFamily`          | `string`                                     | theme font                 | font family                                                                           |
+| `label.category.fontWeight`          | `string \| number`                           | `normal`                   | font weight                                                                           |
+| `label.category.color`               | `ColorValue`                                 | foreground / auto contrast | text color                                                                            |
+| `label.value.enabled`                | `boolean`                                    | `false`                    | the sector value as part of the label                                                 |
+| `label.value.type`                   | `'percent' \| 'value'`                       | `'percent'`                | share of the total, or the `angleField` value                                         |
+| `label.value.format`                 | `string`                                     | —                          | format string (`',.2f'`, `'.1%'`)                                                     |
+| `label.value.formatter`              | `({ datum, label, value, share }) => string` | —                          | full control over the text                                                            |
+| `label.value.fontSize`               | `Pixels`                                     | `11`                       | value font                                                                            |
+| `label.value.color`                  | `ColorValue`                                 | foreground / auto contrast | text color                                                                            |
+| `calloutLine.radial.length`          | `Pixels`                                     | `20`                       | radial segment length                                                                 |
+| `calloutLine.radial.stroke`          | `ColorValue`                                 | sector color               | radial segment color                                                                  |
+| `calloutLine.radial.strokeWidth`     | `Pixels`                                     | `1`                        | width                                                                                 |
+| `calloutLine.horizontal.length`      | `Pixels`                                     | `20`                       | length of the tail toward the label                                                   |
+| `calloutLine.horizontal.stroke`      | `ColorValue`                                 | same as radial             | tail color                                                                            |
+| `calloutLine.horizontal.strokeWidth` | `Pixels`                                     | same as radial             | tail width                                                                            |
+| `legendValue.enabled`                | `boolean`                                    | `false`                    | sector value in the legend                                                            |
+| `legendValue.formatter`              | `({ datum, label, value, color }) => string` | value                      | value format                                                                          |
+| `tooltip.renderer`                   | `({ datum, label, value, color }) => …`      | —                          | custom tooltip                                                                        |
+| `innerLabels[]`                      | `{ text, fontSize?, fontWeight?, color? }`   | —                          | lines in the donut center                                                             |
+| `innerCircle.fill`                   | `ColorValue`                                 | —                          | donut center fill                                                                     |
+| `innerRadiusRatio`                   | `Fraction`                                   | `0.6`                      | donut inner radius                                                                    |
 
 Clicking a legend item hides the sector (shares are recalculated); legend items
 that do not fit are paginated with arrows.

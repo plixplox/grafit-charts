@@ -31,13 +31,7 @@ describe('TimeScale.ticks', () => {
     scale.domain = [d0, d0 + 10 * DAY];
     const result = scale.ticks(5);
     expect(scale.tickUnit).toBe('day');
-    expect(result).toEqual([
-      Date.UTC(2024, 0, 2),
-      Date.UTC(2024, 0, 4),
-      Date.UTC(2024, 0, 6),
-      Date.UTC(2024, 0, 8),
-      Date.UTC(2024, 0, 10),
-    ]);
+    expect(result).toEqual([Date.UTC(2024, 0, 2), Date.UTC(2024, 0, 4), Date.UTC(2024, 0, 6), Date.UTC(2024, 0, 8), Date.UTC(2024, 0, 10)]);
   });
 
   it('2-hour domain: 30-minute step', () => {

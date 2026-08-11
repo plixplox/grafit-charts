@@ -65,3 +65,48 @@ describe('telling a computed value from a plain one', () => {
     expect(resolveValue({ stat: 'max', field: 'ms' }, data)).toBe(218);
   });
 });
+
+describe('rows that stand for many records', () => {
+  /** Pre-aggregated latencies: one row per bucket, `n` records behind each. */
+  const buckets = [
+    { ms: 10, n: 900 },
+    { ms: 100, n: 90 },
+    { ms: 900, n: 10 },
+  ];
+
+  it('averages over the records, not over the rows', () => {
+    // (10·900 + 100·90 + 900·10) / 1000 = 27, where the plain mean reads 336.7
+    expect(computeStat(buckets, { stat: 'mean', field: 'ms', weightField: 'n' })).toBe(27);
+    expect(computeStat(buckets, { stat: 'mean', field: 'ms' })).toBeCloseTo(336.67, 1);
+  });
+
+  it('puts the median where the records are', () => {
+    expect(computeStat(buckets, { stat: 'median', field: 'ms', weightField: 'n' })).toBe(10);
+    expect(computeStat(buckets, { stat: 'median', field: 'ms' })).toBe(100);
+  });
+
+  it('reads a percentile off the running weight', () => {
+    // 90% of the records are at or below 10ms; the 99th crosses into 900
+    expect(computeStat(buckets, { stat: 'percentile', percentile: 90, field: 'ms', weightField: 'n' })).toBe(10);
+    expect(computeStat(buckets, { stat: 'percentile', percentile: 95, field: 'ms', weightField: 'n' })).toBe(100);
+    expect(computeStat(buckets, { stat: 'percentile', percentile: 100, field: 'ms', weightField: 'n' })).toBe(900);
+  });
+
+  it('sums what the records contribute', () => {
+    expect(computeStat(buckets, { stat: 'sum', field: 'ms', weightField: 'n' })).toBe(27000);
+  });
+
+  it('leaves the ends where they are: a weight cannot move a minimum', () => {
+    expect(computeStat(buckets, { stat: 'min', field: 'ms', weightField: 'n' })).toBe(10);
+    expect(computeStat(buckets, { stat: 'max', field: 'ms', weightField: 'n' })).toBe(900);
+  });
+
+  it('drops rows whose weight is missing, zero or negative', () => {
+    const messy = [{ ms: 10, n: 3 }, { ms: 500, n: 0 }, { ms: 900, n: -2 }, { ms: 700 }, { ms: 20, n: 'many' }];
+    expect(computeStat(messy, { stat: 'mean', field: 'ms', weightField: 'n' })).toBe(10);
+  });
+
+  it('has no answer when every row was dropped', () => {
+    expect(computeStat([{ ms: 10, n: 0 }], { stat: 'mean', field: 'ms', weightField: 'n' })).toBeUndefined();
+  });
+});

@@ -6,13 +6,18 @@ Zoom and series hidden via the legend are serializable state:
 
 ```ts
 const state = chart.getState();
-// { zoom: { x: [0.25, 0.75] }, hiddenSeries: ['line-1'] }
+// { zoom: { x: [0.25, 0.75] }, hiddenSeries: ['line-1', 'histogram-0#1'] }
 localStorage.setItem('chart-state', JSON.stringify(state));
 
 // restore — at creation time or on a live instance
 Charts.create({ ...options, initialState: JSON.parse(saved) });
 await chart.setState(JSON.parse(saved));
 ```
+
+`hiddenSeries` also holds the items of a series that puts several in the legend —
+pie/donut sectors and histogram groups, as `'seriesId#index'`. They are restored
+with everything else, and because series are rebuilt on every `update()`, this is
+what keeps a legend filter from evaporating the next time the options change.
 
 ## Chart synchronization
 
@@ -23,11 +28,11 @@ Charts.create({ ...top, sync: { groupId: 'dashboard' } });
 Charts.create({ ...bottom, sync: { groupId: 'dashboard' } });
 ```
 
-| Option            | Default      | Description                                        |
-| ----------------- | ------------ | -------------------------------------------------- |
-| `groupId`         | `'default'`  | group name                                         |
-| `nodeInteraction` | `true`       | highlight synchronization (by data index)          |
-| `zoom`            | `true`       | zoom window synchronization                        |
+| Option            | Default     | Description                               |
+| ----------------- | ----------- | ----------------------------------------- |
+| `groupId`         | `'default'` | group name                                |
+| `nodeInteraction` | `true`      | highlight synchronization (by data index) |
+| `zoom`            | `true`      | zoom window synchronization               |
 
 ::: tip Modular build
 When building with [grafit-charts/core](/guide/bundle), synchronization is a separate module: `register(syncModule)`.
@@ -54,11 +59,11 @@ with data of the same length, numeric fields are smoothly interpolated to the ne
 
 ## Options
 
-| Option                   | Type                         | Default      | Description                          |
-| ------------------------ | ---------------------------- | ------------ | ------------------------------------ |
-| `animation.enabled`      | `boolean`                    | `true`       | entrance and update animation        |
-| `animation.duration`     | `number`                     | `600`        | entrance duration, ms                |
-| `contextMenu.enabled`    | `boolean`                    | `true`       | right-click menu                     |
-| `contextMenu.extraItems` | `{ label, action }[]`        | —            | custom items after the standard ones |
-| `download(options)`      | `{ fileName?, fileFormat? }` | `chart.png`  | PNG/JPEG export                      |
-| `initialState`           | `ChartState`                 | —            | initial zoom and hidden series       |
+| Option                   | Type                         | Default     | Description                          |
+| ------------------------ | ---------------------------- | ----------- | ------------------------------------ |
+| `animation.enabled`      | `boolean`                    | `true`      | entrance and update animation        |
+| `animation.duration`     | `number`                     | `600`       | entrance duration, ms                |
+| `contextMenu.enabled`    | `boolean`                    | `true`      | right-click menu                     |
+| `contextMenu.extraItems` | `{ label, action }[]`        | —           | custom items after the standard ones |
+| `download(options)`      | `{ fileName?, fileFormat? }` | `chart.png` | PNG/JPEG export                      |
+| `initialState`           | `ChartState`                 | —           | initial zoom and hidden series       |

@@ -136,6 +136,7 @@ describe('layer of the value labels', () => {
       swapped: false,
       plot,
       layer: marks,
+      measureText,
       labelLayer: labels,
     });
     return { marks, labels };
@@ -165,6 +166,7 @@ describe('layer of the value labels', () => {
       env,
     );
     crowded.update({
+      measureText,
       data: level,
       xScale: bands,
       yScale: new LinearScale([0, 0.6], [plot.y + plot.height, plot.y]),
@@ -196,6 +198,7 @@ describe('layer of the value labels', () => {
       swapped: false,
       plot,
       layer: marks,
+      measureText,
     });
     expect(drawCalls(marks).filter((call) => call === 'fillText')).toHaveLength(data.length);
   });

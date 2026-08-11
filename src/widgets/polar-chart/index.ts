@@ -129,7 +129,7 @@ export class PolarChart implements ChartWidget {
         },
         theme: this.theme,
       }) as PolarSeriesInstance;
-      if (this.hiddenSeries.has(instance.id)) instance.visible = false;
+      this.applyHiddenState(instance);
       return instance;
     });
   }
@@ -828,7 +828,11 @@ export class PolarChart implements ChartWidget {
       if (owner?.toggleItem && Number.isFinite(itemIndex)) {
         owner.toggleItem(itemIndex);
         const item = owner.legendItems().find((entry) => entry.seriesId === seriesId);
-        this.inputs.listeners?.legendItemClick?.({ seriesId, visible: item?.visible !== false });
+        const visible = item?.visible !== false;
+        // the same set the series' own visibility lives in, so getState carries both
+        if (visible) this.hiddenSeries.delete(seriesId);
+        else this.hiddenSeries.add(seriesId);
+        this.inputs.listeners?.legendItemClick?.({ seriesId, visible });
         // smooth re-layout of slice shares
         this.transitionAnimator.play(240, (k) => {
           this.transitionT = k >= 1 ? undefined : k;
@@ -865,10 +869,26 @@ export class PolarChart implements ChartWidget {
     if (state.hiddenSeries) {
       this.hiddenSeries.clear();
       for (const id of state.hiddenSeries) this.hiddenSeries.add(id);
-      for (const series of this.series) {
-        series.visible = !this.hiddenSeries.has(series.id);
-      }
+      for (const series of this.series) this.applyHiddenState(series);
     }
+  }
+
+  /**
+   * What the legend has switched off, applied to a series: the series itself,
+   * and — for pie/donut, whose sectors are legend items of their own — those
+   * sectors, held as `<seriesId>#<index>` in the same set.
+   */
+  private applyHiddenState(series: PolarSeriesInstance): void {
+    series.visible = !this.hiddenSeries.has(series.id);
+    if (!series.setHiddenItems) return;
+    const prefix = `${series.id}#`;
+    const items = new Set<number>();
+    for (const id of this.hiddenSeries) {
+      if (!id.startsWith(prefix)) continue;
+      const index = Number(id.slice(prefix.length));
+      if (Number.isInteger(index)) items.add(index);
+    }
+    series.setHiddenItems(items);
   }
 
   isZoomed(): boolean {

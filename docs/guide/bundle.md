@@ -3,11 +3,11 @@
 The package ships three entry points plus a standalone CDN file — pick the one
 that matches your priority: simplicity or kilobytes.
 
-| Entry point      | What's inside                                                       | When to use                       |
-| ---------------- | ------------------------------------------------------------------- | --------------------------------- |
-| `grafit-charts`         | everything included and registered: widgets, series, axes, features | prototypes, internal tools        |
-| `grafit-charts/core`    | the engine + `register()`, with no modules at all                   | when bundle size matters          |
-| `grafit-charts/modules` | all modules as named exports: widgets, series, axes, features       | paired with `grafit-charts/core`         |
+| Entry point             | What's inside                                                       | When to use                      |
+| ----------------------- | ------------------------------------------------------------------- | -------------------------------- |
+| `grafit-charts`         | everything included and registered: widgets, series, axes, features | prototypes, internal tools       |
+| `grafit-charts/core`    | the engine + `register()`, with no modules at all                   | when bundle size matters         |
+| `grafit-charts/modules` | all modules as named exports: widgets, series, axes, features       | paired with `grafit-charts/core` |
 
 ## Full entry point
 
@@ -49,11 +49,11 @@ without the tooltip and legend).
 
 There are three kinds of modules to register:
 
-| Kind | Modules | What's required |
-| ---- | ------- | --------------- |
-| Chart widgets | `cartesianChartModule`, `polarChartModule`, `standaloneChartModule` | exactly the one your series need (table below); without it `Charts.create` throws an error |
-| Series and axes | `lineSeriesModule`, `numberAxisModule`, … | every type you use |
-| Features | `tooltipModule`, `legendModule`, `gradientLegendModule`, `crosshairModule`, `navigatorModule`, `annotationsModule`, `syncModule`, `contextMenuModule` | optional: an unregistered feature simply doesn't work (with a console warning) |
+| Kind            | Modules                                                                                                                                               | What's required                                                                            |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Chart widgets   | `cartesianChartModule`, `polarChartModule`, `standaloneChartModule`                                                                                   | exactly the one your series need (table below); without it `Charts.create` throws an error |
+| Series and axes | `lineSeriesModule`, `numberAxisModule`, …                                                                                                             | every type you use                                                                         |
+| Features        | `tooltipModule`, `legendModule`, `gradientLegendModule`, `crosshairModule`, `navigatorModule`, `annotationsModule`, `syncModule`, `contextMenuModule` | optional: an unregistered feature simply doesn't work (with a console warning)             |
 
 Module names are derived from the type: `'box-plot'` → `boxPlotSeriesModule`,
 `'radial-gauge'` → `radialGaugeSeriesModule`; axes — `numberAxisModule`,
@@ -61,11 +61,11 @@ Module names are derived from the type: `'box-plot'` → `boxPlotSeriesModule`,
 
 ### Which widget each series needs
 
-| Widget | Series |
-| ------ | ------ |
-| `cartesianChartModule` | line, bar, area, scatter, bubble, histogram, heatmap, range-bar, range-area, box-plot, waterfall, funnel, cone-funnel, candlestick, ohlc |
-| `polarChartModule` | pie, donut, radar-line, radar-area, nightingale, radial-column, radial-bar |
-| `standaloneChartModule` | treemap, sunburst, pyramid, sankey, chord, radial-gauge, linear-gauge |
+| Widget                  | Series                                                                                                                                   |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `cartesianChartModule`  | line, bar, area, scatter, bubble, histogram, heatmap, range-bar, range-area, box-plot, waterfall, funnel, cone-funnel, candlestick, ohlc |
+| `polarChartModule`      | pie, donut, radar-line, radar-area, nightingale, radial-column, radial-bar                                                               |
+| `standaloneChartModule` | treemap, sunburst, pyramid, sankey, chord, radial-gauge, linear-gauge                                                                    |
 
 The `createFinancialChart`/`createGauge`/`createSparkline` presets assemble
 options on top of regular series: financial — candlestick/ohlc (cartesian) +
@@ -74,16 +74,16 @@ radial-/linear-gauge (standalone); sparkline — line/area/bar (cartesian).
 
 ### What each feature is responsible for
 
-| Module | Options / behavior |
-| ------ | ------------------ |
-| `tooltipModule` | `tooltip` — hover tooltip |
-| `legendModule` | `legend` — legend with series toggling |
-| `gradientLegendModule` | `gradientLegend` — heatmap color scale |
-| `crosshairModule` | `crosshair` — crosshair with axis labels |
-| `navigatorModule` | `navigator` — range bar below the chart |
-| `annotationsModule` | `annotations` — lines/ranges/labels on the chart |
-| `syncModule` | `sync` — highlight and zoom synchronization across charts |
-| `contextMenuModule` | `contextMenu` — right click: “Download PNG”, reset zoom |
+| Module                 | Options / behavior                                        |
+| ---------------------- | --------------------------------------------------------- |
+| `tooltipModule`        | `tooltip` — hover tooltip                                 |
+| `legendModule`         | `legend` — legend with series toggling                    |
+| `gradientLegendModule` | `gradientLegend` — heatmap color scale                    |
+| `crosshairModule`      | `crosshair` — crosshair with axis labels                  |
+| `navigatorModule`      | `navigator` — range bar below the chart                   |
+| `annotationsModule`    | `annotations` — lines/ranges/labels on the chart          |
+| `syncModule`           | `sync` — highlight and zoom synchronization across charts |
+| `contextMenuModule`    | `contextMenu` — right click: “Download PNG”, reset zoom   |
 
 Zoom, data selection (`selection`), events (`listeners`), themes, animation
 and state are part of the core — no separate registration needed.

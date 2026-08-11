@@ -8,12 +8,35 @@ to external UI: tables, filters, drill-down navigation.
 
 ## All events
 
-| Event             | Parameters                                                 | When it fires                                                 |
-| ----------------- | ---------------------------------------------------------- | ------------------------------------------------------------- |
-| `nodeClick`       | `{ seriesId: string; datumIndex: number; datum: Datum }`   | click on a series node (bar, point, sector, cell…)            |
-| `selectionChange` | `{ items: Array<{ seriesId; datumIndex; datum }> }`        | Data Selection change (clicks, box, reset)                    |
-| `zoomChange`      | `{ x: [from, to]; y: [from, to] }` — domain fractions 0..1 | any zoom change: wheel, pan, box, navigator, reset            |
-| `legendItemClick` | `{ seriesId: string; visible: boolean }`                   | click on a legend item (for pie sectors — `'seriesId#index'`) |
+| Event             | Parameters                                                  | When it fires                                                 |
+| ----------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
+| `nodeClick`       | `{ seriesId; datumIndex; datum?; node? }`                   | click on a series node (bar, point, sector, cell…)            |
+| `selectionChange` | `{ items: Array<{ seriesId; datumIndex; datum?; node? }> }` | Data Selection change (clicks, box, reset)                    |
+| `zoomChange`      | `{ x: [from, to]; y: [from, to] }` — domain fractions 0..1  | any zoom change: wheel, pan, box, navigator, reset            |
+| `legendItemClick` | `{ seriesId: string; visible: boolean }`                    | click on a legend item (for pie sectors — `'seriesId#index'`) |
+
+## A node that is not a data row
+
+Most series count data rows, and `datum` is the row that was clicked. A histogram
+counts bars — bin by bin, group within bin — so there is no single row behind one:
+`datum` is absent and `node` describes what was actually hit.
+
+```ts
+listeners: {
+  nodeClick: ({ datum, node }) => {
+    if (node?.kind === 'bin') {
+      // { kind: 'bin', x0: 100, x1: 125, value: 61, raw: 61, count: 61, group: 'Pro' }
+      filterRows((row) => row.response >= node.x0! && row.response < node.x1!);
+      return;
+    }
+    openDetails(datum);
+  },
+}
+```
+
+`binEdges` is exported from the package, so a filter like this can use the very
+edges the chart drew instead of recomputing them — see
+[Histogram](/series/histogram#binning-outside-the-chart).
 
 `selectionChange` fires only when
 [`selection`](/interactivity/selection) is enabled; `zoomChange` — when

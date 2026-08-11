@@ -12,24 +12,24 @@ labels — `label.formatter({ value, isTotal, datum })` (placements are the same
 
 ::: chart-example waterfall-styled
 
-| Option               | Type                                     | Default                            | Description                  |
-| -------------------- | ---------------------------------------- | ---------------------------------- | ---------------------------- |
-| `xField`             | `string`                                 | —                                  | category and change          |
-| `yField`             | `string`                                 | —                                  | category and change          |
-| `totals`             | `number[]`                               | —                                  | indices of total rows        |
-| `cornerRadius`       | `Pixels`                                 | `2`                                | bar corner rounding          |
-| `label.enabled`      | `boolean`                                | `false`                            | show value labels            |
-| `label.placement`    | outer/`center`/`inner-*` (17 placements) | `'top'`                            | label placement              |
-| `label.formatter`    | `({ value, isTotal, datum }) => string`  | value                              | label content                |
-| `label.fontSize`     | `Pixels`                                 | `11`                               | label font size              |
-| `label.fontWeight`   | `string \| number`                       | `normal`                           | font weight                  |
-| `label.fontFamily`   | `string`                                 | theme font                         | font family                  |
-| `label.color`        | `ColorValue`                             | foreground; inside — auto contrast | text color                   |
-| `item.positive.fill` | `ColorValue`                             | series color                       | fill of positive steps       |
-| `item.negative.fill` | `ColorValue`                             | theme red                          | fill of negative steps       |
-| `item.total.fill`    | `ColorValue`                             | theme muted                        | fill of total bars           |
-| `line.enabled`       | `boolean`                                | `true`                             | connector lines              |
-| `line.stroke`        | `ColorValue`                             | theme muted                        | connector line color         |
+| Option               | Type                                     | Default                            | Description            |
+| -------------------- | ---------------------------------------- | ---------------------------------- | ---------------------- |
+| `xField`             | `string`                                 | —                                  | category and change    |
+| `yField`             | `string`                                 | —                                  | category and change    |
+| `totals`             | `number[]`                               | —                                  | indices of total rows  |
+| `cornerRadius`       | `Pixels`                                 | `2`                                | bar corner rounding    |
+| `label.enabled`      | `boolean`                                | `false`                            | show value labels      |
+| `label.placement`    | outer/`center`/`inner-*` (17 placements) | `'top'`                            | label placement        |
+| `label.formatter`    | `({ value, isTotal, datum }) => string`  | value                              | label content          |
+| `label.fontSize`     | `Pixels`                                 | `11`                               | label font size        |
+| `label.fontWeight`   | `string \| number`                       | `normal`                           | font weight            |
+| `label.fontFamily`   | `string`                                 | theme font                         | font family            |
+| `label.color`        | `ColorValue`                             | foreground; inside — auto contrast | text color             |
+| `item.positive.fill` | `ColorValue`                             | series color                       | fill of positive steps |
+| `item.negative.fill` | `ColorValue`                             | theme red                          | fill of negative steps |
+| `item.total.fill`    | `ColorValue`                             | theme muted                        | fill of total bars     |
+| `line.enabled`       | `boolean`                                | `true`                             | connector lines        |
+| `line.stroke`        | `ColorValue`                             | theme muted                        | connector line color   |
 
 ## Options
 

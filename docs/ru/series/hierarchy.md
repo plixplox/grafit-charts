@@ -31,7 +31,7 @@ Squarify-раскладка: вложенные прямоугольники, г
 | `label.enabled`     | `boolean`                             | `true`                            | показать подписи значений |
 | `label.placement`   | `center`, края и углы (9 позиций)     | `'center'`                        | позиция подписи           |
 | `label.formatter`   | `({ datum, label, value }) => string` | значение                          | содержимое подписи        |
-| `label.fontSize`    | `Pixels`                           | `11`                              | размер шрифта подписи     |
+| `label.fontSize`    | `Pixels`                              | `11`                              | размер шрифта подписи     |
 | `label.fontWeight`  | `string \| number`                    | `normal`                          | насыщенность              |
 | `label.fontFamily`  | `string`                              | шрифт темы                        | гарнитура                 |
-| `label.color`       | `ColorValue`                            | foreground; внутри — автоконтраст | цвет текста               |
+| `label.color`       | `ColorValue`                          | foreground; внутри — автоконтраст | цвет текста               |

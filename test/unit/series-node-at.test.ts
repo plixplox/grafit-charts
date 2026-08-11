@@ -32,7 +32,7 @@ const env: SeriesEnv = {
 const plot = { x: 0, y: 0, width: 400, height: 300 };
 
 function context(data: Record<string, unknown>[], xScale: BandScale | LinearScale, yScale: LinearScale): CartesianRenderContext {
-  return { data, xScale, yScale, swapped: false, plot, layer: new Group() };
+  return { data, xScale, yScale, swapped: false, plot, layer: new Group(), measureText: (text: string) => text.length * 10 };
 }
 
 describe('nodeAt', () => {

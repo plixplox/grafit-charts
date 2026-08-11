@@ -65,6 +65,11 @@ export interface PolarSeriesInstance {
   polarLayout?(): 'angle-category' | 'radius-category';
   /** Toggles visibility of a series item (a pie sector from the legend). */
   toggleItem?(index: number): void;
+  /**
+   * Restores which items are switched off. Series are rebuilt on every update,
+   * so without this a legend filter would last only until the next one.
+   */
+  setHiddenItems?(hidden: ReadonlySet<number>): void;
   /** Angle categories (for the angle scale and grid labels). */
   angleValues(data: Datum[]): unknown[];
   /** Radius value domain. */

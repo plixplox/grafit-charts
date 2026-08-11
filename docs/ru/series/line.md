@@ -34,24 +34,24 @@
 | `yField`             | `string`                                 | —                                 | ключи данных (обязательны)   |
 | `xName`              | `string`                                 | `yField`                          | имена для легенды и тултипа  |
 | `name`               | `string`                                 | `yField`                          | имена для легенды и тултипа  |
-| `stroke`             | `ColorValue`                               | палитра темы                      | цвет линии                   |
-| `strokeWidth`        | `Pixels`                              | `2`                               | толщина линии                |
-| `lineDash`           | `Pixels[]`                            | —                                 | пунктир                      |
+| `stroke`             | `ColorValue`                             | палитра темы                      | цвет линии                   |
+| `strokeWidth`        | `Pixels`                                 | `2`                               | толщина линии                |
+| `lineDash`           | `Pixels[]`                               | —                                 | пунктир                      |
 | `visible`            | `boolean`                                | `true`                            | видимость серии              |
 | `showInLegend`       | `boolean`                                | `true`                            | элемент в легенде            |
 | `tooltip.renderer`   | `function`                               | —                                 | кастомное содержимое тултипа |
 | `label.enabled`      | `boolean`                                | `false`                           | показать подписи значений    |
 | `label.placement`    | `'top' \| 'bottom' \| 'left' \| 'right'` | `'top'`                           | позиция подписи              |
 | `label.formatter`    | `({ value, datum }) => string`           | значение                          | содержимое подписи           |
-| `label.fontSize`     | `Pixels`                              | `11`                              | размер шрифта подписи        |
+| `label.fontSize`     | `Pixels`                                 | `11`                              | размер шрифта подписи        |
 | `label.fontWeight`   | `string \| number`                       | `normal`                          | насыщенность                 |
 | `label.fontFamily`   | `string`                                 | шрифт темы                        | гарнитура                    |
-| `label.color`        | `ColorValue`                               | foreground; внутри — автоконтраст | цвет текста                  |
+| `label.color`        | `ColorValue`                             | foreground; внутри — автоконтраст | цвет текста                  |
 | `marker.enabled`     | `boolean`                                | `true`                            | показать маркеры             |
 | `marker.shape`       | `MarkerShape`                            | `circle`                          | форма маркера                |
-| `marker.size`        | `Pixels`                              | `7`                               | размер маркера               |
-| `marker.fill`        | `ColorValue`                               | цвет серии                        | заливка маркера              |
-| `marker.stroke`      | `ColorValue`                               | фон чарта                         | обводка маркера              |
-| `marker.strokeWidth` | `Pixels`                              | `1.5`                             | толщина обводки              |
+| `marker.size`        | `Pixels`                                 | `7`                               | размер маркера               |
+| `marker.fill`        | `ColorValue`                             | цвет серии                        | заливка маркера              |
+| `marker.stroke`      | `ColorValue`                             | фон чарта                         | обводка маркера              |
+| `marker.strokeWidth` | `Pixels`                                 | `1.5`                             | толщина обводки              |
 
 Точки с нечисловыми значениями `yField` разрывают линию (`connectMissingData` — в будущих фазах).

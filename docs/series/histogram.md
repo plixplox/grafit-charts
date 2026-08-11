@@ -105,6 +105,35 @@ overrides that either way:
 
 ::: chart-example histogram-normalized
 
+## Binning outside the chart
+
+The chart's own binning is exported, so a click handler can filter rows by the very
+edges that were drawn instead of recomputing them — the `nice` step rules would
+otherwise drift apart from the bars:
+
+```ts
+import { binEdges, binIndexOf } from 'grafit-charts';
+
+const options = { binWidth: 25, domain: [0, 300] } as const;
+const edges = binEdges(
+  rows.map((row) => row.response),
+  options,
+);
+const inBin = rows.filter((row) => binIndexOf(row.response, edges, options) === clickedBin);
+```
+
+`binCountFor` answers what a rule (`'auto'`, `'fd'`, …) would pick for a sample.
+
+The tooltip is written about a bin, so `tooltip.renderer` gets the bin rather than a
+row — its bounds, the height the bar draws, the aggregate behind it, the row count
+and the group:
+
+```ts
+tooltip: {
+  renderer: ({ x0, x1, count, seriesName }) => `${seriesName}: ${count} between ${x0} and ${x1} ms`,
+}
+```
+
 ## Bin labels
 
 `label` — placements are the same as for bar (`top`, `inner-top`, `center`, …),
@@ -142,6 +171,7 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `label.enabled`    | `boolean`                                          | `false`                                 | show value labels                         |
 | `label.placement`  | outer/`center`/`inner-*` (17 placements)           | `'top'`                                 | label placement                           |
 | `label.formatter`  | `({ value, x0, x1, raw, count, group }) => string` | value                                   | label content                             |
+| `tooltip.renderer` | `(params: HistogramTooltipRendererParams) => …`    | —                                       | tooltip written about the bin             |
 | `label.fontSize`   | `Pixels`                                           | `11`                                    | label font size                           |
 | `label.fontWeight` | `string \| number`                                 | `normal`                                | font weight                               |
 | `label.fontFamily` | `string`                                           | theme font                              | font family                               |

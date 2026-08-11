@@ -38,6 +38,7 @@ const plot: LayoutRect = { x: 0, y: 0, width: 400, height: 300 };
 function render(histogram: HistogramSeries, data: Datum[]): void {
   const domain = histogram.yDomain(data) ?? [0, 1];
   histogram.update({
+    measureText,
     data,
     xScale: new LinearScale(edgeExtent(histogram, data), [plot.x, plot.x + plot.width]),
     yScale: new LinearScale(domain, [plot.y + plot.height, plot.y]),
@@ -64,6 +65,9 @@ function edgeExtent(histogram: HistogramSeries, data: Datum[]): [number, number]
   const all = edges(histogram, data);
   return [all[0] ?? 0, all.at(-1) ?? 1];
 }
+
+/** 10px per character — keeps the expectations arithmetic. */
+const measureText = (text: string) => text.length * 10;
 
 const data = [3, 7, 12, 14, 19, 22].map((value) => ({ value }));
 
@@ -166,6 +170,43 @@ describe('normalize', () => {
       { raw: 1, count: 1 },
     ]);
     expect(seen.map(({ value }) => value)).toEqual([expect.closeTo(100 / 3, 10), 50, expect.closeTo(100 / 6, 10)]);
+  });
+});
+
+describe('the tooltip renderer', () => {
+  it('is written about a bin: bounds, both readings of the height, the count', () => {
+    const histogram = series({
+      binWidth: 10,
+      normalize: 'percent',
+      tooltip: { renderer: (params) => `${params.x0}–${params.x1}: ${params.raw} rows, ${params.value.toFixed(1)}%` },
+    });
+    render(histogram, data);
+    expect(histogram.tooltipFor(0)).toEqual({ heading: '0–10: 2 rows, 33.3%', rows: [] });
+  });
+
+  it('names the group of the bar and hands over its key', () => {
+    const seen: Array<{ seriesName: string; group: unknown; color: string }> = [];
+    const histogram = series({
+      ...grouped,
+      tooltip: {
+        renderer: ({ seriesName, group, color }) => {
+          seen.push({ seriesName, group, color });
+          return seriesName;
+        },
+      },
+    });
+    render(histogram, split);
+    histogram.tooltipFor(1);
+    expect(seen).toEqual([{ seriesName: 'app', group: 'app', color: '#21a06c' }]);
+  });
+
+  it('takes rows back from the renderer as they are', () => {
+    const histogram = series({
+      binWidth: 10,
+      tooltip: { renderer: ({ count }) => ({ heading: 'bin', rows: [{ label: 'rows', value: String(count) }] }) },
+    });
+    render(histogram, data);
+    expect(histogram.tooltipFor(1)).toEqual({ heading: 'bin', rows: [{ label: 'rows', value: '3' }] });
   });
 });
 

@@ -107,6 +107,34 @@ series: [{ type: 'histogram', xField: 'response', normalize: 'percent' }];
 
 ::: chart-example histogram-normalized
 
+## Биннинг за пределами графика
+
+Биннинг графика экспортируется наружу: обработчик клика может отфильтровать строки
+по тем же границам, которые были нарисованы, а не пересчитывать их — иначе правила
+`nice`-шага разойдутся со столбцами:
+
+```ts
+import { binEdges, binIndexOf } from 'grafit-charts';
+
+const options = { binWidth: 25, domain: [0, 300] } as const;
+const edges = binEdges(
+  rows.map((row) => row.response),
+  options,
+);
+const inBin = rows.filter((row) => binIndexOf(row.response, edges, options) === clickedBin);
+```
+
+`binCountFor` отвечает, сколько корзин выбрало бы правило (`'auto'`, `'fd'`, …) для выборки.
+
+Подсказка пишется про корзину, поэтому `tooltip.renderer` получает корзину, а не строку:
+её границы, высоту, которую рисует столбец, агрегат за ней, число записей и группу:
+
+```ts
+tooltip: {
+  renderer: ({ x0, x1, count, seriesName }) => `${seriesName}: ${count} между ${x0} и ${x1} мс`,
+}
+```
+
 ## Подписи корзин
 
 `label` — позиции как у bar (`top`, `inner-top`, `center`, …),
@@ -144,6 +172,7 @@ series: [{ type: 'histogram', xField: 'response', normalize: 'percent' }];
 | `label.enabled`    | `boolean`                                          | `false`                                | показать подписи значений               |
 | `label.placement`  | внешние/`center`/`inner-*` (17 позиций)            | `'top'`                                | позиция подписи                         |
 | `label.formatter`  | `({ value, x0, x1, raw, count, group }) => string` | значение                               | содержимое подписи                      |
+| `tooltip.renderer` | `(params: HistogramTooltipRendererParams) => …`    | —                                      | подсказка про корзину                   |
 | `label.fontSize`   | `Pixels`                                           | `11`                                   | размер шрифта подписи                   |
 | `label.fontWeight` | `string \| number`                                 | `normal`                               | насыщенность                            |
 | `label.fontFamily` | `string`                                           | шрифт темы                             | гарнитура                               |

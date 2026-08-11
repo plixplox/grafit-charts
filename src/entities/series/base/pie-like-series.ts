@@ -1,11 +1,39 @@
 import { PolarSeries, type PolarSeriesBaseOptions } from './polar-series';
-import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import { FONT_STEP, themeFont } from '@/shared/kernel';
-import type { LabelGuard, LegendItemDescriptor, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
-import type { Datum, ColorValue, Degrees, FontOptions, LabelOverlapOptions, Pixels, Fraction, Switchable } from '@/shared/options';
-import { Group, Line, Sector, Text } from '@/shared/scene';
-import { contrastTextColor, formatValue } from '@/shared/util';
+import type { LabelGuard, LegendItemDescriptor, MeasureText, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
+import type {
+  Datum,
+  ColorValue,
+  Degrees,
+  FontOptions,
+  Formattable,
+  PartLabelBlockOptions,
+  PartLabelLayout,
+  PartNameParams,
+  PartValueLabelOptions,
+  Pixels,
+  Fraction,
+  Switchable,
+} from '@/shared/options';
+import { Group, Line, Sector } from '@/shared/scene';
+import {
+  applySelection,
+  contrastTextColor,
+  crowdedOut,
+  drawLabelBlock,
+  formatValue,
+  labelBlockSize,
+  formattedText,
+  labelParts,
+  partFont,
+  partText,
+  partTooltip,
+  partValues,
+  tooltipContentOf,
+  worthLabelling,
+  type LabelPart,
+} from '@/shared/util';
 
 export interface PieLikeSeriesOptions extends PolarSeriesBaseOptions {
   /** Key of the value that determines the sector angle. */
@@ -13,6 +41,14 @@ export interface PieLikeSeriesOptions extends PolarSeriesBaseOptions {
   angleName?: string;
   /** Key of the sector name (legend, labels, tooltip). */
   labelField?: string;
+  /**
+   * How the value of `labelField` becomes text — for the legend, the tooltip
+   * heading and the name half of a sector label alike. A name is a field value,
+   * and the format of that field belongs to the series rather than to each
+   * place the name is printed in. `label.category` overrides it where a label
+   * wants something shorter than the legend.
+   */
+  labelName?: Formattable<PartNameParams>;
   fills?: ColorValue[];
   strokes?: ColorValue[];
   /** Initial angle, in degrees. */
@@ -53,45 +89,17 @@ export interface PieLikeSeriesOptions extends PolarSeriesBaseOptions {
 export type PieLabelPlacement = 'outside' | 'inside';
 
 /** How the two parts of a sector label sit together. */
-export type PieLabelLayout = 'stacked' | 'inline';
+export type PieLabelLayout = PartLabelLayout;
 
-export interface PieLabelOptions extends Switchable, LabelOverlapOptions {
+export interface PieLabelOptions extends Switchable, PartLabelBlockOptions<PieLabelFormatterParams> {
   /** 'outside' (default) — beside the pie on a callout line; 'inside' — in the sector. */
   placement?: PieLabelPlacement;
-  /** 'stacked' (default) — the value on its own line under the name; 'inline' — one line. */
-  layout?: PieLabelLayout;
-  /** What separates the two parts of an inline label (' · ' by default). */
-  separator?: string;
   /** Position along the sector radius, inside placement only (0.7 by default). */
   positionRatio?: Fraction;
-  /** Sector name, from `labelField`. On by default whenever there is a name to show. */
-  category?: Switchable & FontOptions;
-  /** Sector value — its share of the total by default. Off until asked for. */
-  value?: PieValueLabelOptions;
-  /**
-   * Drop a label there is no room for (default false). Off, every sector gets
-   * its label and crowded ones are left to overlap; on, the labels stack in
-   * rows down each side of the pie and the narrowest sectors are the ones that
-   * lose theirs once a side runs out of rows.
-   */
-  avoidOverlap?: boolean;
-  /**
-   * Share of the total a sector needs before it is worth labelling, 0..1 (0 by
-   * default — every sector is). `0.02` reads as "label what is at least two
-   * percent" and leaves a long tail of slivers unlabelled, which is usually
-   * what makes a crowded pie legible. Combines with avoidOverlap: this decides
-   * which sectors are worth a label, that one whether there is room for it.
-   */
-  minShare?: Fraction;
 }
 
-export interface PieValueLabelOptions extends Switchable, FontOptions {
-  /** 'percent' (default) — share of the total; 'value' — the `angleField` value itself. */
-  type?: 'percent' | 'value';
-  /** Serializable format string for the 'value' type (',.2f', '.0%'). */
-  format?: string;
-  formatter?: (params: PieLabelFormatterParams) => string;
-}
+/** Sector value — its share of the total by default. Off until asked for. */
+export type PieValueLabelOptions = PartValueLabelOptions<PieLabelFormatterParams>;
 
 export interface PieLabelFormatterParams {
   datum: Datum;
@@ -143,19 +151,6 @@ const CALLOUT_MIN_SWEEP = 0.12;
 const INSIDE_MIN_SWEEP = 0.25;
 /** However long the labels are, the pie keeps this share of the free radius. */
 const MIN_CALLOUT_RADIUS_RATIO = 0.35;
-/** Baseline-to-baseline breathing room between the two lines of a stacked label. */
-const LABEL_LINE_GAP = 2;
-const DEFAULT_SEPARATOR = ' · ';
-
-/** One styled run of a sector label: the name, the value, or what separates them. */
-interface LabelPart {
-  text: string;
-  fontSize: number;
-  fontFamily: string;
-  fontWeight?: string;
-  color: ColorValue;
-}
-
 /** Shared pie/donut implementation; the difference is innerRadiusRatio and center labels. */
 export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeriesOptions> extends PolarSeries<O> {
   private sectors: SectorGeometry[] = [];
@@ -172,6 +167,12 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     }
   }
 
+  /** The chart handing back the sectors it kept switched off across an update. */
+  setHiddenItems(hidden: ReadonlySet<number>): void {
+    this.hiddenSectors.clear();
+    for (const index of hidden) this.hiddenSectors.add(index);
+  }
+
   protected abstract innerRadiusRatio(): Fraction;
 
   override needsPolarAxes(): boolean {
@@ -183,10 +184,11 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     return fills[index % fills.length] ?? this.env.colors.fill;
   }
 
+  /** Name of a sector: the value of labelField, as `labelName` spells it out. */
   protected labelFor(datum: Datum | undefined, index: number): string {
-    if (!datum) return String(index);
     const key = this.options.labelField;
-    return key ? String(datum[key]) : String(index);
+    if (!datum || !key) return String(index);
+    return partText(datum[key], this.options.labelName, { datum, value: datum[key] });
   }
 
   /** Whether the name of a sector is part of its label. */
@@ -213,8 +215,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
 
   /** Whether a sector is big enough to be worth a label (label.minShare). */
   private worthLabelling(value: number, total: number): boolean {
-    const minShare = this.options.label?.minShare ?? 0;
-    return minShare <= 0 || (total > 0 && value / total >= minShare);
+    return worthLabelling(value, total, this.options.label?.minShare);
   }
 
   /** Baseline-to-baseline room one callout label takes: they stack in rows beside the pie. */
@@ -262,6 +263,27 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     return kept;
   }
 
+  /**
+   * Text of the name part. The field a sector is named by carries a format of
+   * its own — a date, a code, a number — so the name is formatted like the
+   * value beside it rather than printed raw.
+   */
+  private categoryText(datum: Datum | undefined, index: number, value: number, total: number): string {
+    const name = this.labelFor(datum, index);
+    const key = this.options.labelField;
+    if (!datum || !key) return name;
+    // a label may want something shorter than the legend, so its own format
+    // wins; without one the sector reads the same wherever its name appears
+    return (
+      formattedText(datum[key], this.options.label?.category, {
+        datum,
+        label: name,
+        value: datum[this.options.angleField],
+        share: total > 0 ? value / total : 0,
+      }) ?? name
+    );
+  }
+
   /** Text of the value part: the share of the total unless the raw value was asked for. */
   private valueText(datum: Datum | undefined, index: number, value: number, total: number): string {
     const options = this.options.label?.value;
@@ -274,58 +296,27 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     return options?.format ? formatValue(options.format, share) : `${Math.round(share * 100)}%`;
   }
 
-  /**
-   * The label of one sector, part by part. Each part carries its own font and
-   * colour: the name and the value are one label, styled separately. An inline
-   * label keeps the separator between them as a part of its own, so it picks up
-   * the font of the name it follows.
-   */
+  /** The label of one sector, run by run: the name and the value, each with its own font. */
   private labelParts(datum: Datum | undefined, index: number, value: number, total: number): LabelPart[] {
     const options = this.options.label;
     const theme = this.env.theme;
-    const inside = this.labelsInside;
-    const defaultColor = inside ? contrastTextColor(this.colorFor(index)) : theme.foregroundColor;
-    const part = (text: string, font: (Switchable & FontOptions) | undefined): LabelPart => ({
-      text,
-      fontSize: font?.fontSize ?? themeFont(theme, FONT_STEP.label),
-      fontFamily: font?.fontFamily ?? theme.fontFamily,
-      fontWeight: font?.fontWeight !== undefined ? String(font.fontWeight) : undefined,
-      color: font?.color ?? defaultColor,
-    });
-
-    const parts: LabelPart[] = [];
-    if (this.categoryShown) parts.push(part(this.labelFor(datum, index), options?.category));
-    if (this.valueShown) {
-      if (parts.length > 0 && options?.layout === 'inline') {
-        parts.push({ ...part(options.separator ?? DEFAULT_SEPARATOR, options.category), text: options.separator ?? DEFAULT_SEPARATOR });
-      }
-      parts.push(part(this.valueText(datum, index, value, total), options?.value));
-    }
-    return parts;
-  }
-
-  private static partFont(part: LabelPart): string {
-    return `${part.fontWeight ?? 'normal'} ${part.fontSize}px ${part.fontFamily}`;
-  }
-
-  /** Rows the parts are drawn in: one row per part when stacked, all in one when inline. */
-  private labelRows(parts: LabelPart[]): LabelPart[][] {
-    return this.options.label?.layout === 'inline' ? (parts.length > 0 ? [parts] : []) : parts.map((one) => [one]);
+    const entries: Array<{ text: string; font?: Switchable & FontOptions }> = [];
+    if (this.categoryShown) entries.push({ text: this.categoryText(datum, index, value, total), font: options?.category });
+    if (this.valueShown) entries.push({ text: this.valueText(datum, index, value, total), font: options?.value });
+    return labelParts(
+      entries,
+      {
+        fontSize: themeFont(theme, FONT_STEP.label),
+        fontFamily: theme.fontFamily,
+        color: this.labelsInside ? contrastTextColor(this.colorFor(index)) : theme.foregroundColor,
+      },
+      options,
+    );
   }
 
   /** Size of the whole label block — what the layout has to find room for. */
-  private labelSize(parts: LabelPart[], measureText: (text: string, font: string) => number): { width: number; height: number } {
-    const rows = this.labelRows(parts);
-    let width = 0;
-    let height = 0;
-    rows.forEach((row, index) => {
-      width = Math.max(
-        width,
-        row.reduce((sum, one) => sum + measureText(one.text, PieLikeSeries.partFont(one)), 0),
-      );
-      height += Math.max(...row.map((one) => one.fontSize)) + (index > 0 ? LABEL_LINE_GAP : 0);
-    });
-    return { width, height };
+  private labelSize(parts: LabelPart[], measureText: MeasureText): { width: number; height: number } {
+    return labelBlockSize(parts, measureText, this.options.label?.layout);
   }
 
   /**
@@ -346,51 +337,10 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       align,
       baseline: 'middle',
       fontSize: first?.fontSize ?? 0,
-      font: first ? PieLikeSeries.partFont(first) : '',
+      font: first ? partFont(first) : '',
       width,
       height,
     });
-  }
-
-  /**
-   * Draws the label block anchored at (x, y): `align` places the whole block
-   * horizontally, the block is always centred on y. `outline` haloes the text
-   * against the sector it sits on.
-   */
-  private drawLabel(
-    group: Group,
-    parts: LabelPart[],
-    x: number,
-    y: number,
-    align: 'left' | 'right' | 'center',
-    measureText: (text: string, font: string) => number,
-    outline?: ColorValue,
-  ): void {
-    const rows = this.labelRows(parts);
-    if (rows.length === 0) return;
-    const { height } = this.labelSize(parts, measureText);
-    let rowTop = y - height / 2;
-    for (const row of rows) {
-      const rowHeight = Math.max(...row.map((one) => one.fontSize));
-      const rowWidth = row.reduce((sum, one) => sum + measureText(one.text, PieLikeSeries.partFont(one)), 0);
-      let cursor = align === 'left' ? x : align === 'right' ? x - rowWidth : x - rowWidth / 2;
-      for (const one of row) {
-        const node = new Text();
-        node.text = one.text;
-        node.x = cursor;
-        node.y = rowTop + rowHeight / 2;
-        node.textAlign = 'left';
-        node.textBaseline = 'middle';
-        node.fontSize = one.fontSize;
-        node.fontFamily = one.fontFamily;
-        if (one.fontWeight !== undefined) node.fontWeight = one.fontWeight;
-        node.fill = one.color;
-        if (outline) node.outline = outline;
-        group.append(node);
-        cursor += measureText(one.text, PieLikeSeries.partFont(one));
-      }
-      rowTop += rowHeight + LABEL_LINE_GAP;
-    }
   }
 
   update(ctx: PolarRenderContext): void {
@@ -400,9 +350,7 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     const { data, centerX, centerY, layer } = ctx;
     this.center = { x: centerX, y: centerY };
 
-    const values = numericValues(data, this.options.angleField).map((value, index) =>
-      Number.isNaN(value) || value < 0 || this.hiddenSectors.has(index) ? 0 : value,
-    );
+    const values = partValues(data, this.options.angleField).map((value, index) => (this.hiddenSectors.has(index) ? 0 : value));
     const total = values.reduce((sum, value) => sum + value, 0);
     if (total <= 0) return;
 
@@ -464,23 +412,23 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       this.sectors.push(geometry);
 
       const node = new Sector();
-      const isSelected = ctx.selected?.has(index) === true;
       node.centerX = centerX;
       node.centerY = centerY;
       node.innerRadius = geometry.innerRadius;
-      node.outerRadius = isSelected ? geometry.outerRadius + HIGHLIGHT_POP : geometry.outerRadius;
       node.startAngle = geometry.startAngle;
       node.endAngle = geometry.endAngle;
       node.fill = this.colorFor(index);
-      node.stroke = isSelected ? (ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor) : this.options.stroke;
-      node.strokeWidth = isSelected
-        ? (ctx.selectionStyle?.strokeWidth ?? 1.5)
-        : (this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1.5);
       node.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 0;
       node.edgeInset = (this.options.sectorSpacing ?? 0) / 2;
-      if (ctx.selectionActive && !isSelected) {
-        node.opacity = ctx.selectionStyle?.inactiveOpacity ?? 0.45;
-      } else if (ctx.highlight && highlighted === undefined) {
+      // a selected sector is outlined and pops out; the rest fade back
+      const isSelected = applySelection(node, index, ctx, {
+        stroke: this.options.stroke,
+        strokeWidth: this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1.5,
+        foreground: this.env.theme.foregroundColor,
+      });
+      node.outerRadius = isSelected ? geometry.outerRadius + HIGHLIGHT_POP : geometry.outerRadius;
+      // dimming while another sector is highlighted; a selection has the last word
+      if (!ctx.selectionActive && ctx.highlight && highlighted === undefined) {
         node.opacity = ctx.dimOpacity ?? DEFAULT_DIM_OPACITY;
       }
       group.append(node);
@@ -564,15 +512,25 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     inside: Array<{ index: number; sweep: number; x: number; y: number; parts: LabelPart[] }>,
     ctx: PolarRenderContext,
   ): void {
-    const dropped = new Set<number>();
-    if (this.avoidsOverlap) {
-      for (const label of [...inside].sort((a, b) => b.sweep - a.sweep)) {
-        if (!this.fitsGuard(ctx, label.parts, label.x, label.y, 'center')) dropped.add(label.index);
-      }
-    }
+    const dropped = this.avoidsOverlap
+      ? crowdedOut(
+          inside,
+          (label) => label.sweep,
+          (label) => this.fitsGuard(ctx, label.parts, label.x, label.y, 'center'),
+        )
+      : new Set<(typeof inside)[number]>();
     for (const label of inside) {
-      if (dropped.has(label.index)) continue;
-      this.drawLabel(group, label.parts, label.x, label.y, 'center', ctx.measureText, this.colorFor(label.index));
+      if (dropped.has(label)) continue;
+      drawLabelBlock(
+        group,
+        label.parts,
+        label.x,
+        label.y,
+        'center',
+        ctx.measureText,
+        this.options.label?.layout,
+        this.colorFor(label.index),
+      );
     }
   }
 
@@ -670,17 +628,16 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
 
     // avoidOverlap gives the guard the last word. The widest sectors ask first,
     // so a side that has run out of room drops the narrowest labels on it.
-    const dropped = new Set<number>();
-    if (this.avoidsOverlap) {
-      for (const entry of [...entries].sort((a, b) => b.sweep - a.sweep)) {
-        if (!this.fitsGuard(ctx, entry.parts, anchorX(entry), entry.labelY, entry.rightSide ? 'left' : 'right')) {
-          dropped.add(entry.index);
-        }
-      }
-    }
+    const dropped = this.avoidsOverlap
+      ? crowdedOut(
+          entries,
+          (entry) => entry.sweep,
+          (entry) => this.fitsGuard(ctx, entry.parts, anchorX(entry), entry.labelY, entry.rightSide ? 'left' : 'right'),
+        )
+      : new Set<(typeof entries)[number]>();
 
     for (const entry of entries) {
-      if (dropped.has(entry.index)) continue;
+      if (dropped.has(entry)) continue;
       const sectorColor = this.colorFor(entry.index);
       const direction = entry.rightSide ? 1 : -1;
       // starts at the current (possibly popped-out) sector edge: on hover
@@ -706,7 +663,15 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
       tail.strokeWidth = horizontal?.strokeWidth ?? radial?.strokeWidth ?? 1;
       group.append(tail);
 
-      this.drawLabel(group, entry.parts, anchorX(entry), entry.labelY, entry.rightSide ? 'left' : 'right', measureText);
+      drawLabelBlock(
+        group,
+        entry.parts,
+        anchorX(entry),
+        entry.labelY,
+        entry.rightSide ? 'left' : 'right',
+        measureText,
+        this.options.label?.layout,
+      );
     }
   }
 
@@ -742,28 +707,25 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     if (!datum) return { rows: [] };
     const renderer = this.options.tooltip?.renderer;
     if (renderer) {
-      const result = renderer({
-        datum,
-        label: this.labelFor(datum, datumIndex),
-        value: datum[this.options.angleField],
-        color: this.colorFor(datumIndex),
-      });
-      return typeof result === 'string' ? { heading: result, rows: [] } : result;
+      return tooltipContentOf(
+        renderer({
+          datum,
+          label: this.labelFor(datum, datumIndex),
+          value: datum[this.options.angleField],
+          color: this.colorFor(datumIndex),
+        }),
+      );
     }
-    const values = numericValues(data, this.options.angleField).map((value) => (Number.isNaN(value) || value < 0 ? 0 : value));
+    const values = partValues(data, this.options.angleField);
     const total = values.reduce((sum, value) => sum + value, 0);
     const value = values[datumIndex] ?? 0;
-    const percent = total > 0 ? ` (${Math.round((value / total) * 100)}%)` : '';
-    return {
+    return partTooltip({
       heading: this.labelFor(datum, datumIndex),
-      rows: [
-        {
-          label: this.options.angleName ?? this.options.angleField,
-          value: `${value}${percent}`,
-          color: this.colorFor(datumIndex),
-        },
-      ],
-    };
+      label: this.options.angleName ?? this.options.angleField,
+      value,
+      share: total > 0 ? value / total : undefined,
+      color: this.colorFor(datumIndex),
+    });
   }
 
   legendItems(): LegendItemDescriptor[] {

@@ -357,7 +357,7 @@ export function createChart(options: ChartOptions): ChartInstance {
 const warnedCalls = new Set<string>();
 
 /**
- * A pie has no zoom and a treemap has no selection: the call is a no-op there,
+ * A pie has no zoom and a sankey has no zoom either: the call is a no-op there,
  * and silence would read as a bug. Warned once per chart kind and method.
  */
 function warnUnsupported(method: string, chartKind: ChartKind): false {

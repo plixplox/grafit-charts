@@ -184,10 +184,26 @@ export class CartesianChart implements SyncMember {
     if (state.hiddenSeries) {
       this.hiddenSeries.clear();
       for (const id of state.hiddenSeries) this.hiddenSeries.add(id);
-      for (const series of this.series) {
-        series.visible = !this.hiddenSeries.has(series.id);
-      }
+      for (const series of this.series) this.applyHiddenState(series);
     }
+  }
+
+  /**
+   * What the legend has switched off, applied to a series: the series itself,
+   * and — for one that puts several items in the legend — those items, which
+   * are held as `<seriesId>#<index>` in the same set.
+   */
+  private applyHiddenState(series: CartesianSeriesInstance): void {
+    series.visible = !this.hiddenSeries.has(series.id);
+    if (!series.setHiddenItems) return;
+    const prefix = `${series.id}#`;
+    const items = new Set<number>();
+    for (const id of this.hiddenSeries) {
+      if (!id.startsWith(prefix)) continue;
+      const index = Number(id.slice(prefix.length));
+      if (Number.isInteger(index)) items.add(index);
+    }
+    series.setHiddenItems(items);
   }
 
   /**
@@ -334,8 +350,8 @@ export class CartesianChart implements SyncMember {
         },
         theme: this.theme,
       });
-      if (this.hiddenSeries.has(instance.id)) instance.visible = false;
       // chartKind is checked above — this is a cartesian series
+      this.applyHiddenState(instance as CartesianSeriesInstance);
       return instance as CartesianSeriesInstance;
     });
   }
@@ -738,7 +754,8 @@ export class CartesianChart implements SyncMember {
     const { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, navigatorRect, colorInfo, gradientRect } = cache;
     const plot = this.plot;
     // the labels of the whole frame share one guard, so series avoid each other too
-    const labelGuard = new LabelPlacements((text, font) => this.scene.measureText(text, font));
+    const measureText: MeasureText = (text, font) => this.scene.measureText(text, font);
+    const labelGuard = new LabelPlacements(measureText);
 
     if (xAxis && yAxis) {
       for (const series of this.series) {
@@ -750,6 +767,7 @@ export class CartesianChart implements SyncMember {
           swapped,
           plot,
           layer: seriesLayer,
+          measureText,
           labelLayer: seriesLabelLayer,
           labelGuard,
           highlight: this.inputs.highlight?.enabled !== false ? (this.highlight ?? this.fadeHighlight) : undefined,
@@ -1099,7 +1117,11 @@ export class CartesianChart implements SyncMember {
       if (owner?.toggleItem && Number.isFinite(itemIndex)) {
         owner.toggleItem(itemIndex);
         const item = owner.legendItems().find((entry) => entry.seriesId === seriesId);
-        this.inputs.listeners?.legendItemClick?.({ seriesId, visible: item?.visible !== false });
+        const visible = item?.visible !== false;
+        // the same set the series' own visibility lives in, so getState carries both
+        if (visible) this.hiddenSeries.delete(seriesId);
+        else this.hiddenSeries.add(seriesId);
+        this.inputs.listeners?.legendItemClick?.({ seriesId, visible });
         this.layoutAndRender();
         this.requestRender();
       }
@@ -1404,8 +1426,21 @@ export class CartesianChart implements SyncMember {
   private emitNodeClick(seriesId: string, datumIndex: number): void {
     const listener = this.inputs.listeners?.nodeClick;
     if (!listener) return;
+    const node = this.describeNode(seriesId, datumIndex);
+    if (node) listener(node);
+  }
+
+  /**
+   * What was clicked or selected, in the terms of the series it belongs to: a
+   * data row for most, and for a series that counts something else (histogram
+   * bins) the node itself — reading its index as a row index picks a stranger.
+   */
+  private describeNode(seriesId: string, datumIndex: number): SelectedItem | undefined {
+    const series = this.series.find((instance) => instance.id === seriesId);
+    const node = series?.nodeInfo?.(datumIndex);
+    if (node) return { seriesId, datumIndex, node };
     const datum = (this.inputs.data ?? [])[datumIndex];
-    if (datum) listener({ seriesId, datumIndex, datum });
+    return datum ? { seriesId, datumIndex, datum } : undefined;
   }
 
   /** Click semantics of the selection: single replaces it, multiple toggles the node. */
@@ -1426,12 +1461,11 @@ export class CartesianChart implements SyncMember {
   }
 
   private collectSelection(): SelectedItem[] {
-    const data = this.inputs.data ?? [];
     const items: SelectedItem[] = [];
     for (const [seriesId, indices] of this.selectedMap) {
       for (const datumIndex of indices) {
-        const datum = data[datumIndex];
-        if (datum) items.push({ seriesId, datumIndex, datum });
+        const item = this.describeNode(seriesId, datumIndex);
+        if (item) items.push(item);
       }
     }
     return items;

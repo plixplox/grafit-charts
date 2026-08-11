@@ -40,7 +40,16 @@ annotations: [
 ```
 
 `stat` is one of `'mean'`, `'median'`, `'min'`, `'max'`, `'sum'`, `'percentile'`
-(with `percentile: 0…100`). Both ends of a `range` take the same descriptor, which
+(with `percentile: 0…100`).
+
+`weightField` names the column holding how many records a row stands for. Data that
+arrives pre-aggregated — one row per bucket with a count beside it — otherwise gets
+the statistic of the buckets rather than of the records: without weights the median
+of `[{ms: 10, n: 900}, {ms: 900, n: 1}]` is 455, with them it is 10. A weighted mean
+is `Σ w·x / Σ w`; a weighted median or percentile is the value at which the running
+weight crosses the mark, without interpolating between neighbours — the answer is a
+value that was actually recorded. Rows whose weight is missing, zero or negative are
+left out. Both ends of a `range` take the same descriptor, which
 is how a band between two percentiles is written:
 
 ```ts

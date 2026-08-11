@@ -39,13 +39,40 @@ export function pointLabelOverflow(
   plot: LayoutRect,
   measureText: MeasureText,
 ): Insets {
-  if (placement === 'inside') return NO_OVERFLOW;
   const fontSpec = `${font.weight} ${font.size}px ${font.family}`;
+  return pointBlockOverflow(
+    marks.map((mark) => ({ ...mark, width: measureText(mark.text, fontSpec), height: font.size })),
+    placement,
+    plot,
+  );
+}
+
+/**
+ * The same question for a label made of several runs over several lines: the
+ * block has measured its own box, so it hands over width and height instead of
+ * a piece of text.
+ */
+export function pointBlockOverflow(
+  marks: Array<{ x: number; y: number; width: number; height: number; offset: number }>,
+  placement: PointLabelPlacement,
+  plot: LayoutRect,
+): Insets {
+  if (placement === 'inside') return NO_OVERFLOW;
   let overflow = NO_OVERFLOW;
   for (const mark of marks) {
     const placed = placePointLabel(mark.x, mark.y, placement, mark.offset);
-    const bounds = textBounds(placed.x, placed.y, measureText(mark.text, fontSpec), font.size, placed.align, placed.baseline);
+    const bounds = textBounds(placed.x, placed.y, mark.width, mark.height, placed.align, placed.baseline);
     overflow = maxOverflow(overflow, overflowOutside(bounds, plot));
   }
   return overflow;
+}
+
+/**
+ * Where the centre of a label block goes: `placePointLabel` anchors the text by
+ * its baseline, a block is always centred on its own y.
+ */
+export function pointBlockCenter(placed: PlacedPointLabel, height: number): number {
+  if (placed.baseline === 'bottom') return placed.y - height / 2;
+  if (placed.baseline === 'top') return placed.y + height / 2;
+  return placed.y;
 }

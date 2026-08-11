@@ -1,19 +1,46 @@
 import { CartesianSeries, type SeriesBaseOptions } from './cartesian-series';
-import { placePointLabel, pointLabelOverflow, POINT_LABEL_GAP } from './point-label';
-import { labelFont } from './rect-label';
+import { placePointLabel, pointBlockCenter, pointBlockOverflow, POINT_LABEL_GAP } from './point-label';
 import { numericValues } from '@/shared/data';
-import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
+import { DEFAULT_DIM_OPACITY, FONT_STEP, themeFont } from '@/shared/kernel';
 import type {
   CartesianGeometry,
   CartesianRenderContext,
   Insets,
   LabelOverflowContext,
+  MeasureText,
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction, Styler, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
-import { Group, Marker, Text, type MarkerShape } from '@/shared/scene';
-import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
+import type {
+  ColorValue,
+  Datum,
+  Pixels,
+  Fraction,
+  Styler,
+  FontOptions,
+  Formattable,
+  PartLabelBlockOptions,
+  PartLabelLayout,
+  PartNameParams,
+  PartValueLabelOptions,
+  Switchable,
+} from '@/shared/options';
+import { Group, Marker, type MarkerShape } from '@/shared/scene';
+import {
+  contrastTextColor,
+  crowdedOut,
+  drawLabelBlock,
+  formatValue,
+  formattedText,
+  labelBlockSize,
+  labelParts,
+  partFont,
+  partText,
+  partValues,
+  worthLabelling,
+  NO_OVERFLOW,
+  type LabelPart,
+} from '@/shared/util';
 
 export interface MarkerItemStylerParams {
   datum: Datum;
@@ -34,6 +61,17 @@ export interface MarkerItemStyle {
 export interface MarkerSeriesBaseOptions extends SeriesBaseOptions {
   /** Y value name in the tooltip (yField by default). */
   yName?: string;
+  /**
+   * Data key of the point name — the heading of its tooltip and the name half
+   * of its label. Without it a point is only known by its coordinates.
+   */
+  labelField?: string;
+  /**
+   * How the value of `labelField` becomes text — for the tooltip heading and
+   * the name half of a point label alike. `label.category` overrides it where
+   * a label wants something shorter.
+   */
+  labelName?: Formattable<PartNameParams>;
   shape?: MarkerShape;
   size?: Pixels;
   fill?: ColorValue;
@@ -41,17 +79,43 @@ export interface MarkerSeriesBaseOptions extends SeriesBaseOptions {
   stroke?: ColorValue;
   strokeWidth?: Pixels;
   itemStyler?: Styler<MarkerItemStylerParams, MarkerItemStyle>;
-  /** Value labels at points: top (by default) / bottom / left / right. */
+  /**
+   * Point labels: the name of the point (`labelField`) and its value, drawn as
+   * one block — each half with its own font, `layout` putting the value behind
+   * a separator (default) or on a line of its own. `placement` hangs the block
+   * off the marker: top (by default) / bottom / left / right / inside.
+   */
   label?: Switchable &
     FontOptions &
-    LabelOverlapOptions & {
+    PartLabelBlockOptions<MarkerLabelFormatterParams> & {
       /** inside — within the marker (for bubble), auto-contrast + outline. */
       placement?: 'top' | 'bottom' | 'left' | 'right' | 'inside';
+      /** The whole label at once; it wins over `category`/`value`. */
       formatter?: (params: { value: number; datum: Datum }) => string;
     };
 }
 
+export interface MarkerLabelFormatterParams {
+  datum: Datum;
+  /** Point name (labelField); the index when there is none. */
+  label: string;
+  /** Value of yField — of sizeField for a bubble, the field the point is a share of. */
+  value: unknown;
+  /** Share of the total, 0..1. */
+  share: number;
+}
+
+/** Point value — the value itself by default; `type: 'percent'` reads it as a share. */
+export type MarkerValueLabelOptions = PartValueLabelOptions<MarkerLabelFormatterParams>;
+
 const PICK_RANGE = 30;
+
+/** The three alignments a label block understands, from the canvas' seven. */
+function blockAlign(align: CanvasTextAlign): 'left' | 'right' | 'center' {
+  if (align === 'left' || align === 'start') return 'left';
+  if (align === 'right' || align === 'end') return 'right';
+  return 'center';
+}
 interface MarkerPoint {
   index: number;
   x: number;
@@ -99,21 +163,133 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
     return this.sizeFor(index) / 2 + POINT_LABEL_GAP;
   }
 
-  private labelTextFor(datum: Datum): string {
-    const value = Number(datum[this.options.yField]);
-    const formatter = this.options.label?.formatter;
-    return formatter ? formatter({ value, datum }) : String(value);
+  /** Name of a point, from labelField; the index stands in when there is none. */
+  protected labelFor(datum: Datum | undefined, index: number): string {
+    const key = this.options.labelField;
+    if (key === undefined || !datum) return String(index);
+    return partText(datum[key], this.options.labelName, { datum, value: datum[key] });
+  }
+
+  /** Whether the name of a point is part of its label — there has to be one to show. */
+  private get categoryShown(): boolean {
+    return this.options.label?.category?.enabled !== false && this.options.labelField !== undefined;
+  }
+
+  /** A point label has always been the value, so the value stays part of it by default. */
+  private get valueShown(): boolean {
+    return this.options.label?.value?.enabled !== false;
+  }
+
+  /** 'inline' by default: the value follows the name behind a separator. */
+  private get labelLayout(): PartLabelLayout {
+    return this.options.label?.layout ?? 'inline';
+  }
+
+  /**
+   * The field a point is a share of: the y value for a scatter, the bubble size
+   * for a bubble — what `minShare` and `value.type: 'percent'` are measured in.
+   */
+  protected shareField(): string {
+    return this.options.yField;
+  }
+
+  /**
+   * With label.avoidOverlap on, which points ask for room first. Undefined —
+   * the order of the data, the rule every Cartesian series follows; a bubble
+   * overrides it, so the big bubbles keep their labels.
+   */
+  protected labelPriority(_index: number): number | undefined {
+    return undefined;
+  }
+
+  /** Shares of the total by data index, in whatever field the points are shares of. */
+  private shares(data: Datum[]): { values: number[]; total: number } {
+    const values = partValues(data, this.shareField());
+    return { values, total: values.reduce((sum, value) => sum + value, 0) };
+  }
+
+  /**
+   * Text of the name half. The field a point is named by carries a format of
+   * its own — a date, a code — so the name is formatted like the value beside
+   * it rather than printed raw.
+   */
+  private categoryText(datum: Datum, index: number, share: number): string {
+    const name = this.labelFor(datum, index);
+    const key = this.options.labelField;
+    if (key === undefined) return name;
+    // a label may want something shorter than the tooltip, so its own format wins
+    return (
+      formattedText(datum[key], this.options.label?.category, {
+        datum,
+        label: name,
+        value: datum[this.shareField()],
+        share,
+      }) ?? name
+    );
+  }
+
+  /** Text of the value half: the y value unless a share was asked for. */
+  private valueText(datum: Datum, index: number, share: number): string {
+    const options = this.options.label?.value;
+    const raw = datum[this.shareField()];
+    if (options?.formatter) return options.formatter({ datum, label: this.labelFor(datum, index), value: raw, share });
+    if (options?.type === 'percent') return options.format ? formatValue(options.format, share) : `${Math.round(share * 100)}%`;
+    return options?.format ? formatValue(options.format, raw) : String(raw);
+  }
+
+  /**
+   * The label of one point, run by run. `label.formatter` speaks for the whole
+   * label when it is given; otherwise the name and the value are two runs, each
+   * with its own font over the label's.
+   */
+  private labelPartsFor(datum: Datum, index: number, share: number): LabelPart[] {
+    const options = this.options.label;
+    const inside = options?.placement === 'inside';
+    const defaults = {
+      fontSize: options?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label),
+      fontFamily: options?.fontFamily ?? this.env.theme.fontFamily,
+      fontWeight: options?.fontWeight !== undefined ? String(options.fontWeight) : 'normal',
+      color: options?.color ?? (inside ? contrastTextColor(this.mainColor()) : this.env.theme.foregroundColor),
+    };
+    if (options?.formatter) {
+      return labelParts([{ text: options.formatter({ value: Number(datum[this.options.yField]), datum }) }], defaults, options);
+    }
+    const entries: Array<{ text: string; font?: Switchable & FontOptions }> = [];
+    if (this.categoryShown) entries.push({ text: this.categoryText(datum, index, share), font: options?.category });
+    if (this.valueShown) entries.push({ text: this.valueText(datum, index, share), font: options?.value });
+    return labelParts(entries, defaults, { layout: this.labelLayout, separator: options?.separator });
+  }
+
+  /** Size of the whole label block — what the layout has to find room for. */
+  private labelSize(parts: LabelPart[], measureText: MeasureText): { width: number; height: number } {
+    return labelBlockSize(parts, measureText, this.labelLayout);
+  }
+
+  /** The label blocks to draw, with the points they hang off — minShare has already had its say. */
+  private labelBlocks(ctx: CartesianGeometry): Array<{ index: number; x: number; y: number; parts: LabelPart[] }> {
+    const { values, total } = this.shares(ctx.data);
+    const minShare = this.options.label?.minShare;
+    return this.layoutPoints(ctx).flatMap((point) => {
+      const datum = ctx.data[point.index];
+      const value = values[point.index] ?? 0;
+      if (!datum || !worthLabelling(value, total, minShare)) return [];
+      const parts = this.labelPartsFor(datum, point.index, total > 0 ? value / total : 0);
+      return parts.length > 0 ? [{ index: point.index, x: point.x, y: point.y, parts }] : [];
+    });
   }
 
   override labelOverflow(ctx: LabelOverflowContext): Insets {
     const label = this.options.label;
     if (!this.visible || label?.enabled !== true) return NO_OVERFLOW;
     this.prepare(ctx);
-    const marks = this.layoutPoints(ctx).flatMap((point) => {
-      const datum = ctx.data[point.index];
-      return datum ? [{ x: point.x, y: point.y, text: this.labelTextFor(datum), offset: this.labelOffset(point.index) }] : [];
-    });
-    return pointLabelOverflow(marks, label.placement ?? 'top', labelFont(label, this.env.theme), ctx.plot, ctx.measureText);
+    // the block, not a single line: a stacked label is taller and only as wide as its widest run
+    const marks = this.labelBlocks(ctx).map((block) => ({
+      x: block.x,
+      y: block.y,
+      ...this.labelSize(block.parts, ctx.measureText),
+      offset: this.labelOffset(block.index),
+    }));
+    return pointBlockOverflow(marks, label.placement ?? 'top', ctx.plot);
   }
 
   override tooltipFor(datumIndex: number, mode?: 'single' | 'shared'): TooltipContentData {
@@ -121,9 +297,13 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
     const datum = this.lastCtx?.data[datumIndex];
     if (!datum) return { rows: [] };
     // both axes of a point series are measures, so the x value is a labelled
-    // row like the others, and the heading identifies the series (marker + name)
+    // row like the others; the heading names the point when it has a name of
+    // its own, and the series otherwise
     return {
-      heading: { text: this.seriesName, color: this.mainColor() },
+      heading: {
+        text: this.options.labelField !== undefined ? this.labelFor(datum, datumIndex) : this.seriesName,
+        color: this.mainColor(),
+      },
       rows: [
         { label: this.options.xName ?? this.options.xField, value: String(datum[this.options.xField]) },
         { label: this.options.yName ?? this.options.yField, value: String(datum[this.options.yField]) },
@@ -188,32 +368,52 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
     if (this.options.label?.enabled === true) {
       const labelOptions = this.options.label;
       const placement = labelOptions.placement ?? 'top';
-      const font = labelFont(labelOptions, this.env.theme);
-      for (const point of this.points) {
-        const datum = ctx.data[point.index];
-        if (!datum) continue;
-        const placed = placePointLabel(point.x, point.y, placement, this.labelOffset(point.index));
-        const label = new Text();
-        label.text = this.labelTextFor(datum);
-        label.x = placed.x;
-        label.y = placed.y;
-        label.textAlign = placed.align;
-        label.textBaseline = placed.baseline;
-        label.fontSize = font.size;
-        label.fontWeight = font.weight;
-        label.fontFamily = font.family;
-        if (placement === 'inside') {
-          label.fill = labelOptions.color ?? contrastTextColor(this.mainColor());
-          label.outline = this.mainColor();
-        } else {
-          label.fill = labelOptions.color ?? this.env.theme.foregroundColor;
-          label.outline = this.env.theme.backgroundColor;
-        }
-        if (this.labelFits(ctx, label, labelOptions.avoidOverlap)) labels.append(label);
+      const outline = placement === 'inside' ? this.mainColor() : this.env.theme.backgroundColor;
+      const placed = this.labelBlocks(ctx).map((block) => {
+        const at = placePointLabel(block.x, block.y, placement, this.labelOffset(block.index));
+        const { height } = this.labelSize(block.parts, ctx.measureText);
+        return { ...block, at, y: pointBlockCenter(at, height) };
+      });
+
+      // the guard is asked in the order of the data, unless the series has a
+      // size of its own to rank the points by (a bubble does)
+      const dropped =
+        labelOptions.avoidOverlap === true
+          ? crowdedOut(
+              placed,
+              (block) => this.labelPriority(block.index) ?? -block.index,
+              (block) => this.blockFits(ctx, block.parts, block.at.x, block.y, block.at.align),
+            )
+          : new Set<(typeof placed)[number]>();
+      for (const block of placed) {
+        if (dropped.has(block)) continue;
+        drawLabelBlock(labels, block.parts, block.at.x, block.y, blockAlign(block.at.align), ctx.measureText, this.labelLayout, outline);
       }
     }
 
     this.appendGroups(ctx, group, labels);
+  }
+
+  /**
+   * Whether the label block gets to keep its spot: the runs span several lines,
+   * so no single piece of text describes the box it takes.
+   */
+  private blockFits(ctx: CartesianRenderContext, parts: LabelPart[], x: number, y: number, align: CanvasTextAlign): boolean {
+    const guard = ctx.labelGuard;
+    if (!guard) return true;
+    const { width, height } = this.labelSize(parts, ctx.measureText);
+    const first = parts[0];
+    return guard.admits({
+      text: parts.map((one) => one.text).join(''),
+      x,
+      y,
+      align,
+      baseline: 'middle',
+      fontSize: first?.fontSize ?? 0,
+      font: first ? partFont(first) : '',
+      width,
+      height,
+    });
   }
 
   pickInRect(x0: number, y0: number, x1: number, y1: number): number[] {

@@ -2,7 +2,7 @@ import { MarkerSeries, type MarkerSeriesBaseOptions } from '@/entities/series/ba
 import { numericValues } from '@/shared/data';
 import type { CartesianRenderContext, SeriesModule, TooltipContentData } from '@/shared/kernel';
 import type { Pixels } from '@/shared/options';
-import { extent } from '@/shared/util';
+import { extent, partValues } from '@/shared/util';
 
 export interface BubbleSeriesOptions extends MarkerSeriesBaseOptions {
   type: 'bubble';
@@ -35,14 +35,29 @@ export class BubbleSeries extends MarkerSeries<BubbleSeriesOptions> {
     return this.sizes[index] ?? this.options.size ?? 8;
   }
 
+  /** A bubble is a part of a whole: its size is what `minShare` and 'percent' are measured in. */
+  protected override shareField(): string {
+    return this.options.sizeField;
+  }
+
+  /** With avoidOverlap on the big bubbles ask for room first — the specks lose their labels. */
+  protected override labelPriority(index: number): number {
+    return this.sizes[index] ?? 0;
+  }
+
   override tooltipFor(datumIndex: number, mode?: 'single' | 'shared'): TooltipContentData {
     const content = super.tooltipFor(datumIndex, mode);
     if (this.options.tooltip?.renderer) return content;
-    const datum = this.lastCtx?.data[datumIndex];
+    const data = this.lastCtx?.data ?? [];
+    const datum = data[datumIndex];
     if (datum) {
+      // the size reads as a share of the whole, the way a pie sector does
+      const values = partValues(data, this.options.sizeField);
+      const total = values.reduce((sum, value) => sum + value, 0);
+      const percent = total > 0 ? ` (${Math.round(((values[datumIndex] ?? 0) / total) * 100)}%)` : '';
       content.rows.push({
         label: this.options.sizeName ?? this.options.sizeField,
-        value: String(datum[this.options.sizeField]),
+        value: `${String(datum[this.options.sizeField])}${percent}`,
       });
     }
     return content;

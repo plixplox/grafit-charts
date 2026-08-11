@@ -2,6 +2,7 @@ import { renderBackground, type BackgroundOptions } from '@/entities/background'
 import { hasCaptions, renderCaptions, type CaptionOptions } from '@/entities/caption';
 import type { Legend, LegendApi, LegendOptions } from '@/entities/legend';
 import type { HighlightOptions } from '@/features/highlight';
+import type { ChartListeners, SelectedItem, SelectionOptions } from '@/features/selection';
 import type { HtmlTooltip, TooltipApi, TooltipOptions } from '@/features/tooltip';
 import { Animator, type AnimationOptions } from '@/shared/animation';
 import { warnMissingFeature, type ChartWidgetModule } from '@/shared/kernel';
@@ -9,15 +10,18 @@ import type {
   ChartState,
   ChartWidget,
   HighlightState,
+  ImperativeOptions,
   LayoutRect,
   ModuleRegistry,
   NodeRef,
+  SelectedNode,
   SeriesPick,
   StandaloneSeriesInstance,
   ThemeContext,
 } from '@/shared/kernel';
 import { resolvePadding, type Datum, type PaddingValue } from '@/shared/options';
 import type { Scene } from '@/shared/scene';
+import { LabelPlacements } from '@/shared/util';
 
 export interface StandaloneChartInputs {
   data?: Datum[];
@@ -30,6 +34,8 @@ export interface StandaloneChartInputs {
   tooltip?: TooltipOptions;
   highlight?: HighlightOptions;
   animation?: AnimationOptions;
+  selection?: SelectionOptions;
+  listeners?: ChartListeners;
 }
 
 const DEFAULT_PADDING = { top: 12, right: 20, bottom: 12, left: 20 };
@@ -43,6 +49,8 @@ export class StandaloneChart implements ChartWidget {
   private series: StandaloneSeriesInstance[] = [];
   private legend: Legend | undefined;
   private highlight: HighlightState | undefined;
+  /** Selected datum indices per series id (Data Selection). */
+  private readonly selectedMap = new Map<string, Set<number>>();
   private readonly animator = new Animator();
   private hasAnimated = false;
   private readonly tooltip: HtmlTooltip | undefined;
@@ -162,13 +170,23 @@ export class StandaloneChart implements ChartWidget {
       }
     }
 
+    // one guard for the whole render: labels of every series compete for the same room
+    const labelGuard = new LabelPlacements(measureText);
     for (const series of this.series) {
       series.update({
         data,
         plot: avail,
         layer: seriesLayer,
+        measureText,
         highlight: this.inputs.highlight?.enabled !== false ? this.highlight : undefined,
         animationT: this.animator.t,
+        labelGuard,
+        selected: this.selectedMap.get(series.id),
+        selectionActive: [...this.selectedMap.values()].some((set) => set.size > 0),
+        selectionStyle: {
+          ...this.inputs.selection?.itemStyle,
+          inactiveOpacity: this.inputs.selection?.inactiveOpacity,
+        },
       });
     }
   }
@@ -198,32 +216,109 @@ export class StandaloneChart implements ChartWidget {
     }
   }
 
-  /**
-   * The tooltip addressed by datum. There is nothing else to drive here: this
-   * widget has neither clicks, nor a selection, nor a zoom.
-   */
+  /** The tooltip addressed by datum: no pointer, the node's own anchor stands in for one. */
   showTooltip(target: NodeRef): boolean {
-    for (const series of this.series) {
-      if (!series.visible) continue;
-      if (target.seriesId !== undefined && series.id !== target.seriesId) continue;
-      const pick = series.nodeAt?.(target.datumIndex);
-      if (!pick) continue;
-      this.highlight = { seriesId: pick.seriesId, datumIndex: pick.datumIndex };
-      this.layoutAndRender();
-      this.requestRender();
-      if (this.tooltip && this.inputs.tooltip?.enabled !== false) {
-        this.tooltip.show(series.tooltipFor(pick.datumIndex), pick.x, pick.y, this.theme, this.inputs.tooltip);
-      }
-      return true;
+    const found = this.resolveNode(target);
+    if (!found) return false;
+    const { series, pick } = found;
+    this.highlight = { seriesId: pick.seriesId, datumIndex: pick.datumIndex };
+    this.layoutAndRender();
+    this.requestRender();
+    if (this.tooltip && this.inputs.tooltip?.enabled !== false) {
+      this.tooltip.show(series.tooltipFor(pick.datumIndex), pick.x, pick.y, this.theme, this.inputs.tooltip);
     }
-    return false;
+    return true;
   }
 
   hideTooltip(): void {
     this.handlePointerLeave();
   }
 
-  handleClick(): void {}
+  handleClick(x: number, y: number): void {
+    const pick = this.pickNearest(x, y);
+    if (pick) this.emitNodeClick(pick.seriesId, pick.datumIndex);
+    if (!this.inputs.selection?.enabled) return;
+    if (pick) {
+      this.toggleSelected(pick.seriesId, pick.datumIndex);
+    } else {
+      // a click on empty space drops the selection
+      this.selectedMap.clear();
+      this.afterSelectionChange();
+    }
+  }
+
+  clickNode(target: NodeRef, options?: ImperativeOptions): boolean {
+    const found = this.resolveNode(target);
+    if (!found) return false;
+    if (!options?.silent) this.emitNodeClick(found.pick.seriesId, found.pick.datumIndex);
+    if (this.inputs.selection?.enabled) this.toggleSelected(found.pick.seriesId, found.pick.datumIndex, options);
+    return true;
+  }
+
+  getSelection(): SelectedNode[] {
+    return this.collectSelection();
+  }
+
+  setSelection(targets: NodeRef[], options?: ImperativeOptions): void {
+    const fallbackId = this.series.find((series) => series.visible)?.id;
+    this.selectedMap.clear();
+    for (const target of targets) {
+      const seriesId = target.seriesId ?? fallbackId;
+      if (seriesId === undefined) continue;
+      const set = this.selectedMap.get(seriesId) ?? new Set<number>();
+      set.add(target.datumIndex);
+      this.selectedMap.set(seriesId, set);
+    }
+    this.afterSelectionChange(options);
+  }
+
+  private emitNodeClick(seriesId: string, datumIndex: number): void {
+    const listener = this.inputs.listeners?.nodeClick;
+    if (!listener) return;
+    const datum = (this.inputs.data ?? [])[datumIndex];
+    if (datum) listener({ seriesId, datumIndex, datum });
+  }
+
+  /** Click semantics of the selection: single replaces it, multiple toggles the node. */
+  private toggleSelected(seriesId: string, datumIndex: number, options?: ImperativeOptions): void {
+    const multiple = this.inputs.selection?.mode === 'multiple';
+    const set = multiple ? (this.selectedMap.get(seriesId) ?? new Set<number>()) : new Set<number>();
+    if (!multiple) this.selectedMap.clear();
+    if (multiple && set.has(datumIndex)) set.delete(datumIndex);
+    else set.add(datumIndex);
+    this.selectedMap.set(seriesId, set);
+    this.afterSelectionChange(options);
+  }
+
+  private afterSelectionChange(options?: ImperativeOptions): void {
+    if (!options?.silent) this.inputs.listeners?.selectionChange?.({ items: this.collectSelection() });
+    this.layoutAndRender();
+    this.requestRender();
+  }
+
+  private collectSelection(): SelectedItem[] {
+    const data = this.inputs.data ?? [];
+    const items: SelectedItem[] = [];
+    for (const [seriesId, indices] of this.selectedMap) {
+      for (const datumIndex of indices) {
+        const datum = data[datumIndex];
+        if (datum) items.push({ seriesId, datumIndex, datum });
+      }
+    }
+    return items;
+  }
+
+  /** The node a reference points at; without a series id the visible ones answer in order. */
+  private resolveNode(target: NodeRef): { series: StandaloneSeriesInstance; pick: SeriesPick } | undefined {
+    for (const series of this.series) {
+      if (!series.visible) continue;
+      if (target.seriesId !== undefined && series.id !== target.seriesId) continue;
+      const pick = series.nodeAt?.(target.datumIndex);
+      if (pick) return { series, pick };
+    }
+    return undefined;
+  }
+
   handleDoubleClick(): void {}
   handleWheel(): void {}
   handleDragStart(): void {}

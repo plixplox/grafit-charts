@@ -6,19 +6,19 @@
 
 ## Options
 
-| Option       | Type                            | Default            | Description                     |
-| ------------ | -------------------------------- | ------------------ | ------------------------------- |
-| `text`       | `string`                         | —                  | caption text                    |
-| `enabled`    | `boolean`                        | `true`             | show the caption                |
-| `textAlign`  | `'left' \| 'center' \| 'right'`  | `'center'`         | alignment within the chart width (snaps to the chart `padding`) |
-| `position`   | `'top' \| 'bottom'`              | `'top'`            | above or below the plot         |
-| `fontSize`   | `Pixels`                         | `17` / `13`        | title / subtitle font size      |
-| `fontWeight` | `FontWeight`                     | `'bold'` / `'normal'` | font weight                  |
-| `fontFamily` | `string`                         | theme font         | font family                     |
-| `color`      | `ColorValue`                     | foreground / muted | text color                      |
-| `padding`    | `PaddingValue`                   | `8` on the plot-facing side | padding around the text: `8`, `[8, 12]`, `[8, 12, 4, 0]` or `{ top, right, bottom, left }` |
-| `spacing`    | `Pixels`                         | `8`                | **deprecated** — the plot-facing side of `padding` |
-| `wrap`       | `boolean`                        | `true`             | break long text onto several lines |
+| Option       | Type                            | Default                     | Description                                                                                |
+| ------------ | ------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------ |
+| `text`       | `string`                        | —                           | caption text                                                                               |
+| `enabled`    | `boolean`                       | `true`                      | show the caption                                                                           |
+| `textAlign`  | `'left' \| 'center' \| 'right'` | `'center'`                  | alignment within the chart width (snaps to the chart `padding`)                            |
+| `position`   | `'top' \| 'bottom'`             | `'top'`                     | above or below the plot                                                                    |
+| `fontSize`   | `Pixels`                        | `17` / `13`                 | title / subtitle font size                                                                 |
+| `fontWeight` | `FontWeight`                    | `'bold'` / `'normal'`       | font weight                                                                                |
+| `fontFamily` | `string`                        | theme font                  | font family                                                                                |
+| `color`      | `ColorValue`                    | foreground / muted          | text color                                                                                 |
+| `padding`    | `PaddingValue`                  | `8` on the plot-facing side | padding around the text: `8`, `[8, 12]`, `[8, 12, 4, 0]` or `{ top, right, bottom, left }` |
+| `spacing`    | `Pixels`                        | `8`                         | **deprecated** — the plot-facing side of `padding`                                         |
+| `wrap`       | `boolean`                       | `true`                      | break long text onto several lines                                                         |
 
 ## Alignment and placement
 

@@ -32,8 +32,8 @@
 | `navigator`                | preset                    | вкл.            | прокидываются в ChartOptions                 |
 | `zoom`                     | preset                    | вкл.            | прокидываются в ChartOptions                 |
 | `annotations`              | preset                    | вкл.            | прокидываются в ChartOptions                 |
-| `item.up.fill`             | `ColorValue`                | зелёный темы    | заливка растущих свечей                      |
-| `item.down.fill`           | `ColorValue`                | красный темы    | заливка падающих                             |
+| `item.up.fill`             | `ColorValue`              | зелёный темы    | заливка растущих свечей                      |
+| `item.down.fill`           | `ColorValue`              | красный темы    | заливка падающих                             |
 
 ## Financial preset
 

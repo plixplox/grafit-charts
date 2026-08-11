@@ -28,14 +28,14 @@
 | `labelField`       | `string`                              | `label`/`size`/`children`        | ключи иерархии                          |
 | `sizeField`        | `string`                              | `label`/`size`/`children`        | ключи иерархии                          |
 | `childrenField`    | `string`                              | `label`/`size`/`children`        | ключи иерархии                          |
-| `fills`            | `ColorValue[]`                          | палитра                          | цвета ветвей                            |
-| `sectorSpacing`    | `Pixels`                           | `0`                              | зазор постоянной ширины между секторами |
-| `cornerRadius`     | `Pixels`                           | `0`                              | скругление углов секторов               |
+| `fills`            | `ColorValue[]`                        | палитра                          | цвета ветвей                            |
+| `sectorSpacing`    | `Pixels`                              | `0`                              | зазор постоянной ширины между секторами |
+| `cornerRadius`     | `Pixels`                              | `0`                              | скругление углов секторов               |
 | `stroke`           | стили                                 | фоновая `1px` при нулевом зазоре | обводка секторов                        |
 | `strokeWidth`      | стили                                 | фоновая `1px` при нулевом зазоре | обводка секторов                        |
 | `label.enabled`    | `boolean`                             | `false`                          | подписи секторов (если помещаются)      |
 | `label.formatter`  | `({ label, value, depth }) => string` | имя узла                         | содержимое                              |
-| `label.fontSize`   | `Pixels`                           | `11`                             | размер шрифта подписи                   |
+| `label.fontSize`   | `Pixels`                              | `11`                             | размер шрифта подписи                   |
 | `label.fontWeight` | `string \| number`                    | `normal`                         | насыщенность                            |
 | `label.fontFamily` | `string`                              | шрифт темы                       | гарнитура                               |
-| `label.color`      | `ColorValue`                            | автоконтраст                     | цвет (ореол цвета сектора)              |
+| `label.color`      | `ColorValue`                          | автоконтраст                     | цвет (ореол цвета сектора)              |

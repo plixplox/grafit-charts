@@ -71,6 +71,10 @@ describe('formatValue', () => {
     expect(formatValue('%Y', date.getTime())).toBe('2024');
   });
 
+  it('date pattern with the ISO string a JSON row carries', () => {
+    expect(formatValue('%Y', '2024-06-15T00:00:00Z')).toBe('2024');
+  });
+
   it('date pattern with an unparseable value falls back to String', () => {
     expect(formatValue('%Y', 'abc')).toBe('abc');
   });

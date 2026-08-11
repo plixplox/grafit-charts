@@ -38,10 +38,33 @@ export interface NodeRef {
 }
 
 /** A datum the chart singled out — a selection entry or the target of a click. */
+/**
+ * What an index addresses in a series that does not count data rows. A
+ * histogram counts bars — bin by bin, group within bin — so the row a listener
+ * would otherwise reach for belongs to nobody in particular; the bin does.
+ */
+export interface SeriesNodeInfo {
+  /** What the index counts: `'bin'` for a histogram. */
+  kind: string;
+  /** Bounds of a binned node. */
+  x0?: number;
+  x1?: number;
+  /** Value of the series' `groupField` for this node. */
+  group?: unknown;
+  /** Rows behind the node. */
+  count?: number;
+  /** The height the node draws, and the aggregate it came from. */
+  value?: number;
+  raw?: number;
+}
+
 export interface SelectedNode {
   seriesId: string;
   datumIndex: number;
-  datum: Datum;
+  /** The data row — absent where the index addresses no single row. */
+  datum?: Datum;
+  /** What it addresses instead: a bin of a histogram, say. */
+  node?: SeriesNodeInfo;
 }
 
 /** Shared tail of the imperative calls: whether they notify listeners (they do by default). */
@@ -207,6 +230,8 @@ export interface LabelOverflowContext extends CartesianGeometry {
 
 export interface CartesianRenderContext extends CartesianGeometry {
   layer: Group;
+  /** Text measurement of the frame — a label block sizes itself with it. */
+  measureText: MeasureText;
   /**
    * Layer above every series' marks for the value labels: a bar drawn later
    * must not cover the label of the one before it. Falls back to layer.
@@ -307,6 +332,17 @@ export interface CartesianSeriesInstance {
    * are addressed as `<seriesId>#<index>`.
    */
   toggleItem?(index: number): void;
+  /**
+   * Restores which of those items are switched off. Series are rebuilt on every
+   * update, so without this a legend filter would last only until the next one.
+   */
+  setHiddenItems?(hidden: ReadonlySet<number>): void;
+  /**
+   * What a datum index addresses, for a series that counts something other than
+   * data rows. A series without this method addresses rows, and its listeners
+   * get the row itself.
+   */
+  nodeInfo?(datumIndex: number): SeriesNodeInfo | undefined;
 }
 
 export interface SeriesColors {

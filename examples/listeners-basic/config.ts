@@ -23,7 +23,8 @@ export function createOptions(): ChartOptions {
       selectionChange: ({ items }) => {
         console.log(
           'selectionChange:',
-          items.map((item) => item.datum.feature),
+          // datum is there for a series that counts data rows; a histogram bin reports `node`
+          items.map((item) => item.datum?.feature ?? item.node),
         );
       },
       zoomChange: ({ x }) => {

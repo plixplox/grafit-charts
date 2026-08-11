@@ -36,18 +36,18 @@ Range-area как фон + line поверх, общий тултип:
 
 ::: chart-example range-combo
 
-| Опция                | Тип                          | Описание                          |
-| -------------------- | ---------------------------- | --------------------------------- |
-| `yLowField`          | `string`                     | границы диапазона                 |
-| `yHighField`         | `string`                     | границы диапазона                 |
-| `direction` (bar)    | `'vertical' \| 'horizontal'` | направление баров (`vertical`)    |
-| `fill`               | `ColorValue \| (params) => ColorValue` | заливка; колбэк красит по datum |
-| `fill`               | стили       | заливка           |
-| `fillOpacity`        | стили       | заливка           |
-| `stroke` (area)      | стили       | контурные линии   |
-| `strokeWidth` (area) | стили       | контурные линии   |
-| `cornerRadius` (bar) | `Pixels` | скругление        |
-| `groupGap` (bar)     | `Fraction` | зазор между барами одной группы (`0.2`) |
+| Опция                | Тип                                    | Описание                                |
+| -------------------- | -------------------------------------- | --------------------------------------- |
+| `yLowField`          | `string`                               | границы диапазона                       |
+| `yHighField`         | `string`                               | границы диапазона                       |
+| `direction` (bar)    | `'vertical' \| 'horizontal'`           | направление баров (`vertical`)          |
+| `fill`               | `ColorValue \| (params) => ColorValue` | заливка; колбэк красит по datum         |
+| `fill`               | стили                                  | заливка                                 |
+| `fillOpacity`        | стили                                  | заливка                                 |
+| `stroke` (area)      | стили                                  | контурные линии                         |
+| `strokeWidth` (area) | стили                                  | контурные линии                         |
+| `cornerRadius` (bar) | `Pixels`                               | скругление                              |
+| `groupGap` (bar)     | `Fraction`                             | зазор между барами одной группы (`0.2`) |
 
 ### Полный список опций
 
@@ -56,10 +56,10 @@ Range-area как фон + line поверх, общий тултип:
 | `label.enabled`    | `boolean`                               | `false`                           | показать подписи значений |
 | `label.placement`  | внешние/`center`/`inner-*` (17 позиций) | `'top'`                           | позиция подписи           |
 | `label.formatter`  | `({ low, high, datum }) => string`      | значение                          | содержимое подписи        |
-| `label.fontSize`   | `Pixels`                             | `11`                              | размер шрифта подписи     |
+| `label.fontSize`   | `Pixels`                                | `11`                              | размер шрифта подписи     |
 | `label.fontWeight` | `string \| number`                      | `normal`                          | насыщенность              |
 | `label.fontFamily` | `string`                                | шрифт темы                        | гарнитура                 |
-| `label.color`      | `ColorValue`                              | foreground; внутри — автоконтраст | цвет текста               |
+| `label.color`      | `ColorValue`                            | foreground; внутри — автоконтраст | цвет текста               |
 
 ## Опции
 

@@ -62,6 +62,45 @@ function labels(options: Partial<PieSeriesOptions>, rows: Datum[] = data, areaHe
   return render(Text, options, rows, areaHeight);
 }
 
+describe('the name of a sector', () => {
+  const dated = [
+    { browser: '2024-06-15T00:00:00Z', share: 60 },
+    { browser: '2024-07-15T00:00:00Z', share: 40 },
+  ];
+
+  function rendered(options: Partial<PieSeriesOptions>): PieSeries {
+    const series = new PieSeries({ type: 'pie', angleField: 'share', labelField: 'browser', ...options }, env);
+    series.setData(dated);
+    series.update({
+      data: dated,
+      centerX: 200,
+      centerY: 150,
+      radius: 100,
+      area: { x: 0, y: 0, width: 400, height: 300 },
+      measureText,
+      layer: new Group(),
+    });
+    return series;
+  }
+
+  it('spells the sector out the same way in the legend, the tooltip and the label', () => {
+    const options: Partial<PieSeriesOptions> = { labelName: { format: '%d.%m.%Y' } };
+    expect(
+      rendered(options)
+        .legendItems()
+        .map((item) => item.label),
+    ).toEqual(['15.06.2024', '15.07.2024']);
+    expect(rendered(options).tooltipFor(0).heading).toBe('15.06.2024');
+    expect(labels(options, dated).map((node) => node.text)).toEqual(['15.06.2024', '15.07.2024']);
+  });
+
+  it('lets the label ask for something shorter than the legend', () => {
+    const options: Partial<PieSeriesOptions> = { labelName: { format: '%d.%m.%Y' }, label: { category: { format: '%d.%m' } } };
+    expect(rendered(options).legendItems()[0]?.label).toBe('15.06.2024');
+    expect(labels(options, dated).map((node) => node.text)).toEqual(['15.06', '15.07']);
+  });
+});
+
 describe('sector labels', () => {
   it('shows the sector name and nothing else until the value is asked for', () => {
     expect(labels({}).map((node) => node.text)).toEqual(['Chrome', 'Safari']);
@@ -70,6 +109,22 @@ describe('sector labels', () => {
   it('keeps the name and the value together, the value on its own line', () => {
     const texts = labels({ label: { value: { enabled: true } } }).map((node) => node.text);
     expect(texts).toEqual(['Chrome', '60%', 'Safari', '40%']);
+  });
+
+  it('formats the sector name the way it formats the value beside it', () => {
+    const dated = [
+      { browser: '2024-06-15T00:00:00Z', share: 60 },
+      { browser: '2024-07-15T00:00:00Z', share: 40 },
+    ];
+    const texts = labels({ label: { category: { format: '%d.%m.%Y' } } }, dated).map((node) => node.text);
+    expect(texts).toEqual(['15.06.2024', '15.07.2024']);
+  });
+
+  it('hands the name formatter the datum, the value and the share', () => {
+    const texts = labels({
+      label: { category: { formatter: ({ datum, share }) => `${String(datum.browser)} ${Math.round(share * 100)}` } },
+    }).map((node) => node.text);
+    expect(texts).toEqual(['Chrome 60', 'Safari 40']);
   });
 
   it('draws an inline label as name, separator and value in a row', () => {

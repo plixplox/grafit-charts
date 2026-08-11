@@ -107,7 +107,11 @@ export function watchDocumentFonts(onLoadingDone: () => void): () => void {
 }
 
 /** Every `fontFamily`/`fontWeight` reachable in the options tree. */
-export function collectFontUsage(value: unknown, depth = 0, usage: FontUsage = { families: new Set(), weights: new Set(BASE_WEIGHTS) }): FontUsage {
+export function collectFontUsage(
+  value: unknown,
+  depth = 0,
+  usage: FontUsage = { families: new Set(), weights: new Set(BASE_WEIGHTS) },
+): FontUsage {
   if (depth > MAX_DEPTH || !value || typeof value !== 'object') return usage;
   if (Array.isArray(value)) {
     for (const item of value) collectFontUsage(item, depth + 1, usage);
@@ -142,7 +146,10 @@ function splitFamilyList(list: string): string[] {
 }
 
 function normalizeFamily(family: string): string {
-  return family.trim().replace(/^["']|["']$/g, '').toLowerCase();
+  return family
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .toLowerCase();
 }
 
 function fontSet(): FontFaceSet | undefined {

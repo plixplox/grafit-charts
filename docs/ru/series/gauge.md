@@ -40,10 +40,10 @@ Charts.createGauge({
 
 | Опция             | Тип                 | По умолчанию                         | Описание                          |
 | ----------------- | ------------------- | ------------------------------------ | --------------------------------- |
-| `startAngle`      | `Degrees`            | `-110`                               | дуга radial-gauge                 |
-| `endAngle`        | `Degrees`            | `110`                                | дуга radial-gauge                 |
-| `fills`           | `ColorValue[]`        | палитра                              | цвета (если не заданы `segments`) |
-| `thickness`       | `Pixels`         | linear `16`; radial авто (мин. `10`) | толщина полосы/дуги               |
+| `startAngle`      | `Degrees`           | `-110`                               | дуга radial-gauge                 |
+| `endAngle`        | `Degrees`           | `110`                                | дуга radial-gauge                 |
+| `fills`           | `ColorValue[]`      | палитра                              | цвета (если не заданы `segments`) |
+| `thickness`       | `Pixels`            | linear `16`; radial авто (мин. `10`) | толщина полосы/дуги               |
 | `scale.min`       | `number`            | `0`                                  | минимум шкалы                     |
 | `scale.max`       | `number`            | `100`                                | максимум шкалы                    |
 | `label.enabled`   | `boolean`           | `true`                               | значение в центре/рядом           |

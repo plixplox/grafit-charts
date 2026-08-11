@@ -5,13 +5,13 @@
  */
 import { defaultRegistry } from '@/app/registry';
 import { categoryAxisModule } from '@/entities/axis/category';
-import { gradientLegendModule } from '@/entities/gradient-legend';
-import { legendModule } from '@/entities/legend';
 import { groupedCategoryAxisModule } from '@/entities/axis/grouped-category';
 import { logAxisModule } from '@/entities/axis/log';
 import { numberAxisModule } from '@/entities/axis/number';
 import { ordinalTimeAxisModule } from '@/entities/axis/ordinal-time';
 import { timeAxisModule } from '@/entities/axis/time';
+import { gradientLegendModule } from '@/entities/gradient-legend';
+import { legendModule } from '@/entities/legend';
 import { areaSeriesModule } from '@/entities/series/area';
 import { barSeriesModule } from '@/entities/series/bar';
 import { boxPlotSeriesModule } from '@/entities/series/box-plot';

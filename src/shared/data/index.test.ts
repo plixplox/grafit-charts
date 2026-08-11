@@ -53,10 +53,13 @@ describe('computeStacks', () => {
   });
 
   it('different stackGroups do not interact', () => {
-    const stacks = computeStacks([{ a: 1, b: 2 }], [
-      { id: 'A', key: 'a', stackGroup: 'g1' },
-      { id: 'B', key: 'b', stackGroup: 'g2' },
-    ]);
+    const stacks = computeStacks(
+      [{ a: 1, b: 2 }],
+      [
+        { id: 'A', key: 'a', stackGroup: 'g1' },
+        { id: 'B', key: 'b', stackGroup: 'g2' },
+      ],
+    );
     expect(stacks.get('B')).toEqual({ y0: [0], y1: [2] });
   });
 

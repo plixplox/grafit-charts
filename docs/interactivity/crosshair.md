@@ -9,11 +9,11 @@ When building with [grafit-charts/core](/guide/bundle), the crosshair is a separ
 
 ::: chart-example crosshair-basic
 
-| Option          | Type          | Default      | Description                                  |
-| --------------- | ------------- | ------------ | -------------------------------------------- |
-| `enabled`       | `boolean`     | —            | enable (presence of the block → enabled)     |
-| `snap`          | `boolean`     | `true`       | snap to the nearest node                     |
-| `stroke`        | `ColorValue`    | theme muted  | line color                                   |
-| `strokeWidth`   | `Pixels`   | `1`          | line width                                   |
-| `lineDash`      | `Pixels[]` | `[4, 3]`     | dash pattern                                 |
-| `label.enabled` | `boolean`     | `true`       | value labels on the axes                     |
+| Option          | Type         | Default     | Description                              |
+| --------------- | ------------ | ----------- | ---------------------------------------- |
+| `enabled`       | `boolean`    | —           | enable (presence of the block → enabled) |
+| `snap`          | `boolean`    | `true`      | snap to the nearest node                 |
+| `stroke`        | `ColorValue` | theme muted | line color                               |
+| `strokeWidth`   | `Pixels`     | `1`         | line width                               |
+| `lineDash`      | `Pixels[]`   | `[4, 3]`    | dash pattern                             |
+| `label.enabled` | `boolean`    | `true`      | value labels on the axes                 |

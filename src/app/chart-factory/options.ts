@@ -28,7 +28,18 @@ import type { ConeFunnelSeriesOptions } from '@/entities/series/cone-funnel';
 import type { DonutSeriesOptions } from '@/entities/series/donut';
 import type { FunnelSeriesOptions } from '@/entities/series/funnel';
 import type { HeatmapSeriesOptions } from '@/entities/series/heatmap';
-import type { HistogramSeriesOptions } from '@/entities/series/histogram';
+import type {
+  BinEdge,
+  BinInclusive,
+  BinOutliers,
+  BinRule,
+  BinningOptions,
+  HistogramGroupMode,
+  HistogramNormalize,
+  HistogramNormalizeWithin,
+  HistogramSeriesOptions,
+  HistogramTooltipRendererParams,
+} from '@/entities/series/histogram';
 import type { LineSeriesOptions } from '@/entities/series/line';
 import type { LinearGaugeSeriesOptions } from '@/entities/series/linear-gauge';
 import type { NightingaleSeriesOptions } from '@/entities/series/nightingale';
@@ -54,7 +65,7 @@ import type { CrosshairOptions } from '@/features/crosshair';
 import type { HighlightOptions } from '@/features/highlight';
 import type { LocaleOptions } from '@/features/locale';
 import type { NavigatorOptions } from '@/features/navigator';
-import type { ChartListeners, SelectionOptions } from '@/features/selection';
+import type { ChartListeners, NodeClickEvent, SelectionChangeEvent, SelectionOptions } from '@/features/selection';
 import type { SyncOptions } from '@/features/sync';
 import type { TooltipOptions } from '@/features/tooltip';
 import type { ZoomOptions } from '@/features/zoom';
@@ -170,6 +181,16 @@ export type {
   ScatterSeriesOptions,
   BubbleSeriesOptions,
   HistogramSeriesOptions,
+  HistogramTooltipRendererParams,
+  // the binning vocabulary: needed to call binEdges() and to type an options object
+  BinningOptions,
+  BinEdge,
+  BinRule,
+  BinInclusive,
+  BinOutliers,
+  HistogramNormalize,
+  HistogramNormalizeWithin,
+  HistogramGroupMode,
   PieSeriesOptions,
   DonutSeriesOptions,
   RadarLineSeriesOptions,
@@ -197,6 +218,8 @@ export type {
   AnnotationOptions,
   SelectionOptions,
   ChartListeners,
+  NodeClickEvent,
+  SelectionChangeEvent,
   NumberAxisOptions,
   CategoryAxisOptions,
   TimeAxisOptions,

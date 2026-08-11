@@ -23,19 +23,19 @@ the color is auto contrast, and `formatter` receives `label`, `value`, and `dept
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
 
-| Option             | Type                                  | Default                              | Description                              |
-| ------------------ | ------------------------------------- | ------------------------------------ | ---------------------------------------- |
-| `labelField`       | `string`                              | `label`/`size`/`children`            | hierarchy keys                           |
-| `sizeField`        | `string`                              | `label`/`size`/`children`            | hierarchy keys                           |
-| `childrenField`    | `string`                              | `label`/`size`/`children`            | hierarchy keys                           |
-| `fills`            | `ColorValue[]`                        | palette                              | branch colors                            |
-| `sectorSpacing`    | `Pixels`                              | `0`                                  | constant-width gap between sectors       |
-| `cornerRadius`     | `Pixels`                              | `0`                                  | sector corner rounding                   |
-| `stroke`           | styles                                | background `1px` with zero gap       | sector stroke                            |
-| `strokeWidth`      | styles                                | background `1px` with zero gap       | sector stroke                            |
-| `label.enabled`    | `boolean`                             | `false`                              | sector labels (when they fit)            |
-| `label.formatter`  | `({ label, value, depth }) => string` | node name                            | content                                  |
-| `label.fontSize`   | `Pixels`                              | `11`                                 | label font size                          |
-| `label.fontWeight` | `string \| number`                    | `normal`                             | font weight                              |
-| `label.fontFamily` | `string`                              | theme font                           | font family                              |
-| `label.color`      | `ColorValue`                          | auto contrast                        | color (halo in the sector color)         |
+| Option             | Type                                  | Default                        | Description                        |
+| ------------------ | ------------------------------------- | ------------------------------ | ---------------------------------- |
+| `labelField`       | `string`                              | `label`/`size`/`children`      | hierarchy keys                     |
+| `sizeField`        | `string`                              | `label`/`size`/`children`      | hierarchy keys                     |
+| `childrenField`    | `string`                              | `label`/`size`/`children`      | hierarchy keys                     |
+| `fills`            | `ColorValue[]`                        | palette                        | branch colors                      |
+| `sectorSpacing`    | `Pixels`                              | `0`                            | constant-width gap between sectors |
+| `cornerRadius`     | `Pixels`                              | `0`                            | sector corner rounding             |
+| `stroke`           | styles                                | background `1px` with zero gap | sector stroke                      |
+| `strokeWidth`      | styles                                | background `1px` with zero gap | sector stroke                      |
+| `label.enabled`    | `boolean`                             | `false`                        | sector labels (when they fit)      |
+| `label.formatter`  | `({ label, value, depth }) => string` | node name                      | content                            |
+| `label.fontSize`   | `Pixels`                              | `11`                           | label font size                    |
+| `label.fontWeight` | `string \| number`                    | `normal`                       | font weight                        |
+| `label.fontFamily` | `string`                              | theme font                     | font family                        |
+| `label.color`      | `ColorValue`                          | auto contrast                  | color (halo in the sector color)   |

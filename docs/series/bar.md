@@ -62,25 +62,25 @@ For hierarchical categories (year → quarter), use the
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
 
-| Option             | Type                                    | Default                              | Description                                       |
-| ------------------ | --------------------------------------- | ------------------------------------ | ------------------------------------------------- |
-| `xField`           | `string`                                | —                                    | data keys (required)                              |
-| `yField`           | `string`                                | —                                    | data keys (required)                              |
-| `name`             | `string`                                | `yField`                             | name for the legend and tooltip                   |
-| `direction`        | `'vertical' \| 'horizontal'`            | `'vertical'`                         | bar direction                                     |
-| `stacked`          | `boolean`                               | `false`                              | stacking                                          |
-| `normalizedTo`     | `number`                                | —                                    | normalize the stack total (100 — percentage stack) |
-| `stackGroup`       | `string`                                | `'default'`                          | independent stack groups                          |
-| `fill`             | `ColorValue`                              | theme palette                        | fill                                              |
-| `fillOpacity`      | `Fraction`                                 | `1`                                  | fill opacity                                      |
-| `stroke`           | `ColorValue`                              | —                                    | stroke                                            |
-| `strokeWidth`      | `Pixels`                             | —                                    | stroke                                            |
-| `cornerRadius`     | `Pixels`                             | `0`                                  | corner rounding                                   |
-| `groupGap`         | `Fraction`                              | `0.2`                                | gap between bars of one group (fraction of the slot step) |
-| `label.enabled`    | `boolean`                               | `false`                              | show value labels                                 |
-| `label.placement`  | outer/`center`/`inner-*` (17 positions) | `'top'`                              | label position                                    |
-| `label.formatter`  | `({ value, datum }) => string`          | the value                            | label content                                     |
-| `label.fontSize`   | `Pixels`                             | `11`                                 | label font size                                   |
-| `label.fontWeight` | `string \| number`                      | `normal`                             | font weight                                       |
-| `label.fontFamily` | `string`                                | theme font                           | font family                                       |
-| `label.color`      | `ColorValue`                              | foreground; auto-contrast when inside | text color                                        |
+| Option             | Type                                    | Default                               | Description                                               |
+| ------------------ | --------------------------------------- | ------------------------------------- | --------------------------------------------------------- |
+| `xField`           | `string`                                | —                                     | data keys (required)                                      |
+| `yField`           | `string`                                | —                                     | data keys (required)                                      |
+| `name`             | `string`                                | `yField`                              | name for the legend and tooltip                           |
+| `direction`        | `'vertical' \| 'horizontal'`            | `'vertical'`                          | bar direction                                             |
+| `stacked`          | `boolean`                               | `false`                               | stacking                                                  |
+| `normalizedTo`     | `number`                                | —                                     | normalize the stack total (100 — percentage stack)        |
+| `stackGroup`       | `string`                                | `'default'`                           | independent stack groups                                  |
+| `fill`             | `ColorValue`                            | theme palette                         | fill                                                      |
+| `fillOpacity`      | `Fraction`                              | `1`                                   | fill opacity                                              |
+| `stroke`           | `ColorValue`                            | —                                     | stroke                                                    |
+| `strokeWidth`      | `Pixels`                                | —                                     | stroke                                                    |
+| `cornerRadius`     | `Pixels`                                | `0`                                   | corner rounding                                           |
+| `groupGap`         | `Fraction`                              | `0.2`                                 | gap between bars of one group (fraction of the slot step) |
+| `label.enabled`    | `boolean`                               | `false`                               | show value labels                                         |
+| `label.placement`  | outer/`center`/`inner-*` (17 positions) | `'top'`                               | label position                                            |
+| `label.formatter`  | `({ value, datum }) => string`          | the value                             | label content                                             |
+| `label.fontSize`   | `Pixels`                                | `11`                                  | label font size                                           |
+| `label.fontWeight` | `string \| number`                      | `normal`                              | font weight                                               |
+| `label.fontFamily` | `string`                                | theme font                            | font family                                               |
+| `label.color`      | `ColorValue`                            | foreground; auto-contrast when inside | text color                                                |

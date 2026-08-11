@@ -41,15 +41,16 @@ listeners: {
 | `boxSelect`                 | `boolean`                                   | `false`      | рамка выделения перетаскиванием (только multiple)                              |
 | `listeners.selectionChange` | `({ items }) => void`                       | —            | изменение выбора                                                               |
 | `listeners.nodeClick`       | `({ seriesId, datumIndex, datum }) => void` | —            | клик по узлу                                                                   |
-| `itemStyle.stroke`          | `ColorValue`                                  | foreground   | обводка выбранных узлов                                                        |
-| `itemStyle.strokeWidth`     | `Pixels`                                 | `2`          | толщина обводки                                                                |
+| `itemStyle.stroke`          | `ColorValue`                                | foreground   | обводка выбранных узлов                                                        |
+| `itemStyle.strokeWidth`     | `Pixels`                                    | `2`          | толщина обводки                                                                |
 | `itemStyle.sizeRatio`       | `number`                                    | `1.4–1.5`    | множитель размера выбранных маркеров                                           |
-| `inactiveOpacity`           | `Fraction`                                     | `0.45`       | прозрачность невыбранных при активном выборе                                   |
+| `inactiveOpacity`           | `Fraction`                                  | `0.45`       | прозрачность невыбранных при активном выборе                                   |
 
 Поведение:
 
 - клик по пустому месту сбрасывает выбор;
 - рамка (`boxSelect: true`) работает в `multiple` для декартовых серий (line, bar, area, scatter/bubble);
-  полярные (pie/donut, секторные) выбираются кликами;
+  полярные (pie/donut, секторные) и стадийные (funnel, cone-funnel, pyramid) выбираются
+  кликами — выбранный сектор, стадия или слой получает обводку, остальные приглушаются;
 - при включённом `boxSelect` drag в области построения отдан выделению — зумируйте
   колесом/pinch (`zoom.dragSelect` уступает приоритет); без него drag остаётся за зумом.

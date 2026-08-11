@@ -3,11 +3,11 @@
 У пакета три точки входа и отдельный CDN-файл — выбирайте по тому, что
 важнее: простота или килобайты.
 
-| Вход             | Что внутри                                                        | Когда использовать                |
-| ---------------- | ----------------------------------------------------------------- | --------------------------------- |
-| `grafit-charts`         | всё включено и зарегистрировано: виджеты, серии, оси, фичи         | прототипы, внутренние инструменты |
-| `grafit-charts/core`    | движок + `register()`, без единого модуля                          | когда важен размер бандла         |
-| `grafit-charts/modules` | все модули именованными экспортами: виджеты, серии, оси, фичи      | в паре с `grafit-charts/core`            |
+| Вход                    | Что внутри                                                    | Когда использовать                |
+| ----------------------- | ------------------------------------------------------------- | --------------------------------- |
+| `grafit-charts`         | всё включено и зарегистрировано: виджеты, серии, оси, фичи    | прототипы, внутренние инструменты |
+| `grafit-charts/core`    | движок + `register()`, без единого модуля                     | когда важен размер бандла         |
+| `grafit-charts/modules` | все модули именованными экспортами: виджеты, серии, оси, фичи | в паре с `grafit-charts/core`     |
 
 ## Полный вход
 
@@ -49,11 +49,11 @@ Charts.create({ container, data, series: [{ type: 'line', yField: 'y' }] });
 
 Регистрируются три вида модулей:
 
-| Вид | Модули | Что обязательно |
-| --- | ------ | --------------- |
-| Виджеты чартов | `cartesianChartModule`, `polarChartModule`, `standaloneChartModule` | ровно тот, что нужен вашим сериям (таблица ниже); без него `Charts.create` бросит ошибку |
-| Серии и оси | `lineSeriesModule`, `numberAxisModule`, … | все используемые типы |
-| Фичи | `tooltipModule`, `legendModule`, `gradientLegendModule`, `crosshairModule`, `navigatorModule`, `annotationsModule`, `syncModule`, `contextMenuModule` | по желанию: без регистрации фича просто не работает (с предупреждением в консоли) |
+| Вид            | Модули                                                                                                                                                | Что обязательно                                                                          |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Виджеты чартов | `cartesianChartModule`, `polarChartModule`, `standaloneChartModule`                                                                                   | ровно тот, что нужен вашим сериям (таблица ниже); без него `Charts.create` бросит ошибку |
+| Серии и оси    | `lineSeriesModule`, `numberAxisModule`, …                                                                                                             | все используемые типы                                                                    |
+| Фичи           | `tooltipModule`, `legendModule`, `gradientLegendModule`, `crosshairModule`, `navigatorModule`, `annotationsModule`, `syncModule`, `contextMenuModule` | по желанию: без регистрации фича просто не работает (с предупреждением в консоли)        |
 
 Имена модулей образуются от типа: `'box-plot'` → `boxPlotSeriesModule`,
 `'radial-gauge'` → `radialGaugeSeriesModule`; оси — `numberAxisModule`,
@@ -61,11 +61,11 @@ Charts.create({ container, data, series: [{ type: 'line', yField: 'y' }] });
 
 ### Какой виджет нужен какой серии
 
-| Виджет | Серии |
-| ------ | ----- |
-| `cartesianChartModule` | line, bar, area, scatter, bubble, histogram, heatmap, range-bar, range-area, box-plot, waterfall, funnel, cone-funnel, candlestick, ohlc |
-| `polarChartModule` | pie, donut, radar-line, radar-area, nightingale, radial-column, radial-bar |
-| `standaloneChartModule` | treemap, sunburst, pyramid, sankey, chord, radial-gauge, linear-gauge |
+| Виджет                  | Серии                                                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `cartesianChartModule`  | line, bar, area, scatter, bubble, histogram, heatmap, range-bar, range-area, box-plot, waterfall, funnel, cone-funnel, candlestick, ohlc |
+| `polarChartModule`      | pie, donut, radar-line, radar-area, nightingale, radial-column, radial-bar                                                               |
+| `standaloneChartModule` | treemap, sunburst, pyramid, sankey, chord, radial-gauge, linear-gauge                                                                    |
 
 Пресеты `createFinancialChart`/`createGauge`/`createSparkline` — это сборка
 options поверх обычных серий: financial — candlestick/ohlc (cartesian) +
@@ -74,16 +74,16 @@ radial-/linear-gauge (standalone); sparkline — line/area/bar (cartesian).
 
 ### Какая фича за что отвечает
 
-| Модуль | Опции / поведение |
-| ------ | ----------------- |
-| `tooltipModule` | `tooltip` — тултип при наведении |
-| `legendModule` | `legend` — легенда с переключением серий |
-| `gradientLegendModule` | `gradientLegend` — цветовая шкала heatmap |
-| `crosshairModule` | `crosshair` — перекрестье с подписями на осях |
-| `navigatorModule` | `navigator` — полоса диапазона под чартом |
-| `annotationsModule` | `annotations` — линии/области/подписи на чарте |
-| `syncModule` | `sync` — синхронизация подсветки и зума между чартами |
-| `contextMenuModule` | `contextMenu` — правый клик: «Скачать PNG», сброс зума |
+| Модуль                 | Опции / поведение                                      |
+| ---------------------- | ------------------------------------------------------ |
+| `tooltipModule`        | `tooltip` — тултип при наведении                       |
+| `legendModule`         | `legend` — легенда с переключением серий               |
+| `gradientLegendModule` | `gradientLegend` — цветовая шкала heatmap              |
+| `crosshairModule`      | `crosshair` — перекрестье с подписями на осях          |
+| `navigatorModule`      | `navigator` — полоса диапазона под чартом              |
+| `annotationsModule`    | `annotations` — линии/области/подписи на чарте         |
+| `syncModule`           | `sync` — синхронизация подсветки и зума между чартами  |
+| `contextMenuModule`    | `contextMenu` — правый клик: «Скачать PNG», сброс зума |
 
 Zoom, выделение данных (`selection`), события (`listeners`), темы,
 анимация и состояние входят в ядро — отдельной регистрации не требуют.

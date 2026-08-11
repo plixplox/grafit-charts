@@ -8,7 +8,20 @@
 const NUMBER_PATTERN = /^(.*?)(,)?(?:\.(\d+))?([f%sd])(.*)$/;
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTHS_FULL = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 function group(text: string): string {
   return text.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -83,7 +96,8 @@ export function formatDatePattern(pattern: string, date: Date): string {
 /** Universal entry point: numbers via the numeric pattern, dates/timestamps with % via strftime. */
 export function formatValue(pattern: string, value: unknown): string {
   if (pattern.includes('%') && /%[dmbBYyHMS]/.test(pattern)) {
-    const date = value instanceof Date ? value : new Date(Number(value));
+    // a date field arrives as a Date, a timestamp or the ISO string a JSON row carries
+    const date = value instanceof Date ? value : new Date(typeof value === 'string' ? Date.parse(value) : Number(value));
     if (!Number.isNaN(date.getTime())) return formatDatePattern(pattern, date);
   }
   if (typeof value === 'number') return formatNumberPattern(pattern, value);

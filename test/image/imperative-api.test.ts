@@ -3,7 +3,7 @@
  * selection and the zoom are chart state, and every call runs the same path
  * a pointer would. Not a screenshot test — it asserts on the DOM and the state.
  */
-import type { ChartInstance, ChartOptions, SelectedNode, ZoomWindow } from 'grafit-charts';
+import type { ChartInstance, ChartOptions, NodeClickEvent, SelectedNode, ZoomWindow } from 'grafit-charts';
 import { Charts } from 'grafit-charts';
 import { expect, test } from 'vitest';
 
@@ -229,6 +229,127 @@ test('a legend click switches one group of a grouped histogram off', async () =>
       expect(clicks).toHaveLength(1);
       expect(clicks[0]!.seriesId).toMatch(/#\d+$/);
       expect(clicks[0]!.visible).toBe(false);
+    },
+  );
+});
+
+test('a legend filter outlives the update that rebuilds the series', async () => {
+  const rows = [
+    { duration: 2, plan: 'Free' },
+    { duration: 4, plan: 'Free' },
+    { duration: 12, plan: 'Free' },
+    { duration: 6, plan: 'Pro' },
+    { duration: 16, plan: 'Pro' },
+  ];
+  const clicks: Array<{ seriesId: string; visible: boolean }> = [];
+  const options: ChartOptions = {
+    data: rows,
+    series: [{ type: 'histogram', xField: 'duration', groupField: 'plan', binWidth: 10 }],
+    animation: { enabled: false },
+    width: 480,
+    height: 300,
+    listeners: { legendItemClick: (event) => void clicks.push(event) },
+  };
+  await withChart(options, async (chart, container) => {
+    let spot: { x: number; y: number } | undefined;
+    for (let y = 270; y < 300 && !spot; y += 4) {
+      for (let x = 0; x < 480 && !spot; x += 4) {
+        clickAt(container, x, y);
+        if (clicks.length > 0) spot = { x, y };
+      }
+    }
+    await chart.waitForUpdate();
+    const hidden = clicks[0]!.seriesId;
+    expect(chart.getState().hiddenSeries).toContain(hidden);
+
+    // the same options again: series are rebuilt from scratch, the filter is not
+    await chart.update({ ...options, container });
+    await chart.waitForUpdate();
+    expect(chart.getState().hiddenSeries).toContain(hidden);
+
+    // clicking the item again turns it back on — proof the rebuilt series knew it was off
+    clickAt(container, spot!.x, spot!.y);
+    await chart.waitForUpdate();
+    expect(clicks.at(-1)).toEqual({ seriesId: hidden, visible: true });
+    expect(chart.getState().hiddenSeries).not.toContain(hidden);
+  });
+});
+
+test('a histogram click reports the bin, not whichever row shares its index', async () => {
+  const rows = [
+    { duration: 2, plan: 'Free' },
+    { duration: 4, plan: 'Free' },
+    { duration: 12, plan: 'Free' },
+    { duration: 6, plan: 'Pro' },
+    { duration: 16, plan: 'Pro' },
+  ];
+  const clicked: NodeClickEvent[] = [];
+  await withChart(
+    {
+      data: rows,
+      series: [{ type: 'histogram', xField: 'duration', groupField: 'plan', binWidth: 10 }],
+      selection: { enabled: true },
+      animation: { enabled: false },
+      width: 480,
+      height: 300,
+      listeners: { nodeClick: (event) => void clicked.push(event) },
+    },
+    async (chart) => {
+      // bar #1 is the 'Pro' share of bin 0–10: the single row at 6
+      expect(chart.clickNode({ datumIndex: 1 })).toBe(true);
+      expect(clicked).toHaveLength(1);
+      expect(clicked[0]!.datum).toBeUndefined();
+      expect(clicked[0]!.node).toEqual({ kind: 'bin', x0: 0, x1: 10, value: 1, raw: 1, count: 1, group: 'Pro' });
+      // the selection speaks the same language
+      expect(chart.getSelection()[0]!.node).toEqual(clicked[0]!.node);
+    },
+  );
+});
+
+test('a bar chart still reports the data row it was always about', async () => {
+  const clicked: NodeClickEvent[] = [];
+  await withChart(base({ listeners: { nodeClick: (event) => void clicked.push(event) } }), async (chart) => {
+    expect(chart.clickNode({ datumIndex: 2 })).toBe(true);
+    expect(clicked[0]!.datum).toEqual({ month: 'Mar', value: 20 });
+    expect(clicked[0]!.node).toBeUndefined();
+  });
+});
+
+test('a pyramid selects its layers the way a pie selects its sectors', async () => {
+  const rows = [
+    { level: 'Managers', people: 40 },
+    { level: 'Engineers', people: 120 },
+    { level: 'Interns', people: 30 },
+  ];
+  const clicked: NodeClickEvent[] = [];
+  const changes: SelectedNode[][] = [];
+  await withChart(
+    {
+      data: rows,
+      series: [{ type: 'pyramid', stageField: 'level', valueField: 'people' }],
+      selection: { enabled: true, mode: 'multiple' },
+      animation: { enabled: false },
+      width: 480,
+      height: 300,
+      listeners: {
+        nodeClick: (event) => void clicked.push(event),
+        selectionChange: ({ items }) => void changes.push(items),
+      },
+    },
+    async (chart) => {
+      expect(chart.clickNode({ datumIndex: 1 })).toBe(true);
+      expect(clicked[0]!.datum).toEqual({ level: 'Engineers', people: 120 });
+      expect(chart.getSelection().map((item) => item.datumIndex)).toEqual([1]);
+
+      chart.clickNode({ datumIndex: 2 });
+      expect(chart.getSelection().map((item) => item.datumIndex)).toEqual([1, 2]);
+      // clicking a selected layer again lets it go (multiple mode)
+      chart.clickNode({ datumIndex: 2 });
+      expect(chart.getSelection().map((item) => item.datumIndex)).toEqual([1]);
+      expect(changes).toHaveLength(3);
+
+      chart.clearSelection();
+      expect(chart.getSelection()).toEqual([]);
     },
   );
 });

@@ -25,14 +25,14 @@
 
 Общие опции всех серий (`name`, `showInLegend`, `tooltip.renderer`, …) — в разделе [Общие опции серий](/ru/guide/series-options).
 
-| Опция         | Тип         | По умолчанию  | Описание         |
-| ------------- | ----------- | ------------- | ---------------- |
-| `angleField`  | `string`    | —             | ключи данных     |
-| `radiusField` | `string`    | —             | ключи данных     |
-| `name`        | `string`    | `radiusField` | имя серии        |
-| `fill`        | `ColorValue`  | палитра       | заливка секторов |
-| `fillOpacity` | `Fraction`     | `0.85`        | заливка секторов |
-| `stroke`      | `ColorValue`  | фон           | обводка          |
-| `strokeWidth` | `Pixels` | `1`           | обводка          |
-| `groupGap`    | `Fraction` | `0.2`       | зазор между секторами одной группы (radial-column) |
-| `sectorSpacing` | `Pixels` | `1`         | зазор постоянной ширины между соседними секторами |
+| Опция           | Тип          | По умолчанию  | Описание                                           |
+| --------------- | ------------ | ------------- | -------------------------------------------------- |
+| `angleField`    | `string`     | —             | ключи данных                                       |
+| `radiusField`   | `string`     | —             | ключи данных                                       |
+| `name`          | `string`     | `radiusField` | имя серии                                          |
+| `fill`          | `ColorValue` | палитра       | заливка секторов                                   |
+| `fillOpacity`   | `Fraction`   | `0.85`        | заливка секторов                                   |
+| `stroke`        | `ColorValue` | фон           | обводка                                            |
+| `strokeWidth`   | `Pixels`     | `1`           | обводка                                            |
+| `groupGap`      | `Fraction`   | `0.2`         | зазор между секторами одной группы (radial-column) |
+| `sectorSpacing` | `Pixels`     | `1`           | зазор постоянной ширины между соседними секторами  |

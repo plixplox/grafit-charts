@@ -24,16 +24,16 @@ Chart-level блоки (`legend`, `tooltip`, `highlight`, `zoom`, `selection`,
 Единая структура у line/area/scatter/bubble/bar/histogram/range-bar/
 waterfall/heatmap/treemap/funnel/pyramid/sunburst/sankey/chord:
 
-| Под-опция      | Тип                  | По умолчанию                               | Описание                                    |
-| -------------- | -------------------- | ------------------------------------------ | ------------------------------------------- |
-| `enabled`      | `boolean`            | `false` (funnel/pyramid/treemap — вкл.)    | показать подписи                            |
-| `placement`    | зависит от серии     | `top` (heatmap/treemap — `center`)         | позиция подписи                             |
-| `formatter`    | `(params) => string` | значение                                   | содержимое; параметры зависят от серии      |
-| `avoidOverlap` | `boolean`            | `false`                                    | скрывать подписи, налезающие друг на друга  |
-| `fontSize`     | `Pixels`             | `11` (funnel/pyramid — `12`)               | размер шрифта                               |
-| `fontWeight`   | `string \| number`   | `normal`                                   | насыщенность                                |
-| `fontFamily`   | `string`             | шрифт темы                                 | гарнитура                                   |
-| `color`        | `ColorValue`         | foreground; внутри элемента — автоконтраст | цвет текста                                 |
+| Под-опция      | Тип                  | По умолчанию                               | Описание                                   |
+| -------------- | -------------------- | ------------------------------------------ | ------------------------------------------ |
+| `enabled`      | `boolean`            | `false` (funnel/pyramid/treemap — вкл.)    | показать подписи                           |
+| `placement`    | зависит от серии     | `top` (heatmap/treemap — `center`)         | позиция подписи                            |
+| `formatter`    | `(params) => string` | значение                                   | содержимое; параметры зависят от серии     |
+| `avoidOverlap` | `boolean`            | `false`                                    | скрывать подписи, налезающие друг на друга |
+| `fontSize`     | `Pixels`             | `11` (funnel/pyramid — `12`)               | размер шрифта                              |
+| `fontWeight`   | `string \| number`   | `normal`                                   | насыщенность                               |
+| `fontFamily`   | `string`             | шрифт темы                                 | гарнитура                                  |
+| `color`        | `ColorValue`         | foreground; внутри элемента — автоконтраст | цвет текста                                |
 
 Подписи внутри элементов (бары `inner-*`, ячейки, плитки, секторы, bubble
 `inside`) получают ореол цвета элемента. Положения по типам серий, порядок
@@ -48,7 +48,7 @@ waterfall/heatmap/treemap/funnel/pyramid/sunburst/sankey/chord:
 | ------------- | ------------- | --------------------------------------- | ---------------- |
 | `enabled`     | `boolean`     | line — вкл., area — выкл., radar — вкл. | показать маркеры |
 | `shape`       | `MarkerShape` | `circle`                                | форма            |
-| `size`        | `Pixels`   | `7` (radar — `6`)                       | размер           |
-| `fill`        | `ColorValue`    | цвет серии                              | заливка          |
+| `size`        | `Pixels`      | `7` (radar — `6`)                       | размер           |
+| `fill`        | `ColorValue`  | цвет серии                              | заливка          |
 | `stroke`      | стили         | фон                                     | обводка          |
 | `strokeWidth` | стили         | `1.5`                                   | обводка          |

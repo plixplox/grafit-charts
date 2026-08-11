@@ -50,18 +50,18 @@ chart.destroy(); // when you are done
 
 ## Step 4. Where to go next
 
-| I want to…                          | Page                                                                |
-| ----------------------------------- | ------------------------------------------------------------------- |
-| understand how options work          | [Configuration](/guide/options)                                      |
-| reduce the bundle or use a CDN       | [Installation and bundle size](/guide/bundle)                        |
-| pick a chart type                    | the “Series” section — from [Line](/series/line) to [Gauges](/series/gauge) |
-| see options shared by all series     | [Common series options](/guide/series-options)                       |
-| configure axes and formats           | [Axes](/guide/axes)                                                  |
-| tooltip, legend, annotations         | the “Chart components” section — starting with [Legend](/interactivity/legend) |
-| zoom, selection, events              | the “Interactivity” section — starting with [Zoom](/interactivity/zoom) |
-| dark theme and custom colors         | [Themes](/guide/themes)                                              |
-| compact charts inside a table        | [Sparklines](/series/sparklines)                                     |
-| candlestick chart with a navigator   | the preset on the [Candlestick](/series/candlestick) page            |
+| I want to…                         | Page                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| understand how options work        | [Configuration](/guide/options)                                                |
+| reduce the bundle or use a CDN     | [Installation and bundle size](/guide/bundle)                                  |
+| pick a chart type                  | the “Series” section — from [Line](/series/line) to [Gauges](/series/gauge)    |
+| see options shared by all series   | [Common series options](/guide/series-options)                                 |
+| configure axes and formats         | [Axes](/guide/axes)                                                            |
+| tooltip, legend, annotations       | the “Chart components” section — starting with [Legend](/interactivity/legend) |
+| zoom, selection, events            | the “Interactivity” section — starting with [Zoom](/interactivity/zoom)        |
+| dark theme and custom colors       | [Themes](/guide/themes)                                                        |
+| compact charts inside a table      | [Sparklines](/series/sparklines)                                               |
+| candlestick chart with a navigator | the preset on the [Candlestick](/series/candlestick) page                      |
 
 ::: warning Status
 The library is under active development. The API may change without backward compatibility.

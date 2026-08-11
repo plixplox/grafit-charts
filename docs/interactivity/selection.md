@@ -34,22 +34,23 @@ listeners: {
 
 ## Options
 
-| Option                      | Type                                        | Default      | Description                                                                          |
-| --------------------------- | ------------------------------------------- | ------------ | ------------------------------------------------------------------------------------ |
-| `enabled`                   | `boolean`                                   | —            | enable selection                                                                     |
-| `mode`                      | `'single' \| 'multiple'`                    | `'single'`   | single — selection is replaced; multiple — boxes accumulate, node click toggles      |
-| `boxSelect`                 | `boolean`                                   | `false`      | selection box by dragging (multiple only)                                            |
-| `listeners.selectionChange` | `({ items }) => void`                       | —            | selection change                                                                     |
-| `listeners.nodeClick`       | `({ seriesId, datumIndex, datum }) => void` | —            | node click                                                                           |
-| `itemStyle.stroke`          | `ColorValue`                                  | foreground   | stroke of selected nodes                                                             |
-| `itemStyle.strokeWidth`     | `Pixels`                                 | `2`          | stroke width                                                                         |
-| `itemStyle.sizeRatio`       | `number`                                    | `1.4–1.5`    | size multiplier for selected markers                                                 |
-| `inactiveOpacity`           | `Fraction`                                     | `0.45`       | opacity of unselected items while a selection is active                              |
+| Option                      | Type                                        | Default    | Description                                                                     |
+| --------------------------- | ------------------------------------------- | ---------- | ------------------------------------------------------------------------------- |
+| `enabled`                   | `boolean`                                   | —          | enable selection                                                                |
+| `mode`                      | `'single' \| 'multiple'`                    | `'single'` | single — selection is replaced; multiple — boxes accumulate, node click toggles |
+| `boxSelect`                 | `boolean`                                   | `false`    | selection box by dragging (multiple only)                                       |
+| `listeners.selectionChange` | `({ items }) => void`                       | —          | selection change                                                                |
+| `listeners.nodeClick`       | `({ seriesId, datumIndex, datum }) => void` | —          | node click                                                                      |
+| `itemStyle.stroke`          | `ColorValue`                                | foreground | stroke of selected nodes                                                        |
+| `itemStyle.strokeWidth`     | `Pixels`                                    | `2`        | stroke width                                                                    |
+| `itemStyle.sizeRatio`       | `number`                                    | `1.4–1.5`  | size multiplier for selected markers                                            |
+| `inactiveOpacity`           | `Fraction`                                  | `0.45`     | opacity of unselected items while a selection is active                         |
 
 Behavior:
 
 - clicking an empty spot clears the selection;
 - the box (`boxSelect: true`) works in `multiple` for Cartesian series (line, bar, area, scatter/bubble);
-  polar series (pie/donut, sector-based) are selected by clicks;
+  polar series (pie/donut, sector-based) and stage series (funnel, cone-funnel, pyramid)
+  are selected by clicks — a picked-out sector, stage or layer is outlined and the rest fade back;
 - with `boxSelect` enabled, dragging in the plot area is given to selection — zoom
   with the wheel/pinch (`zoom.dragSelect` yields priority); without it, dragging stays with zoom.

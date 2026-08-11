@@ -16,16 +16,18 @@ series: [{ type: 'bar', xField: 'month', yField: 'revenue', label: { enabled: tr
 
 ## Options
 
-| Option         | Type                  | Default                                       | Description                                     |
-| -------------- | --------------------- | --------------------------------------------- | ----------------------------------------------- |
-| `enabled`      | `boolean`             | `false` (funnel/pyramid/treemap — `true`)     | show the labels                                 |
-| `placement`    | depends on the series | `top` (heatmap/treemap — `center`)            | where the label sits relative to its mark       |
-| `formatter`    | `(params) => string`  | the raw value                                 | label text; `params` depend on the series       |
-| `avoidOverlap` | `boolean`             | `false`                                       | drop a label that collides with one already drawn ([below](#avoiding-overlap)) |
-| `fontSize`     | `Pixels`              | `11` (funnel/pyramid — `12`)                  | font size                                       |
-| `fontWeight`   | `string \| number`    | `normal`                                      | font weight                                     |
-| `fontFamily`   | `string`              | theme font                                    | typeface                                        |
-| `color`        | `ColorValue`          | foreground; inside a mark — auto-contrast     | text colour                                     |
+| Option         | Type                    | Default                                   | Description                                                                    |
+| -------------- | ----------------------- | ----------------------------------------- | ------------------------------------------------------------------------------ |
+| `enabled`      | `boolean`               | `false` (funnel/pyramid/treemap — `true`) | show the labels                                                                |
+| `placement`    | depends on the series   | `top` (heatmap/treemap — `center`)        | where the label sits relative to its mark                                      |
+| `formatter`    | `(params) => string`    | the raw value                             | label text; `params` depend on the series                                      |
+| `avoidOverlap` | `boolean`               | `false`                                   | drop a label that collides with one already drawn ([below](#avoiding-overlap)) |
+| `minShare`     | `Fraction`              | `0`                                       | parts-of-a-whole series only: share of the total a part needs to be labelled   |
+| `layout`       | `'inline' \| 'stacked'` | `'inline'` (pie `'stacked'`)              | name-and-value labels: the value behind a separator or on its own line         |
+| `fontSize`     | `Pixels`                | `11` (funnel/pyramid — `12`)              | font size                                                                      |
+| `fontWeight`   | `string \| number`      | `normal`                                  | font weight                                                                    |
+| `fontFamily`   | `string`                | theme font                                | typeface                                                                       |
+| `color`        | `ColorValue`            | foreground; inside a mark — auto-contrast | text colour                                                                    |
 
 ## Placement
 
@@ -94,7 +96,10 @@ The rules are worth knowing before you turn it on:
 
 - **The first label on a spot keeps it.** Series are asked in the order they are
   declared and each series goes through its data in order, so an earlier datum
-  wins over a later one. Put the series whose numbers matter most first.
+  wins over a later one. Put the series whose numbers matter most first. Series
+  whose marks read as parts of a whole — pie/donut, funnel/cone-funnel, pyramid,
+  bubble — ask in size order instead: the largest part gets the spot, and the
+  slivers are what a crowded chart drops.
 - **Labels of the whole chart share one guard.** Two series avoid each other's
   labels, not only their own — but only the series that ask for it take part;
   a series without `avoidOverlap` draws its labels regardless and does not
@@ -107,10 +112,11 @@ The rules are worth knowing before you turn it on:
 - **Cartesian series, funnel/pyramid and pie/donut take the option.** A pie
   spreads crowded callout labels along its side of the circle whether or not the
   option is on; what the option adds is dropping the ones the spreading could
-  not find room for, narrowest sector first — and `label.minShare` there leaves
-  a long tail of slivers unlabelled outright. Treemap prints a label only where
-  the tile has room for it; sunburst, sankey and chord draw every label they are
-  given.
+  not find room for, narrowest sector first. `label.minShare` is the other half
+  of the answer, and pie/donut, funnel/cone-funnel, pyramid and scatter/bubble
+  all take it: it leaves the long tail of slivers, thin stages, thin layers and
+  specks unlabelled outright. Treemap prints a label only where the tile has room for it;
+  sunburst, sankey and chord draw every label they are given.
 
 On a pie the option works on the callout labels the spreading could not
 separate — with no threshold to pick, the sides of the circle hold as many

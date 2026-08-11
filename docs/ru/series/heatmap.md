@@ -16,15 +16,15 @@
 
 ::: chart-example heatmap-legend-bottom
 
-| Опция                      | Тип                   | По умолчанию | Описание                     |
-| -------------------------- | --------------------- | ------------ | ---------------------------- |
-| `gradientLegend.enabled`   | `boolean`             | `true`       | показывать шкалу             |
-| `gradientLegend.position`  | `'top' \| 'right' \| 'bottom' \| 'left'` | `'right'` | сторона размещения |
-| `gradientLegend.spacing`   | `Pixels`           | `10`         | отступ от области построения |
-| `gradientLegend.thickness` | `Pixels`           | `12`         | толщина полосы               |
-| `gradientLegend.label.enabled`   | `boolean`               | `true`       | подписывать концы шкалы      |
-| `gradientLegend.label.format`    | `string`                | —            | строка формата (`',.2f'`)    |
-| `gradientLegend.label.formatter` | `({ value }) => string` | значение     | текст подписи конца          |
+| Опция                            | Тип                                      | По умолчанию | Описание                     |
+| -------------------------------- | ---------------------------------------- | ------------ | ---------------------------- |
+| `gradientLegend.enabled`         | `boolean`                                | `true`       | показывать шкалу             |
+| `gradientLegend.position`        | `'top' \| 'right' \| 'bottom' \| 'left'` | `'right'`    | сторона размещения           |
+| `gradientLegend.spacing`         | `Pixels`                                 | `10`         | отступ от области построения |
+| `gradientLegend.thickness`       | `Pixels`                                 | `12`         | толщина полосы               |
+| `gradientLegend.label.enabled`   | `boolean`                                | `true`       | подписывать концы шкалы      |
+| `gradientLegend.label.format`    | `string`                                 | —            | строка формата (`',.2f'`)    |
+| `gradientLegend.label.formatter` | `({ value }) => string`                  | значение     | текст подписи конца          |
 
 Шкала сбоку (`'left'`, `'right'`) — вертикальная полоса, её концы подписаны сверху и снизу;
 шкала над графиком или под ним (`'top'`, `'bottom'`) — горизонтальная полоса, концы подписаны
@@ -49,30 +49,30 @@
 
 ::: chart-example heatmap-labels-custom
 
-| Опция              | Тип                               | По умолчанию                      | Описание                   |
-| ------------------ | --------------------------------- | --------------------------------- | -------------------------- |
-| `xField`           | `string`                          | —                                 | категории по осям          |
-| `yField`           | `string`                          | —                                 | категории по осям          |
-| `colorField`       | `string`                          | —                                 | числовое значение → цвет   |
-| `colorRange`       | `ColorValue[]`                      | сине-голубая                      | стопы шкалы (2+)           |
-| `itemPadding`      | `Pixels`                       | `2`                               | зазор между ячейками       |
-| `cornerRadius`     | `Pixels`                       | тема (`5`)                        | скругление ячеек           |
-| `colorName`        | `string`                          | имя `colorField`                  | подпись значения в тултипе |
-| `label.enabled`    | `boolean`                         | `false`                           | показать подписи значений  |
-| `label.placement`  | `center`, края и углы (9 позиций) | `'center'`                        | позиция подписи            |
-| `label.format`     | `string`                          | —                                 | строка формата (`',.2f'`); тултип читает её тоже |
-| `label.formatter`  | `({ value, datum }) => string`    | значение                          | содержимое подписи         |
-| `label.avoidOverlap` | `boolean`                       | `false`                           | скрыть подпись, налезающую на уже нарисованную |
-| `label.fontSize`   | `Pixels`                       | `11`                              | размер шрифта подписи      |
-| `label.fontWeight` | `string \| number`                | `normal`                          | насыщенность               |
-| `label.fontFamily` | `string`                          | шрифт темы                        | гарнитура                  |
-| `label.color`      | `ColorValue`                        | foreground; внутри — автоконтраст | цвет текста                |
+| Опция                | Тип                               | По умолчанию                      | Описание                                         |
+| -------------------- | --------------------------------- | --------------------------------- | ------------------------------------------------ |
+| `xField`             | `string`                          | —                                 | категории по осям                                |
+| `yField`             | `string`                          | —                                 | категории по осям                                |
+| `colorField`         | `string`                          | —                                 | числовое значение → цвет                         |
+| `colorRange`         | `ColorValue[]`                    | сине-голубая                      | стопы шкалы (2+)                                 |
+| `itemPadding`        | `Pixels`                          | `2`                               | зазор между ячейками                             |
+| `cornerRadius`       | `Pixels`                          | тема (`5`)                        | скругление ячеек                                 |
+| `colorName`          | `string`                          | имя `colorField`                  | подпись значения в тултипе                       |
+| `label.enabled`      | `boolean`                         | `false`                           | показать подписи значений                        |
+| `label.placement`    | `center`, края и углы (9 позиций) | `'center'`                        | позиция подписи                                  |
+| `label.format`       | `string`                          | —                                 | строка формата (`',.2f'`); тултип читает её тоже |
+| `label.formatter`    | `({ value, datum }) => string`    | значение                          | содержимое подписи                               |
+| `label.avoidOverlap` | `boolean`                         | `false`                           | скрыть подпись, налезающую на уже нарисованную   |
+| `label.fontSize`     | `Pixels`                          | `11`                              | размер шрифта подписи                            |
+| `label.fontWeight`   | `string \| number`                | `normal`                          | насыщенность                                     |
+| `label.fontFamily`   | `string`                          | шрифт темы                        | гарнитура                                        |
+| `label.color`        | `ColorValue`                      | foreground; внутри — автоконтраст | цвет текста                                      |
 
 ## Опции
 
 Общие опции всех серий (`name`, `showInLegend`, …) — в разделе [Общие опции серий](/ru/guide/series-options).
 Тултипу heatmap нужно назвать обе категории, поэтому его рендерер получает их вместо x/y:
 
-| Опция              | Тип                                             | По умолчанию | Описание         |
-| ------------------ | ----------------------------------------------- | ------------ | ---------------- |
+| Опция              | Тип                                              | По умолчанию | Описание         |
+| ------------------ | ------------------------------------------------ | ------------ | ---------------- |
 | `tooltip.renderer` | `({ datum, value, xValue, yValue, color }) => …` | —            | кастомный тултип |

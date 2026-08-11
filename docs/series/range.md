@@ -36,30 +36,30 @@ Range-area as the background + line on top, with a shared tooltip:
 
 ::: chart-example range-combo
 
-| Option               | Type                         | Description                 |
-| -------------------- | ---------------------------- | --------------------------- |
-| `yLowField`          | `string`                     | range bounds                |
-| `yHighField`         | `string`                     | range bounds                |
-| `direction` (bar)    | `'vertical' \| 'horizontal'` | bar direction (`vertical`)  |
-| `fill`               | `ColorValue \| (params) => ColorValue` | fill; callback colours per datum |
-| `fill`               | styles   | fill              |
-| `fillOpacity`        | styles   | fill              |
-| `stroke` (area)      | styles   | outline lines     |
-| `strokeWidth` (area) | styles   | outline lines     |
-| `cornerRadius` (bar) | `Pixels` | corner rounding   |
-| `groupGap` (bar)     | `Fraction` | gap between bars of one group (`0.2`) |
+| Option               | Type                                   | Description                           |
+| -------------------- | -------------------------------------- | ------------------------------------- |
+| `yLowField`          | `string`                               | range bounds                          |
+| `yHighField`         | `string`                               | range bounds                          |
+| `direction` (bar)    | `'vertical' \| 'horizontal'`           | bar direction (`vertical`)            |
+| `fill`               | `ColorValue \| (params) => ColorValue` | fill; callback colours per datum      |
+| `fill`               | styles                                 | fill                                  |
+| `fillOpacity`        | styles                                 | fill                                  |
+| `stroke` (area)      | styles                                 | outline lines                         |
+| `strokeWidth` (area) | styles                                 | outline lines                         |
+| `cornerRadius` (bar) | `Pixels`                               | corner rounding                       |
+| `groupGap` (bar)     | `Fraction`                             | gap between bars of one group (`0.2`) |
 
 ### Full list of options
 
-| Option             | Type                                     | Default                            | Description        |
-| ------------------ | ---------------------------------------- | ---------------------------------- | ------------------ |
-| `label.enabled`    | `boolean`                                | `false`                            | show value labels  |
-| `label.placement`  | outer/`center`/`inner-*` (17 placements) | `'top'`                            | label placement    |
-| `label.formatter`  | `({ low, high, datum }) => string`       | value                              | label content      |
-| `label.fontSize`   | `Pixels`                                 | `11`                               | label font size    |
-| `label.fontWeight` | `string \| number`                       | `normal`                           | font weight        |
-| `label.fontFamily` | `string`                                 | theme font                         | font family        |
-| `label.color`      | `ColorValue`                             | foreground; inside — auto contrast | text color         |
+| Option             | Type                                     | Default                            | Description       |
+| ------------------ | ---------------------------------------- | ---------------------------------- | ----------------- |
+| `label.enabled`    | `boolean`                                | `false`                            | show value labels |
+| `label.placement`  | outer/`center`/`inner-*` (17 placements) | `'top'`                            | label placement   |
+| `label.formatter`  | `({ low, high, datum }) => string`       | value                              | label content     |
+| `label.fontSize`   | `Pixels`                                 | `11`                               | label font size   |
+| `label.fontWeight` | `string \| number`                       | `normal`                           | font weight       |
+| `label.fontFamily` | `string`                                 | theme font                         | font family       |
+| `label.color`      | `ColorValue`                             | foreground; inside — auto contrast | text color        |
 
 ## Options
 

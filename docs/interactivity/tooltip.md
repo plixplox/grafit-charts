@@ -19,30 +19,30 @@ By default the tooltip shows the `xField` value as the heading and a "series nam
 
 ## Options (chart-level)
 
-| Option              | Type                                | Default      | Description                                                                                                                |
-| ------------------- | ----------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`           | `boolean`                           | `true`       | show the tooltip                                                                                                           |
-| `mode`              | `'single' \| 'shared'`              | `'single'`   | one node or the whole category                                                                                             |
-| `position.anchorTo` | `'node' \| 'center' \| 'pointer'`   | `'node'`     | node edge, node center, or the cursor                                                                                      |
-| `position.xOffset`  | `Pixels`                         | `0`          | tooltip offset                                                                                                             |
-| `yOffset`           | `Pixels`                         | `0`          | tooltip offset                                                                                                             |
-| `range`             | `Pixels \| 'exact' \| 'nearest'` | `30`         | number — radius in px; `'exact'` — only direct hits on a node; `'nearest'` — nearest node from anywhere in the plot area |
+| Option              | Type                              | Default    | Description                                                                                                              |
+| ------------------- | --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`           | `boolean`                         | `true`     | show the tooltip                                                                                                         |
+| `mode`              | `'single' \| 'shared'`            | `'single'` | one node or the whole category                                                                                           |
+| `position.anchorTo` | `'node' \| 'center' \| 'pointer'` | `'node'`   | node edge, node center, or the cursor                                                                                    |
+| `position.xOffset`  | `Pixels`                          | `0`        | tooltip offset                                                                                                           |
+| `yOffset`           | `Pixels`                          | `0`        | tooltip offset                                                                                                           |
+| `range`             | `Pixels \| 'exact' \| 'nearest'`  | `30`       | number — radius in px; `'exact'` — only direct hits on a node; `'nearest'` — nearest node from anywhere in the plot area |
 
 ## Appearance
 
 The tooltip container is styled in the same `tooltip` block:
 
-| Option         | Type                | Default                     | Description                          |
-| -------------- | ------------------- | --------------------------- | ------------------------------------ |
-| `background`   | `ColorValue`        | theme background            | background                           |
-| `borderColor`  | `ColorValue`        | theme muted color           | border color                         |
-| `borderWidth`  | `Pixels`            | `1`                         | border width; `0` removes the border |
-| `borderRadius` | `Pixels`            | `6`                         | corner radius                        |
-| `shadow`       | `string \| false`   | `0 2px 8px rgba(0,0,0,.25)` | CSS box-shadow; `false` — no shadow  |
-| `padding`      | `PaddingValue \| string` | `7px 10px`             | inner padding: `8`, `[8, 12]`, `[8, 12, 4, 0]`, `{ top, right, bottom, left }` or a CSS string |
-| `fontSize`     | `Pixels`            | `12`                        | font size                            |
-| `fontFamily`   | `string`            | `system-ui, sans-serif`     | font family                          |
-| `color`        | `ColorValue`        | theme foreground            | text color                           |
+| Option         | Type                     | Default                     | Description                                                                                    |
+| -------------- | ------------------------ | --------------------------- | ---------------------------------------------------------------------------------------------- |
+| `background`   | `ColorValue`             | theme background            | background                                                                                     |
+| `borderColor`  | `ColorValue`             | theme muted color           | border color                                                                                   |
+| `borderWidth`  | `Pixels`                 | `1`                         | border width; `0` removes the border                                                           |
+| `borderRadius` | `Pixels`                 | `6`                         | corner radius                                                                                  |
+| `shadow`       | `string \| false`        | `0 2px 8px rgba(0,0,0,.25)` | CSS box-shadow; `false` — no shadow                                                            |
+| `padding`      | `PaddingValue \| string` | `7px 10px`                  | inner padding: `8`, `[8, 12]`, `[8, 12, 4, 0]`, `{ top, right, bottom, left }` or a CSS string |
+| `fontSize`     | `Pixels`                 | `12`                        | font size                                                                                      |
+| `fontFamily`   | `string`                 | `system-ui, sans-serif`     | font family                                                                                    |
+| `color`        | `ColorValue`             | theme foreground            | text color                                                                                     |
 
 ```ts
 tooltip: {
@@ -81,9 +81,9 @@ renderer: ({ datum, xValue, yValue, seriesName, color }) => ({
 
 Highlighting is controlled by the `highlight` block:
 
-| Option                 | Type      | Default      | Description                                            |
-| ---------------------- | --------- | ------------ | ------------------------------------------------------ |
-| `enabled`              | `boolean` | `true`       | highlight the node and dim the other series            |
-| `dimOpacity`           | `Fraction`   | `0.8`        | opacity of non-highlighted series (1 — no dimming)     |
-| `highlight.enabled`    | `boolean` | `true`       | node highlighting and dimming                          |
-| `highlight.dimOpacity` | `Fraction`   | `0.8`        | opacity of non-highlighted series                      |
+| Option                 | Type       | Default | Description                                        |
+| ---------------------- | ---------- | ------- | -------------------------------------------------- |
+| `enabled`              | `boolean`  | `true`  | highlight the node and dim the other series        |
+| `dimOpacity`           | `Fraction` | `0.8`   | opacity of non-highlighted series (1 — no dimming) |
+| `highlight.enabled`    | `boolean`  | `true`  | node highlighting and dimming                      |
+| `highlight.dimOpacity` | `Fraction` | `0.8`   | opacity of non-highlighted series                  |

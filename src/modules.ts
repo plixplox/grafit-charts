@@ -36,6 +36,12 @@ export { donutSeriesModule } from '@/entities/series/donut';
 export { funnelSeriesModule } from '@/entities/series/funnel';
 export { heatmapSeriesModule } from '@/entities/series/heatmap';
 export { histogramSeriesModule } from '@/entities/series/histogram';
+/**
+ * The binning a histogram does, callable on its own: a filter over "the bin the
+ * user clicked" needs the same edges the chart drew, and recomputing them by
+ * hand means the nice-step rules drift apart from the bars.
+ */
+export { binEdges, binIndexOf, binCountFor } from '@/entities/series/histogram';
 export { lineSeriesModule } from '@/entities/series/line';
 export { linearGaugeSeriesModule } from '@/entities/series/linear-gauge';
 export { nightingaleSeriesModule } from '@/entities/series/nightingale';

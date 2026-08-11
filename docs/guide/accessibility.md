@@ -4,10 +4,10 @@
 
 The chart canvas is focusable (`Tab`); while focused:
 
-| Key       | Action                                                          |
-| --------- | --------------------------------------------------------------- |
-| `→` / `←` | next/previous point of the first visible series (highlighting)  |
-| `Esc`     | clear the highlight                                             |
+| Key       | Action                                                         |
+| --------- | -------------------------------------------------------------- |
+| `→` / `←` | next/previous point of the first visible series (highlighting) |
+| `Esc`     | clear the highlight                                            |
 
 The container gets `role="img"` and an `aria-label` from `title.text`; the
 highlighted point is announced to screen readers via a hidden `aria-live`
@@ -37,9 +37,9 @@ menu). Axis, legend and tooltip texts come from your data and your
 
 ## Options
 
-| Option              | Type                                 | Description             |
-| ------------------- | ------------------------------------ | ----------------------- |
-| `locale.localeText` | `Partial<Record<LocaleKey, string>>` | UI string overrides     |
+| Option              | Type                                 | Description         |
+| ------------------- | ------------------------------------ | ------------------- |
+| `locale.localeText` | `Partial<Record<LocaleKey, string>>` | UI string overrides |
 
 `LocaleKey` keys: `loading`, `noData`, `downloadPng`, `resetZoom` — the
 default Russian strings live in `DEFAULT_LOCALE`.

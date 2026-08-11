@@ -29,7 +29,13 @@ describe('BandScale', () => {
   });
 
   it('array categories (grouped) compare by value', () => {
-    const scale = new BandScale<unknown>([['2024', 'Q1'], ['2024', 'Q2']], [0, 100]);
+    const scale = new BandScale<unknown>(
+      [
+        ['2024', 'Q1'],
+        ['2024', 'Q2'],
+      ],
+      [0, 100],
+    );
     expect(scale.convert(['2024', 'Q2'])).not.toBeNaN();
   });
 

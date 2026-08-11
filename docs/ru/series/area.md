@@ -30,24 +30,24 @@
 | -------------------- | ---------------------------------------- | --------------------------------- | ------------------------------------------------ |
 | `xField`             | `string`                                 | —                                 | ключи данных                                     |
 | `yField`             | `string`                                 | —                                 | ключи данных                                     |
-| `fill`               | `ColorValue`                               | палитра                           | заливка области                                  |
-| `fillOpacity`        | `Fraction`                                  | `0.35`                            | заливка области                                  |
-| `stroke`             | `ColorValue`                               | цвет заливки                      | верхняя линия                                    |
-| `strokeWidth`        | `Pixels`                              | `2`                               | верхняя линия                                    |
-| `lineDash`           | `Pixels[]`                            | —                                 | пунктир линии                                    |
+| `fill`               | `ColorValue`                             | палитра                           | заливка области                                  |
+| `fillOpacity`        | `Fraction`                               | `0.35`                            | заливка области                                  |
+| `stroke`             | `ColorValue`                             | цвет заливки                      | верхняя линия                                    |
+| `strokeWidth`        | `Pixels`                                 | `2`                               | верхняя линия                                    |
+| `lineDash`           | `Pixels[]`                               | —                                 | пунктир линии                                    |
 | `normalizedTo`       | `number`                                 | —                                 | нормализация итога стека (100 — процентный стек) |
 | `stacked`            | `boolean`                                | `false`                           | стекинг                                          |
 | `stackGroup`         | `string`                                 | `false`                           | стекинг                                          |
 | `label.enabled`      | `boolean`                                | `false`                           | показать подписи значений                        |
 | `label.placement`    | `'top' \| 'bottom' \| 'left' \| 'right'` | `'top'`                           | позиция подписи                                  |
 | `label.formatter`    | `({ value, datum }) => string`           | значение                          | содержимое подписи                               |
-| `label.fontSize`     | `Pixels`                              | `11`                              | размер шрифта подписи                            |
+| `label.fontSize`     | `Pixels`                                 | `11`                              | размер шрифта подписи                            |
 | `label.fontWeight`   | `string \| number`                       | `normal`                          | насыщенность                                     |
 | `label.fontFamily`   | `string`                                 | шрифт темы                        | гарнитура                                        |
-| `label.color`        | `ColorValue`                               | foreground; внутри — автоконтраст | цвет текста                                      |
+| `label.color`        | `ColorValue`                             | foreground; внутри — автоконтраст | цвет текста                                      |
 | `marker.enabled`     | `boolean`                                | `false`                           | показать маркеры                                 |
 | `marker.shape`       | `MarkerShape`                            | `circle`                          | форма маркера                                    |
-| `marker.size`        | `Pixels`                              | `7`                               | размер маркера                                   |
-| `marker.fill`        | `ColorValue`                               | цвет серии                        | заливка маркера                                  |
-| `marker.stroke`      | `ColorValue`                               | фон чарта                         | обводка маркера                                  |
-| `marker.strokeWidth` | `Pixels`                              | `1.5`                             | толщина обводки                                  |
+| `marker.size`        | `Pixels`                                 | `7`                               | размер маркера                                   |
+| `marker.fill`        | `ColorValue`                             | цвет серии                        | заливка маркера                                  |
+| `marker.stroke`      | `ColorValue`                             | фон чарта                         | обводка маркера                                  |
+| `marker.strokeWidth` | `Pixels`                                 | `1.5`                             | толщина обводки                                  |

@@ -1,5 +1,14 @@
 /** Contracts of axis-less series (hierarchy: treemap/sunburst/pyramid; flow: sankey/chord). */
-import type { HighlightState, LayoutRect, LegendItemDescriptor, SeriesPick, TooltipContentData } from './cartesian';
+import type {
+  HighlightState,
+  LabelGuard,
+  MeasureText,
+  LayoutRect,
+  LegendItemDescriptor,
+  SelectionStyleContext,
+  SeriesPick,
+  TooltipContentData,
+} from './cartesian';
 import type { Datum } from '@/shared/options';
 import type { Group } from '@/shared/scene';
 
@@ -7,8 +16,18 @@ export interface StandaloneRenderContext {
   data: Datum[];
   plot: LayoutRect;
   layer: Group;
+  /** Text measurement of the frame — a label block sizes itself with it. */
+  measureText: MeasureText;
   highlight?: HighlightState;
   animationT?: number;
+  /** Room already taken by labels; a series with label.avoidOverlap on asks it first. */
+  labelGuard?: LabelGuard;
+  /** Selected datums of this series (Data Selection). */
+  selected?: ReadonlySet<number>;
+  /** Whether the chart has an active selection (to fade the unselected marks). */
+  selectionActive?: boolean;
+  /** Appearance of selected/unselected marks. */
+  selectionStyle?: SelectionStyleContext;
 }
 
 export interface StandaloneSeriesInstance {

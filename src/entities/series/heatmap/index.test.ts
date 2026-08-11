@@ -22,6 +22,9 @@ const env: SeriesEnv = {
   },
 };
 
+/** 10px per character — keeps the expectations arithmetic. */
+const measureText = (text: string) => text.length * 10;
+
 const data = [
   { week: 'W1', day: 'Mon', deploys: 1234.5 },
   { week: 'W1', day: 'Tue', deploys: 42 },
@@ -50,6 +53,7 @@ function labels(options: Partial<HeatmapSeriesOptions> = {}): string[] {
     swapped: false,
     plot: { x: 0, y: 0, width: 200, height: 200 },
     layer,
+    measureText,
   });
   return textsUnder(layer).map((node) => node.text);
 }
@@ -65,6 +69,7 @@ function tooltip(datumIndex: number, options: Partial<HeatmapSeriesOptions> = {}
     swapped: false,
     plot: { x: 0, y: 0, width: 200, height: 200 },
     layer,
+    measureText,
   });
   return instance.tooltipFor(datumIndex);
 }
