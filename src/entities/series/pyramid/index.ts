@@ -32,7 +32,7 @@ import {
   type LabelPart,
 } from '@/shared/util';
 
-export interface PyramidSeriesOptions extends StandaloneSeriesBaseOptions {
+export interface PyramidSeriesOptions extends StandaloneSeriesBaseOptions<PyramidTooltipRendererParams> {
   type: 'pyramid';
   stageField: string;
   valueField: string;

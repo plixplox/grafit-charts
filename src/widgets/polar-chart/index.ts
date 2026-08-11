@@ -1,3 +1,16 @@
+import {
+  axisFont,
+  axisLabelText,
+  DEFAULT_RING_COUNT,
+  resolveAxisLine,
+  resolveGridLine,
+  resolveLabelStyle,
+  resolveTitleStyle,
+  titleInsets,
+  type PolarAxesOptions,
+  type ResolvedAxisText,
+  type ResolvedGridLine,
+} from './axes';
 import { fitPolarGrid, keepClearOf, placeRimLabel, thinLabels, type PolarFit } from './grid-fit';
 import { renderBackground, type BackgroundOptions } from '@/entities/background';
 import { hasCaptions, renderCaptions, type CaptionOptions } from '@/entities/caption';
@@ -21,10 +34,22 @@ import type {
   SeriesPick,
   ThemeContext,
 } from '@/shared/kernel';
+import type { LocaleOptions } from '@/shared/locale';
 import { resolvePadding, type Datum, type PaddingValue } from '@/shared/options';
 import { BandScale, LinearScale } from '@/shared/scale';
-import { Circle, Group, Line, Path, Text, type Scene } from '@/shared/scene';
+import { Circle, Group, Line, Path, Rect, Text, type Scene } from '@/shared/scene';
 import { LabelPlacements, textBounds, type Bounds } from '@/shared/util';
+
+export type {
+  PolarAxesOptions,
+  PolarAngleAxisOptions,
+  PolarRadiusAxisOptions,
+  PolarAxisLabelOptions,
+  PolarAxisLabelParams,
+  PolarAxisLineOptions,
+  PolarAxisTitleOptions,
+  PolarGridLineOptions,
+} from './axes';
 
 export interface PolarChartInputs {
   data?: Datum[];
@@ -40,12 +65,19 @@ export interface PolarChartInputs {
   listeners?: ChartListeners;
   animation?: AnimationOptions;
   initialState?: ChartState;
+  locale?: LocaleOptions;
+  /**
+   * The web as a pair of axes: the categories around the rim and the values
+   * along the radius, each with its grid, its line, its labels and its title.
+   */
+  axes?: PolarAxesOptions;
 }
 
 const DEFAULT_PADDING = { top: 12, right: 20, bottom: 12, left: 20 };
 const LEGEND_GAP = 12;
 const DEFAULT_ANIMATION_MS = 600;
-const GRID_RING_COUNT = 4;
+/** A drag shorter than this in both axes was a click, not a rubber band. */
+const BOX_SELECT_MIN = 4;
 /** Breathing room between the outermost ring and the edge of the area. */
 const PLOT_INSET = 4;
 const MIN_RADIUS = 10;
@@ -56,6 +88,10 @@ const RING_LABEL_GAP = 4;
 const RING_LABEL_LIFT = 2;
 /** Inverted layout: gap between the centre line and the category names. */
 const INVERSE_LABEL_GAP = 6;
+/** Breathing room between an axis title and the chart it names. */
+const AXIS_TITLE_GAP = 6;
+/** The inverted layout carries more rings, so its web fades back further. */
+const INVERSE_GRID_OPACITY = 0.2;
 
 /** A category label around the rim, ready to be placed on its spoke. */
 interface RimLabel {
@@ -85,6 +121,8 @@ export class PolarChart implements ChartWidget {
   private transitionT: number | undefined;
   private readonly tooltip: HtmlTooltip | undefined;
   private readonly selectedMap = new Map<string, Set<number>>();
+  /** The rubber band being dragged, in chart coordinates. */
+  private selectRect: { x0: number; y0: number; x1: number; y1: number } | undefined;
 
   constructor(
     private readonly scene: Scene,
@@ -128,6 +166,7 @@ export class PolarChart implements ChartWidget {
           stroke: strokes[index % strokes.length] ?? '#436ff4',
         },
         theme: this.theme,
+        locale: this.inputs.locale,
       }) as PolarSeriesInstance;
       this.applyHiddenState(instance);
       return instance;
@@ -153,7 +192,8 @@ export class PolarChart implements ChartWidget {
     const seriesLayer = this.scene.layer('series');
     const legendLayer = this.scene.layer('legend');
     const captionLayer = this.scene.layer('caption');
-    for (const layer of [backgroundLayer, gridLayer, seriesLayer, legendLayer, captionLayer]) {
+    const overlayLayer = this.scene.layer('overlay');
+    for (const layer of [backgroundLayer, gridLayer, seriesLayer, legendLayer, captionLayer, overlayLayer]) {
       layer.clear();
     }
     this.scene.markDirty();
@@ -224,6 +264,16 @@ export class PolarChart implements ChartWidget {
       }
     }
 
+    // the titles stand outside the web, so the room they take is gone before
+    // the grid is fitted to what is left
+    const angleTitle = resolveTitleStyle(this.inputs.axes?.angle?.title, this.theme, themeFont(this.theme, FONT_STEP.label));
+    const radiusTitle = resolveTitleStyle(this.inputs.axes?.radius?.title, this.theme, themeFont(this.theme, FONT_STEP.label));
+    const titles = titleInsets(angleTitle, radiusTitle, AXIS_TITLE_GAP);
+    const titleArea: LayoutRect = { ...avail };
+    avail.x += titles.left;
+    avail.width -= titles.left;
+    avail.height -= titles.bottom;
+
     let centerX = avail.x + avail.width / 2;
     let centerY = avail.y + avail.height / 2;
     let radius = Math.max(MIN_RADIUS, Math.min(avail.width, avail.height) / 2 - PLOT_INSET);
@@ -282,8 +332,13 @@ export class PolarChart implements ChartWidget {
       centerY = fit.centerY;
       radius = fit.radius;
 
-      radiusScale = new LinearScale([Math.min(0, min), max], [0, radius]);
-      radiusScale.nice(GRID_RING_COUNT);
+      // bounds the options gave stand as they are; the rest is what the data asked for
+      const axis = this.inputs.axes?.radius;
+      radiusScale = new LinearScale([axis?.min ?? Math.min(0, min), axis?.max ?? max], [0, radius]);
+      if (axis?.nice !== false) radiusScale.nice(this.ringCount);
+      if (axis?.min !== undefined || axis?.max !== undefined) {
+        radiusScale.domain = [axis.min ?? radiusScale.domain[0], axis.max ?? radiusScale.domain[1]];
+      }
       // labels that would collide at this radius are dropped, spokes stay
       const kept = thinLabels(this.rimLabelBounds(labels, centerX, centerY, radius), { closed: true });
       this.renderPolarGrid(
@@ -297,6 +352,8 @@ export class PolarChart implements ChartWidget {
         measureText,
       );
     }
+
+    this.renderAxisTitles(gridLayer, titleArea, angleTitle, radiusTitle);
 
     const slots = this.assignAngleSlots(visibleSeries);
     // one guard for the whole frame: series are asked in drawing order, so of
@@ -332,6 +389,8 @@ export class PolarChart implements ChartWidget {
         group: slots.get(series.id),
       });
     }
+
+    this.renderSelectBox(overlayLayer);
 
     if (data.length === 0 || visibleSeries.length === 0) {
       const note = new Text();
@@ -423,42 +482,26 @@ export class PolarChart implements ChartWidget {
     rimLabels: RimLabel[],
     measureText: MeasureText,
   ): void {
-    const theme = this.theme;
+    const axes = this.inputs.axes;
     const categories = angleScale.domain;
     const polygonal = visibleSeries.some((series) => series.type.startsWith('radar'));
     const maxRadius = radiusScale.range[1];
-    const ticks = radiusScale.ticks(GRID_RING_COUNT).filter((tick) => tick > 0);
+    const ticks = radiusScale.ticks(this.ringCount).filter((tick) => tick > 0);
+    const rings = resolveGridLine(axes?.radius?.gridLine, this.theme);
+    const spokes = resolveGridLine(axes?.angle?.gridLine, this.theme);
+    const rim = resolveAxisLine(axes?.angle?.line, this.theme);
+    const valueLine = resolveAxisLine(axes?.radius?.line, this.theme);
+    const categoryStyle = resolveLabelStyle(axes?.angle?.label, this.theme, this.categoryLabelSize);
+    const valueStyle = resolveLabelStyle(axes?.radius?.label, this.theme, this.ringLabelSize);
 
-    // the web is this chart's grid — the theme switch silences it, the rim labels stay
-    if (theme.axis.gridLine) {
+    // the rings of the value axis: a polygon where the data is a polygon
+    if (rings.visible) {
       for (const tick of ticks) {
-        const r = radiusScale.convert(tick);
-        if (polygonal && categories.length > 2) {
-          const ring = new Path();
-          categories.forEach((category, index) => {
-            const angle = angleScale.center(category);
-            const point = pointAt(centerX, centerY, angle, r);
-            if (index === 0) ring.moveTo(point.x, point.y);
-            else ring.lineTo(point.x, point.y);
-          });
-          ring.closePath();
-          ring.stroke = theme.mutedColor;
-          ring.strokeWidth = theme.axis.strokeWidth;
-          ring.opacity = 0.3;
-          layer.append(ring);
-        } else {
-          const ring = new Circle();
-          ring.x = centerX;
-          ring.y = centerY;
-          ring.radius = r;
-          ring.stroke = theme.mutedColor;
-          ring.strokeWidth = theme.axis.strokeWidth;
-          ring.opacity = 0.3;
-          layer.append(ring);
-        }
+        layer.append(this.ringNode(centerX, centerY, radiusScale.convert(tick), polygonal, categories, angleScale, rings));
       }
-
-      // a spoke per category — the web stays whole even where a label was dropped
+    }
+    // a spoke per category — the web stays whole even where a label was dropped
+    if (spokes.visible) {
       for (const category of categories) {
         const end = pointAt(centerX, centerY, angleScale.center(category), maxRadius);
         const spoke = new Line();
@@ -466,36 +509,69 @@ export class PolarChart implements ChartWidget {
         spoke.y1 = centerY;
         spoke.x2 = end.x;
         spoke.y2 = end.y;
-        spoke.stroke = theme.mutedColor;
-        spoke.strokeWidth = theme.axis.strokeWidth;
-        spoke.opacity = 0.3;
+        spoke.stroke = spokes.stroke;
+        spoke.strokeWidth = spokes.width;
+        if (spokes.lineDash) spoke.lineDash = spokes.lineDash;
+        spoke.opacity = spokes.opacity;
         layer.append(spoke);
       }
     }
+    // the rim closes the category axis, the vertical stands for the value one
+    if (rim.visible) {
+      layer.append(
+        this.ringNode(centerX, centerY, maxRadius, polygonal, categories, angleScale, {
+          ...rim,
+          opacity: 1,
+        }),
+      );
+    }
+    if (valueLine.visible) {
+      const line = new Line();
+      line.x1 = centerX;
+      line.y1 = centerY;
+      line.x2 = centerX;
+      line.y2 = centerY - maxRadius;
+      line.stroke = valueLine.stroke;
+      line.strokeWidth = valueLine.width;
+      if (valueLine.lineDash) line.lineDash = valueLine.lineDash;
+      layer.append(line);
+    }
 
-    const rimBounds = rimLabels.map((rimLabel) => {
-      const placed = placeRimLabel(centerX, centerY, maxRadius + RIM_LABEL_GAP, rimLabel.angle);
-      const label = new Text();
-      label.text = rimLabel.text;
-      label.x = placed.x;
-      label.y = placed.y;
-      label.fontSize = this.categoryLabelSize;
-      label.fontFamily = theme.fontFamily;
-      label.fill = theme.mutedColor;
-      label.textAlign = placed.align;
-      label.textBaseline = placed.baseline;
-      layer.append(label);
-      return textBounds(placed.x, placed.y, rimLabel.width, this.categoryLabelSize, placed.align, placed.baseline);
-    });
+    const categoryFont = axisFont(categoryStyle);
+    const rimBounds = categoryStyle.visible
+      ? rimLabels.map((rimLabel) => {
+          const placed = placeRimLabel(centerX, centerY, maxRadius + RIM_LABEL_GAP, rimLabel.angle);
+          const label = new Text();
+          label.text = rimLabel.text;
+          label.x = placed.x;
+          label.y = placed.y;
+          label.fontSize = categoryStyle.size;
+          label.fontFamily = categoryStyle.family;
+          label.fontWeight = categoryStyle.weight;
+          label.fill = categoryStyle.color;
+          label.textAlign = placed.align;
+          label.textBaseline = placed.baseline;
+          layer.append(label);
+          return textBounds(
+            placed.x,
+            placed.y,
+            measureText(rimLabel.text, categoryFont),
+            categoryStyle.size,
+            placed.align,
+            placed.baseline,
+          );
+        })
+      : [];
 
+    if (!valueStyle.visible) return;
     // ring values climb the vertical at twelve o'clock, where the category
     // label of the first spoke already is: the outermost one gives way to it
-    const ringFont = this.rimLabelFont(this.ringLabelSize);
-    const ringLabels = ticks.map((tick) => {
-      const text = String(tick);
+    const ringFont = axisFont(valueStyle);
+    const ringLabels = ticks.map((tick, index) => {
+      const text = axisLabelText(tick, index, axes?.radius?.label);
       const x = centerX + RING_LABEL_GAP;
       const y = centerY - radiusScale.convert(tick) - RING_LABEL_LIFT;
-      return { text, x, y, bounds: textBounds(x, y, measureText(text, ringFont), this.ringLabelSize, 'left', 'alphabetic') };
+      return { text, x, y, bounds: textBounds(x, y, measureText(text, ringFont), valueStyle.size, 'left', 'alphabetic') };
     });
     for (const index of keepClearOf(
       ringLabels.map((ring) => ring.bounds),
@@ -507,10 +583,80 @@ export class PolarChart implements ChartWidget {
       label.text = ring.text;
       label.x = ring.x;
       label.y = ring.y;
-      label.fontSize = this.ringLabelSize;
-      label.fontFamily = theme.fontFamily;
-      label.fill = theme.mutedColor;
+      label.fontSize = valueStyle.size;
+      label.fontFamily = valueStyle.family;
+      label.fontWeight = valueStyle.weight;
+      label.fill = valueStyle.color;
       layer.append(label);
+    }
+  }
+
+  /** How many rings the value axis is read off. */
+  private get ringCount(): number {
+    return Math.max(1, Math.round(this.inputs.axes?.radius?.ringCount ?? DEFAULT_RING_COUNT));
+  }
+
+  /** One ring of the web: a circle, or a polygon where the data is a polygon. */
+  private ringNode(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    polygonal: boolean,
+    categories: unknown[],
+    angleScale: BandScale<unknown>,
+    style: ResolvedGridLine,
+  ): Path | Circle {
+    const node = polygonal && categories.length > 2 ? new Path() : new Circle();
+    if (node instanceof Path) {
+      categories.forEach((category, index) => {
+        const point = pointAt(centerX, centerY, angleScale.center(category), radius);
+        if (index === 0) node.moveTo(point.x, point.y);
+        else node.lineTo(point.x, point.y);
+      });
+      node.closePath();
+    } else {
+      node.x = centerX;
+      node.y = centerY;
+      node.radius = radius;
+    }
+    node.stroke = style.stroke;
+    node.strokeWidth = style.width;
+    if (style.lineDash) node.lineDash = style.lineDash;
+    node.opacity = style.opacity;
+    return node;
+  }
+
+  /**
+   * The titles of the axes: the categories are named under the chart, the
+   * values along its left edge, turned to read upwards.
+   */
+  private renderAxisTitles(layer: Group, area: LayoutRect, angle: ResolvedAxisText, radius: ResolvedAxisText): void {
+    if (angle.visible) {
+      const title = new Text();
+      title.text = this.inputs.axes?.angle?.title?.text ?? '';
+      title.x = area.x + area.width / 2;
+      title.y = area.y + area.height;
+      title.textAlign = 'center';
+      title.textBaseline = 'bottom';
+      title.fontSize = angle.size;
+      title.fontFamily = angle.family;
+      title.fontWeight = angle.weight;
+      title.fill = angle.color;
+      layer.append(title);
+    }
+    if (radius.visible) {
+      const title = new Text();
+      title.text = this.inputs.axes?.radius?.title?.text ?? '';
+      title.x = area.x;
+      title.y = area.y + area.height / 2;
+      title.textAlign = 'center';
+      title.textBaseline = 'top';
+      title.rotation = -90;
+      title.fontSize = radius.size;
+      title.fontFamily = radius.family;
+      title.fontWeight = radius.weight;
+      title.fill = radius.color;
+      layer.append(title);
     }
   }
 
@@ -523,75 +669,90 @@ export class PolarChart implements ChartWidget {
     angleValueScale: LinearScale,
     measureText: MeasureText,
   ): void {
-    const theme = this.theme;
+    const axes = this.inputs.axes;
     const categories = radiusBandScale.domain;
-    if (theme.axis.gridLine) {
+    // the inverted layout swaps what the two axes draw: the categories are the
+    // rings, the values are the spokes — the options follow the meaning, not the shape
+    const categoryRings = resolveGridLine(axes?.angle?.gridLine, this.theme, INVERSE_GRID_OPACITY);
+    const valueSpokes = resolveGridLine(axes?.radius?.gridLine, this.theme, INVERSE_GRID_OPACITY);
+    const categoryStyle = resolveLabelStyle(axes?.angle?.label, this.theme, this.categoryLabelSize);
+    const valueStyle = resolveLabelStyle(axes?.radius?.label, this.theme, this.ringLabelSize);
+    if (categoryRings.visible) {
       for (const category of categories) {
         const ring = new Circle();
         ring.x = centerX;
         ring.y = centerY;
         ring.radius = radiusBandScale.center(category);
-        ring.stroke = theme.mutedColor;
-        ring.strokeWidth = theme.axis.strokeWidth;
-        ring.opacity = 0.2;
+        ring.stroke = categoryRings.stroke;
+        ring.strokeWidth = categoryRings.width;
+        if (categoryRings.lineDash) ring.lineDash = categoryRings.lineDash;
+        ring.opacity = categoryRings.opacity;
         layer.append(ring);
       }
     }
 
     // names stack up the left side, a ring apart; close rings share a row, so
     // the ones that would collide are dropped — this run does not wrap around
-    const nameBounds = categories.map((category) =>
+    const categoryFont = axisFont(categoryStyle);
+    const names = categories.map((category, index) => axisLabelText(category, index, axes?.angle?.label));
+    const nameBounds = categories.map((category, index) =>
       textBounds(
         centerX - INVERSE_LABEL_GAP,
         centerY - radiusBandScale.center(category),
-        measureText(String(category), this.rimLabelFont(this.categoryLabelSize)),
-        this.categoryLabelSize,
+        measureText(names[index] ?? '', categoryFont),
+        categoryStyle.size,
         'right',
         'middle',
       ),
     );
-    for (const index of thinLabels(nameBounds)) {
-      const category = categories[index];
-      if (category === undefined) continue;
-      const label = new Text();
-      label.text = String(category);
-      label.x = centerX - INVERSE_LABEL_GAP;
-      label.y = centerY - radiusBandScale.center(category);
-      label.textAlign = 'right';
-      label.textBaseline = 'middle';
-      label.fontSize = this.categoryLabelSize;
-      label.fontFamily = theme.fontFamily;
-      label.fill = theme.mutedColor;
-      layer.append(label);
+    if (categoryStyle.visible) {
+      for (const index of thinLabels(nameBounds)) {
+        const category = categories[index];
+        if (category === undefined) continue;
+        const label = new Text();
+        label.text = names[index] ?? '';
+        label.x = centerX - INVERSE_LABEL_GAP;
+        label.y = centerY - radiusBandScale.center(category);
+        label.textAlign = 'right';
+        label.textBaseline = 'middle';
+        label.fontSize = categoryStyle.size;
+        label.fontFamily = categoryStyle.family;
+        label.fontWeight = categoryStyle.weight;
+        label.fill = categoryStyle.color;
+        layer.append(label);
+      }
     }
     const maxRadius = radiusBandScale.range[1];
-    for (const tick of angleValueScale.ticks(4)) {
-      if (tick <= 0) continue;
+    angleValueScale.ticks(this.ringCount).forEach((tick, index) => {
+      if (tick <= 0) return;
       const angle = angleValueScale.convert(tick);
       const end = { x: centerX + Math.sin(angle) * maxRadius, y: centerY - Math.cos(angle) * maxRadius };
-      if (theme.axis.gridLine) {
+      if (valueSpokes.visible) {
         const spoke = new Line();
         spoke.x1 = centerX;
         spoke.y1 = centerY;
         spoke.x2 = end.x;
         spoke.y2 = end.y;
-        spoke.stroke = theme.mutedColor;
-        spoke.strokeWidth = theme.axis.strokeWidth;
-        spoke.opacity = 0.2;
+        spoke.stroke = valueSpokes.stroke;
+        spoke.strokeWidth = valueSpokes.width;
+        if (valueSpokes.lineDash) spoke.lineDash = valueSpokes.lineDash;
+        spoke.opacity = valueSpokes.opacity;
         layer.append(spoke);
       }
+      if (!valueStyle.visible) return;
       const at = placeRimLabel(centerX, centerY, maxRadius + RIM_LABEL_GAP, angle);
       const label = new Text();
-      label.text = String(tick);
+      label.text = axisLabelText(tick, index, axes?.radius?.label);
       label.x = at.x;
       label.y = at.y;
       label.textAlign = 'center';
       label.textBaseline = 'middle';
-      label.fontSize = this.ringLabelSize;
-      label.fontFamily = theme.fontFamily;
-      label.fill = theme.mutedColor;
+      label.fontSize = valueStyle.size;
+      label.fontFamily = valueStyle.family;
+      label.fontWeight = valueStyle.weight;
+      label.fill = valueStyle.color;
       layer.append(label);
-    }
+    });
   }
 
   private collectAngleCategories(series: PolarSeriesInstance[], data: Datum[]): unknown[] {
@@ -857,9 +1018,63 @@ export class PolarChart implements ChartWidget {
 
   handleDoubleClick(): void {}
   handleWheel(): void {}
-  handleDragStart(): void {}
-  handleDragMove(): void {}
-  handleDragEnd(): void {}
+  /**
+   * Rubber-band selection: opt-in through `selection.boxSelect`, and only where
+   * a selection can hold more than one node — a band that replaced the whole
+   * selection with its last node would be a click with extra steps.
+   */
+  handleDragStart(x: number, y: number): void {
+    this.selectRect = undefined;
+    const selection = this.inputs.selection;
+    if (!selection?.enabled || selection.boxSelect !== true || selection.mode !== 'multiple') return;
+    this.selectRect = { x0: x, y0: y, x1: x, y1: y };
+  }
+
+  handleDragMove(x: number, y: number): void {
+    if (!this.selectRect) return;
+    this.selectRect.x1 = x;
+    this.selectRect.y1 = y;
+    this.layoutAndRender();
+    this.requestRender();
+  }
+
+  handleDragEnd(): void {
+    const rect = this.selectRect;
+    this.selectRect = undefined;
+    if (!rect) return;
+    // a band too small to have been dragged on purpose is a click; the click
+    // handler has already had its say, so this one keeps quiet
+    if (Math.abs(rect.x1 - rect.x0) <= BOX_SELECT_MIN && Math.abs(rect.y1 - rect.y0) <= BOX_SELECT_MIN) {
+      this.layoutAndRender();
+      this.requestRender();
+      return;
+    }
+    for (const series of this.series) {
+      if (!series.visible || !series.pickInRect) continue;
+      const indices = series.pickInRect(rect.x0, rect.y0, rect.x1, rect.y1);
+      if (indices.length === 0) continue;
+      const set = this.selectedMap.get(series.id) ?? new Set<number>();
+      for (const index of indices) set.add(index);
+      this.selectedMap.set(series.id, set);
+    }
+    this.afterSelectionChange();
+  }
+
+  /** The band itself, drawn over everything while the pointer is down. */
+  protected renderSelectBox(layer: Group): void {
+    const rect = this.selectRect;
+    if (!rect) return;
+    const box = new Rect();
+    box.x = Math.min(rect.x0, rect.x1);
+    box.y = Math.min(rect.y0, rect.y1);
+    box.width = Math.abs(rect.x1 - rect.x0);
+    box.height = Math.abs(rect.y1 - rect.y0);
+    box.fill = this.theme.palette.fills[0] ?? '#436ff4';
+    box.opacity = 0.15;
+    box.stroke = this.theme.palette.fills[0] ?? '#436ff4';
+    box.strokeWidth = 1;
+    layer.append(box);
+  }
 
   getState(): ChartState {
     return { hiddenSeries: [...this.hiddenSeries] };

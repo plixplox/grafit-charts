@@ -53,3 +53,26 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `marker.enabled`           | `boolean`                                           | `true`        | vertex markers         |
 | `marker.shape`             | `MarkerShape`                                       | `circle`      | shape                  |
 | `marker.size`              | `Pixels`                                            | `6`           | size                   |
+
+
+## Value labels
+
+`label.enabled` prints the value on each vertex. `placement` defaults to
+`outward`, which pushes the label away from the centre along its own spoke —
+where the web is empty whichever way the vertex leans; `top`, `bottom`, `left`,
+`right` and `inside` behave as they do on a line.
+
+::: chart-example radar-labels
+
+| Option             | Type                                                     | Default     | Description        |
+| ------------------ | -------------------------------------------------------- | ----------- | ------------------ |
+| `label.enabled`    | `boolean`                                                | `false`     | show value labels  |
+| `label.placement`  | `'outward' \| 'top' \| 'bottom' \| 'left' \| 'right' \| 'inside'` | `'outward'` | where the label sits |
+| `label.formatter`  | `({ value, datum }) => string`                           | the value   | label content      |
+| `label.fontSize`   | `Pixels`                                                 | `11`        | font size          |
+| `label.fontWeight` | `string \| number`                                       | `normal`    | font weight        |
+| `label.fontFamily` | `string`                                                 | theme font  | typeface           |
+| `label.color`      | `ColorValue`                                             | foreground; `inside` — auto-contrast | text colour |
+
+The rings, the spokes and the numbers beside them belong to the axes rather than
+to the series — see [Polar axes](/guide/axes#polar-axes).

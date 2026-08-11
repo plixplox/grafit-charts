@@ -3,7 +3,7 @@ import type { AxisEnv, AxisPosition, CartesianAxisInstance, Insets, LayoutRect, 
 import type { ColorValue, FontOptions, Pixels, Switchable } from '@/shared/options';
 import { BandScale, type AnyScale } from '@/shared/scale';
 import { Group, Line, Rect, Text } from '@/shared/scene';
-import { formatValue, maxOverflow, overflowOutside, NO_OVERFLOW } from '@/shared/util';
+import { ellipsize, formatValue, maxOverflow, overflowOutside, NO_OVERFLOW } from '@/shared/util';
 
 export interface AxisLabelFormatterParams {
   value: unknown;
@@ -13,6 +13,12 @@ export interface AxisLabelFormatterParams {
 export type AxisLabelPlacement = 'outside' | 'inside';
 
 export type AxisInsideLabelAlign = 'element' | 'gap';
+
+/**
+ * What a label does with room it does not fit into: 'thin' drops the crowded
+ * ones and draws the rest in full, 'ellipsis' keeps every label and cuts it.
+ */
+export type AxisLabelOverflow = 'thin' | 'ellipsis';
 
 export interface AxisCrossLineOptions {
   type?: 'line' | 'range';
@@ -78,6 +84,23 @@ export interface AxisBaseOptions {
       formatter?: (params: AxisLabelFormatterParams) => string;
       /** Skip overlapping labels (true by default). */
       avoidCollisions?: boolean;
+      /**
+       * What a label that does not fit its room does: 'thin' (default) — the
+       * crowded ones are dropped and the rest are drawn whole; 'ellipsis' —
+       * every label stays and is cut to the room between two ticks, so long
+       * category names stop running into their neighbours and the tick lines
+       * between them. Only the horizontal axis crowds this way; on a vertical
+       * one the cut is what `maxWidth` asks for.
+       */
+      overflow?: AxisLabelOverflow;
+      /**
+       * Widest a label may be, px. Anything longer is cut with `label.ellipsis`
+       * whatever `overflow` says; on a vertical axis this also caps the room
+       * the labels take away from the plot.
+       */
+      maxWidth?: Pixels;
+      /** The mark standing where the text was cut: '..' by default, '…' reads too. */
+      ellipsis?: string;
     };
   gridLine?: Switchable & { stroke?: ColorValue; width?: Pixels; lineDash?: Pixels[] };
   interval?: {
@@ -198,12 +221,55 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     if (formatter) return formatter({ value, index });
     const format = this.options.label?.format;
     if (format) return formatValue(format, value);
-    return typeof value === 'number' ? formatNumber(value) : String(value);
+    return typeof value === 'number' ? formatAxisNumber(value) : String(value);
   }
 
   protected labelFont(): string {
     const label = this.options.label;
     return `${label?.fontWeight ?? 'normal'} ${this.labelSize}px ${label?.fontFamily ?? this.env.theme.fontFamily}`;
+  }
+
+  /** Labels are cut to their room instead of thinning out. */
+  protected get labelCuts(): boolean {
+    return this.options.label?.overflow === 'ellipsis';
+  }
+
+  /** Room labels keep between one another before one of them has to go. */
+  protected get minLabelSpacing(): number {
+    return this.options.interval?.minSpacing ?? MIN_LABEL_SPACING;
+  }
+
+  /** Widest a label may be regardless of how much room its tick leaves it. */
+  protected get labelMaxWidth(): number {
+    const maxWidth = this.options.label?.maxWidth;
+    return maxWidth !== undefined && maxWidth > 0 ? maxWidth : Infinity;
+  }
+
+  /**
+   * Room one label has along a horizontal axis: the step between neighbouring
+   * ticks, less the spacing labels keep from each other — the same distance
+   * that decides thinning, spent on cutting instead. A vertical axis reads its
+   * labels across, so only `maxWidth` bounds them.
+   */
+  protected labelRoom(ticks: Array<{ coord: number }>): number {
+    const cap = this.labelMaxWidth;
+    if (!this.isHorizontal || !this.labelCuts) return cap;
+    let step = Infinity;
+    for (let i = 1; i < ticks.length; i++) step = Math.min(step, Math.abs(ticks[i]!.coord - ticks[i - 1]!.coord));
+    if (!Number.isFinite(step)) return cap;
+    return Math.min(cap, Math.max(step - this.minLabelSpacing, 0));
+  }
+
+  /** Tick label as it is drawn: the formatted value, cut to `room` when it overruns. */
+  protected tickLabel(value: unknown, index: number, room: number, measureText: MeasureText): string {
+    const text = this.formatTick(value, index);
+    if (!Number.isFinite(room)) return text;
+    return ellipsize(text, this.labelFont(), room, measureText, this.options.label?.ellipsis);
+  }
+
+  /** Text measurement without a layout context, as a `MeasureText`. */
+  protected get ownMeasureText(): MeasureText {
+    return (text, font) => this.measureWithCanvasFallback(text, font);
   }
 
   /** Ticks accounting for interval.values and skipping of overlapping labels. */
@@ -215,15 +281,26 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     const ticks = raw.map((tick, index) => ({ ...tick, index }));
     if (this.options.label?.avoidCollisions === false) return ticks;
     // a vertical axis only crowds when its labels sit inside, in a row per band
-    if (!this.isHorizontal) return this.labelsInside ? thin(ticks, this.insideLabelSlot()) : ticks;
+    if (!this.isHorizontal) return this.labelsInside ? this.thinTicks(ticks, this.insideLabelSlot()) : ticks;
+    // cut labels take the room they are given, so none of them has to go
+    if (this.labelCuts) return ticks;
 
     const font = this.labelFont();
-    const minSpacing = this.options.interval?.minSpacing ?? MIN_LABEL_SPACING;
+    const cap = this.labelMaxWidth;
     let maxWidth = 0;
     for (const tick of ticks) {
-      maxWidth = Math.max(maxWidth, this.measureWithCanvasFallback(this.formatTick(tick.value, tick.index), font));
+      maxWidth = Math.max(maxWidth, this.measureWithCanvasFallback(this.tickLabel(tick.value, tick.index, cap, this.ownMeasureText), font));
     }
-    return thin(ticks, maxWidth + minSpacing);
+    return this.thinTicks(ticks, maxWidth + this.minLabelSpacing);
+  }
+
+  /**
+   * Which ticks keep their labels when they cannot all fit: every `stride`-th
+   * one, for the room `labelExtent` one label takes. Axes that group their
+   * categories thin them run by run instead.
+   */
+  protected thinTicks<T extends { value: unknown; coord: number; index: number }>(ticks: T[], labelExtent: number): T[] {
+    return thin(ticks, labelExtent);
   }
 
   /** Coordinate of a value on the scale (for interval.values and crossLines). */
@@ -246,7 +323,8 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
         thickness += fontSize;
       } else {
         const font = this.labelFont();
-        const widths = this.displayTicks().map(({ value, index }) => measureText(this.formatTick(value, index), font));
+        const cap = this.labelMaxWidth;
+        const widths = this.displayTicks().map(({ value, index }) => measureText(this.tickLabel(value, index, cap, measureText), font));
         thickness += widths.length > 0 ? Math.max(...widths) : 0;
       }
     }
@@ -268,8 +346,10 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     const font = this.labelFont();
     const fontSize = this.labelSize;
     let overflow = NO_OVERFLOW;
-    for (const { value, coord, index } of this.displayTicks()) {
-      const half = this.isHorizontal ? measureText(this.formatTick(value, index), font) / 2 : fontSize / 2;
+    const ticks = this.displayTicks();
+    const room = this.labelRoom(ticks);
+    for (const { value, coord, index } of ticks) {
+      const half = this.isHorizontal ? measureText(this.tickLabel(value, index, room, measureText), font) / 2 : fontSize / 2;
       // across the axis the labels stay in the zone measure() reserved — only the ends matter here
       const bounds = this.isHorizontal
         ? { left: coord - half, right: coord + half, top: plot.y, bottom: plot.y + plot.height }
@@ -350,15 +430,16 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     const labelOptions = this.options.label;
     let labelExtent = this.ticksVisible ? tickSize : 0;
     const insideLabels = this.labelsInside;
+    const labelRoom = this.labelRoom(ticks);
     if (labelOptions?.enabled !== false && insideLabels) {
       // above the series: bars would otherwise cover the labels
-      this.renderInsideLabels(foregroundLayer ?? axisLayer, plot, ticks);
+      this.renderInsideLabels(foregroundLayer ?? axisLayer, plot, ticks, labelRoom);
     } else if (labelOptions?.enabled !== false) {
       labelExtent += labelOptions?.spacing ?? theme.axis.labelSpacing ?? LABEL_SPACING;
       const fontSize = this.labelSize;
       let maxLabelSize = 0;
       for (const { value, coord, index } of ticks) {
-        const text = this.labelNode(this.formatTick(value, index));
+        const text = this.labelNode(this.tickLabel(value, index, labelRoom, this.ownMeasureText));
         if (this.isHorizontal) {
           text.x = coord;
           text.y = edge + labelExtent * direction;
@@ -382,7 +463,9 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     if (title?.text && title.enabled !== false) {
       if (!this.isHorizontal && !insideLabels) {
         const font = this.labelFont();
-        const widths = ticks.map(({ value, index }) => this.measureWithCanvasFallback(this.formatTick(value, index), font));
+        const widths = ticks.map(({ value, index }) =>
+          this.measureWithCanvasFallback(this.tickLabel(value, index, labelRoom, this.ownMeasureText), font),
+        );
         labelExtent += widths.length > 0 ? Math.max(...widths) : 0;
       }
       const node = new Text();
@@ -424,10 +507,15 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
    * flush with the start of the value axis), on a horizontal one along the inner
    * edge of the plot rect. Continuous scales fall back to the tick coordinate.
    */
-  private renderInsideLabels(layer: Group, plot: LayoutRect, ticks: Array<{ value: unknown; coord: number; index: number }>): void {
+  private renderInsideLabels(
+    layer: Group,
+    plot: LayoutRect,
+    ticks: Array<{ value: unknown; coord: number; index: number }>,
+    room: number,
+  ): void {
     const spacing = this.insideSpacing;
     for (const { value, coord, index } of ticks) {
-      const node = this.labelNode(this.formatTick(value, index));
+      const node = this.labelNode(this.tickLabel(value, index, room, this.ownMeasureText));
       if (this.isHorizontal) {
         // along the axis: only the indent from it, the label is centred on the band
         node.x = coord;
@@ -585,7 +673,8 @@ function thin<T extends { coord: number }>(ticks: T[], labelExtent: number): T[]
   return stride === 1 ? ticks : ticks.filter((_, index) => index % stride === 0);
 }
 
-function formatNumber(value: number): string {
+/** Default look of a number on an axis: millions and thousands are shortened. */
+export function formatAxisNumber(value: number): string {
   if (Math.abs(value) >= 1e6) return `${value / 1e6}M`;
   if (Math.abs(value) >= 1e4) return `${value / 1e3}k`;
   return String(Number(value.toFixed(10)));

@@ -53,3 +53,7 @@ Charts.createGauge({
 ## Опции
 
 Общие опции всех серий (`name`, `showInLegend`, `tooltip.renderer`, …) — в разделе [Общие опции серий](/ru/guide/series-options).
+
+
+`tooltip.renderer` получает `NodeTooltipRendererParams` — `{ label, value, share, color }`,
+где `value` — то число, которое показывает индикатор.

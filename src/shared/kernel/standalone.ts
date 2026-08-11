@@ -37,8 +37,16 @@ export interface StandaloneSeriesInstance {
   setData(data: Datum[]): void;
   update(ctx: StandaloneRenderContext): void;
   pick(x: number, y: number): SeriesPick | undefined;
+  /** Nodes inside a rubber band, for selection.boxSelect. */
+  pickInRect?(x0: number, y0: number, x1: number, y1: number): number[];
   /** pick() run backwards: the node of a datum, for tooltips addressed by index. */
   nodeAt?(datumIndex: number): SeriesPick | undefined;
+  /**
+   * The row a node came from. A hierarchy numbers every node it draws, nested
+   * ones included, so the index of a node is not the index of a row in the data
+   * of the chart — only the series knows which row a node stands for.
+   */
+  datumAt?(datumIndex: number): Datum | undefined;
   tooltipFor(datumIndex: number): TooltipContentData;
   legendItems(): LegendItemDescriptor[];
 }

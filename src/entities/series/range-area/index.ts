@@ -1,13 +1,13 @@
-import { CartesianSeries, type SeriesBaseOptions } from '@/entities/series/base';
+import { CartesianSeries, type RangeTooltipRendererParams, type SeriesBaseOptions } from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { CartesianRenderContext, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
 import { Group, Marker, Path } from '@/shared/scene';
-import { extent } from '@/shared/util';
+import { extent, tooltipContentOf } from '@/shared/util';
 
-export interface RangeAreaSeriesOptions extends Omit<SeriesBaseOptions, 'yField' | 'name'> {
+export interface RangeAreaSeriesOptions extends Omit<SeriesBaseOptions<RangeTooltipRendererParams>, 'yField' | 'name'> {
   type: 'range-area';
   yLowField: string;
   yHighField: string;
@@ -135,13 +135,27 @@ export class RangeAreaSeries extends CartesianSeries<RangeAreaSeriesOptions & { 
   override tooltipFor(datumIndex: number): TooltipContentData {
     const datum = this.lastCtx?.data[datumIndex];
     if (!datum) return { rows: [] };
+    const color = this.mainColor();
+    const renderer = this.options.tooltip?.renderer;
+    if (renderer) {
+      return tooltipContentOf(
+        renderer({
+          datum,
+          xValue: datum[this.options.xField],
+          low: datum[this.options.yLowField],
+          high: datum[this.options.yHighField],
+          seriesName: this.seriesName,
+          color,
+        }),
+      );
+    }
     return {
       heading: String(datum[this.options.xField]),
       rows: [
         {
           label: this.seriesName,
           value: `${datum[this.options.yLowField]} – ${datum[this.options.yHighField]}`,
-          color: this.mainColor(),
+          color,
         },
       ],
     };

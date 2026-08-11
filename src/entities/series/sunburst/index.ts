@@ -30,6 +30,8 @@ interface SunNode {
   depth: number;
   branchIndex: number;
   children: SunNode[];
+  /** The row the node was read from — what an event about the node carries. */
+  meta: Datum;
 }
 
 interface SectorGeometry {
@@ -56,7 +58,14 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
         const children = Array.isArray(childItems) ? walk(childItems as Datum[], depth + 1, depth === 0 ? index : branchIndex) : [];
         const own = Number(item[sizeField]);
         const value = children.length > 0 ? children.reduce((sum, child) => sum + child.value, 0) : Number.isNaN(own) ? 0 : own;
-        return { label: String(item[labelField] ?? index), value, depth, branchIndex: depth === 0 ? index : branchIndex, children };
+        return {
+          label: String(item[labelField] ?? index),
+          value,
+          depth,
+          branchIndex: depth === 0 ? index : branchIndex,
+          children,
+          meta: item,
+        };
       });
     return walk(data, 0, 0);
   }
@@ -196,13 +205,23 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
     };
   }
 
+  /** The row a sector came from: nested nodes are numbered too, so an index is not a row. */
+  override datumAt(datumIndex: number): Datum | undefined {
+    return this.nodes[datumIndex]?.meta;
+  }
+
   override tooltipFor(datumIndex: number): TooltipContentData {
     const node = this.nodes[datumIndex];
     if (!node) return { rows: [] };
-    return {
-      heading: node.label,
-      rows: [{ label: this.options.sizeField ?? 'size', value: String(node.value), color: this.colorFor(node.branchIndex) }],
-    };
+    const total = this.nodes.filter((candidate) => candidate.depth === 0).reduce((sum, root) => sum + root.value, 0);
+    return this.nodeTooltip({
+      datum: node.meta,
+      label: node.label,
+      value: node.value,
+      share: total > 0 ? node.value / total : undefined,
+      valueField: this.options.sizeField ?? 'size',
+      color: this.colorFor(node.branchIndex),
+    });
   }
 
   override legendItems(): LegendItemDescriptor[] {

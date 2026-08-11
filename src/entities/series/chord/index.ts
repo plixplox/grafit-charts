@@ -180,10 +180,12 @@ export class ChordSeries extends StandaloneSeries<ChordSeriesOptions> {
   override tooltipFor(datumIndex: number): TooltipContentData {
     const node = this.nodeList[datumIndex];
     if (!node) return { rows: [] };
-    return {
-      heading: node.name,
-      rows: [{ label: this.options.sizeField, value: String(node.total), color: this.colorFor(datumIndex) }],
-    };
+    return this.nodeTooltip({
+      label: node.name,
+      value: node.total,
+      valueField: this.options.sizeField,
+      color: this.colorFor(datumIndex),
+    });
   }
 }
 

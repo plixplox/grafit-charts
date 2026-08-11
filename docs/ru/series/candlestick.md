@@ -13,6 +13,16 @@
 
 Общие опции всех серий (`name`, `showInLegend`, `tooltip.renderer`, …) — в разделе [Общие опции серий](/ru/guide/series-options).
 
+`tooltip.renderer` получает четыре цены сессии — `OhlcTooltipRendererParams`:
+`{ datum, xValue, open, high, low, close, up, seriesName, color }`.
+
+```js
+tooltip: { renderer: ({ open, close, up }) => `${String(open)} → ${String(close)} ${up ? '▲' : '▼'}` },
+```
+
+Без рендерера строки называются `O`, `H`, `L`, `C` — все они
+[ключи локали](/ru/guide/accessibility#локализация).
+
 | Опция                      | Тип                       | По умолчанию    | Описание                                     |
 | -------------------------- | ------------------------- | --------------- | -------------------------------------------- |
 | `xField`                   | `string`                  | —               | дата (Date / timestamp / строка)             |

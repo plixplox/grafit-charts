@@ -1,15 +1,31 @@
 import { CartesianSeries } from './cartesian-series';
 import { numericValues } from '@/shared/data';
 import type { CartesianRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Showable } from '@/shared/options';
+import { localize } from '@/shared/locale';
+import type { ColorValue, Datum, Pixels, Showable, Switchable } from '@/shared/options';
 import { BandScale, LinearScale } from '@/shared/scale';
 import { Group, type SceneNode } from '@/shared/scene';
-import { extent } from '@/shared/util';
+import { extent, tooltipContentOf } from '@/shared/util';
 
 export interface OhlcItemStyle {
   fill?: ColorValue;
   stroke?: ColorValue;
   strokeWidth?: Pixels;
+}
+
+/** What a candle tooltip is handed: the four prices of a session, already read. */
+export interface OhlcTooltipRendererParams {
+  datum: Datum;
+  /** Value of xField — the session. */
+  xValue: unknown;
+  open: unknown;
+  high: unknown;
+  low: unknown;
+  close: unknown;
+  /** Whether the session closed above where it opened. */
+  up: boolean;
+  seriesName: string;
+  color: ColorValue;
 }
 
 export interface OhlcSeriesBaseOptions extends Showable {
@@ -24,6 +40,9 @@ export interface OhlcSeriesBaseOptions extends Showable {
   item?: {
     up?: OhlcItemStyle;
     down?: OhlcItemStyle;
+  };
+  tooltip?: Switchable & {
+    renderer?: (params: OhlcTooltipRendererParams) => TooltipContentData | string;
   };
 }
 
@@ -168,13 +187,30 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
     if (!datum) return { rows: [] };
     const color = candle?.up ? this.upStyle().fill : this.downStyle().fill;
     const heading = this.formatHeading(datum[this.options.xField]);
+    const renderer = this.options.tooltip?.renderer;
+    if (renderer) {
+      return tooltipContentOf(
+        renderer({
+          datum,
+          xValue: datum[this.options.xField],
+          open: datum[this.options.openField],
+          high: datum[this.options.highField],
+          low: datum[this.options.lowField],
+          close: datum[this.options.closeField],
+          up: candle?.up === true,
+          seriesName: this.seriesName,
+          color,
+        }),
+      );
+    }
+    const locale = this.env.locale;
     return {
       heading,
       rows: [
-        { label: 'O', value: String(datum[this.options.openField]), color },
-        { label: 'H', value: String(datum[this.options.highField]), color },
-        { label: 'L', value: String(datum[this.options.lowField]), color },
-        { label: 'C', value: String(datum[this.options.closeField]), color },
+        { label: localize(locale, 'ohlcOpen'), value: String(datum[this.options.openField]), color },
+        { label: localize(locale, 'ohlcHigh'), value: String(datum[this.options.highField]), color },
+        { label: localize(locale, 'ohlcLow'), value: String(datum[this.options.lowField]), color },
+        { label: localize(locale, 'ohlcClose'), value: String(datum[this.options.closeField]), color },
       ],
     };
   }

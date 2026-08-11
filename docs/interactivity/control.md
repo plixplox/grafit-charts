@@ -73,7 +73,7 @@ const png = chart.getImageDataURL();
 
 ## Not every chart has everything
 
-A pie has no zoom, a treemap has neither zoom nor selection. Calling what a chart
+A pie has no zoom, and neither has a treemap. Calling what a chart
 kind does not have is a no-op with a one-off console warning rather than an
 error, so an unsupported call never breaks a dashboard that shares code across
 chart types.
@@ -82,4 +82,4 @@ chart types.
 | ----------------------- | ------- | ------------------- | ---- |
 | cartesian               | ✓       | ✓                   | ✓    |
 | pie, donut, polar       | ✓       | ✓                   | —    |
-| treemap, sunburst, flow | ✓       | —                   | —    |
+| treemap, sunburst, flow | ✓       | ✓                   | —    |

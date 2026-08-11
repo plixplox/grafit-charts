@@ -22,7 +22,7 @@ Chart-level блоки (`legend`, `tooltip`, `highlight`, `zoom`, `selection`,
 ## Подписи значений (`label`)
 
 Единая структура у line/area/scatter/bubble/bar/histogram/range-bar/
-waterfall/heatmap/treemap/funnel/pyramid/sunburst/sankey/chord:
+waterfall/heatmap/treemap/funnel/pyramid/sunburst/sankey/chord/radar:
 
 | Под-опция      | Тип                  | По умолчанию                               | Описание                                   |
 | -------------- | -------------------- | ------------------------------------------ | ------------------------------------------ |

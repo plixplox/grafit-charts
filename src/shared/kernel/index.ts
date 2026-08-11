@@ -6,6 +6,7 @@
 import type { AxisPosition, CartesianAxisInstance, CartesianSeriesInstance, ChartWidget, SeriesColors } from './cartesian';
 import type { PolarSeriesInstance } from './polar';
 import type { StandaloneSeriesInstance } from './standalone';
+import type { LocaleOptions } from '@/shared/locale';
 import type { ColorValue, Fraction, Pixels } from '@/shared/options';
 import type { Scene } from '@/shared/scene';
 
@@ -115,6 +116,12 @@ export interface SeriesEnv {
   id: string;
   colors: SeriesColors;
   theme: ThemeContext;
+  /**
+   * Locale of the chart the series belongs to: the words a series prints
+   * without being handed them — the halves of a box, the four prices of a
+   * session, the total of a waterfall — are translated here.
+   */
+  locale?: LocaleOptions;
 }
 
 export interface AxisEnv {

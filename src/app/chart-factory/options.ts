@@ -1,6 +1,6 @@
 import type { ThemeName, ThemeOptions } from '@/app/themes';
 import type { CategoryAxisOptions } from '@/entities/axis/category';
-import type { GroupedCategoryAxisOptions } from '@/entities/axis/grouped-category';
+import type { GroupLabelFormatterParams, GroupLabelOptions, GroupedCategoryAxisOptions } from '@/entities/axis/grouped-category';
 import type { LogAxisOptions } from '@/entities/axis/log';
 import type { NumberAxisOptions } from '@/entities/axis/number';
 import type { OrdinalTimeAxisOptions } from '@/entities/axis/ordinal-time';
@@ -73,6 +73,7 @@ import type { AnimationOptions } from '@/shared/animation';
 import type { Datum, PaddingValue } from '@/shared/options';
 import type { FontsOptions } from '@/shared/scene';
 import type { OverlaysOptions } from '@/widgets/cartesian-chart';
+import type { PolarAxesOptions } from '@/widgets/polar-chart';
 
 /** Discriminated union of series — extended phase by phase along the roadmap. */
 export type SeriesOptions =
@@ -119,7 +120,11 @@ export interface ChartOptions {
   container?: HTMLElement;
   data?: Datum[];
   series?: SeriesOptions[];
-  axes?: AxisOptions[];
+  /**
+   * Axes of the chart: a list for a cartesian one, a pair — the categories
+   * around the rim and the values along the radius — for a polar one.
+   */
+  axes?: AxisOptions[] | PolarAxesOptions;
   title?: CaptionOptions;
   subtitle?: CaptionOptions;
   padding?: PaddingValue;
@@ -151,6 +156,17 @@ export interface ChartOptions {
   width?: number;
   height?: number;
 }
+
+export type {
+  PolarAxesOptions,
+  PolarAngleAxisOptions,
+  PolarRadiusAxisOptions,
+  PolarAxisLabelOptions,
+  PolarAxisLabelParams,
+  PolarAxisLineOptions,
+  PolarAxisTitleOptions,
+  PolarGridLineOptions,
+} from '@/widgets/polar-chart';
 
 export type {
   BackgroundOptions,
@@ -226,4 +242,6 @@ export type {
   LogAxisOptions,
   OrdinalTimeAxisOptions,
   GroupedCategoryAxisOptions,
+  GroupLabelOptions,
+  GroupLabelFormatterParams,
 };

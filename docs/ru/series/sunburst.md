@@ -39,3 +39,22 @@
 | `label.fontWeight` | `string \| number`                    | `normal`                         | насыщенность                            |
 | `label.fontFamily` | `string`                              | шрифт темы                       | гарнитура                               |
 | `label.color`      | `ColorValue`                          | автоконтраст                     | цвет (ореол цвета сектора)              |
+
+
+## Подсказка и имя величины
+
+Узел — не строка данных, а имя и то, во что оно складывается, поэтому
+`tooltip.renderer` получает `NodeTooltipRendererParams`:
+`{ datum?, label, value, share, color }`. `datum` — строка, из которой прочитан
+узел; узел потока сложен из нескольких строк, и своей у него нет.
+
+```js
+tooltip: { renderer: ({ label, value, share }) => `${label}: ${value} (${Math.round(share * 100)}%)` },
+```
+
+Без рендерера строка подсказки называется по ключу поля, откуда взята величина, —
+это имя колонки, а не имя меры. `name` у серии говорит, как её называть:
+
+```js
+series: [{ type: 'treemap', sizeField: 'revenue', name: 'Выручка' }],
+```

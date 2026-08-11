@@ -3,7 +3,7 @@
 A value label is the number printed beside a mark. Every series that draws
 marks with a value can print it: line, area, scatter, bubble, bar, histogram,
 range bar, waterfall, heatmap, funnel and pyramid, treemap, sunburst, sankey and
-chord, pie and donut.
+chord, pie and donut, radar.
 
 Labels are off by default (funnel, pyramid and treemap are the exceptions — they
 are unreadable without them) and turn on per series:
@@ -41,6 +41,11 @@ Point marks — line, area, scatter — take `top`, `bottom`, `left`, `right`;
 bubble adds `inside`, which centres the text on the marker. Funnel and pyramid
 take `inside` and `outside`, where the outside label is joined to its segment by
 a callout line.
+
+A radar vertex takes the same five, plus `outward` — its default. Which way is
+"away from the data" on a web depends on where on the circle the vertex sits, so
+`outward` pushes the label along its own spoke and lets the polygon keep the
+inside.
 
 A label placed inside its mark gets a halo in the mark's colour and its text
 colour flips to whatever reads on that fill, so it stays legible over a dark

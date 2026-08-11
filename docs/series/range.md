@@ -64,3 +64,11 @@ Range-area as the background + line on top, with a shared tooltip:
 ## Options
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
+
+A range mark spans two values, so `tooltip.renderer` — on the range bar and the
+range area alike — receives `RangeTooltipRendererParams`:
+`{ datum, xValue, low, high, seriesName, color }`.
+
+```js
+tooltip: { renderer: ({ low, high }) => `${String(low)} – ${String(high)}` },
+```

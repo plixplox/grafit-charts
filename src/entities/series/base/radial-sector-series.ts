@@ -1,11 +1,11 @@
-import { PolarSeries, type PolarSeriesBaseOptions } from './polar-series';
+import { PolarSeries, type PolarSeriesBaseOptions, type RadialTooltipRendererParams } from './polar-series';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { LegendItemDescriptor, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, Fraction, Switchable } from '@/shared/options';
 import { groupSlot } from '@/shared/scale';
 import { Group, Sector } from '@/shared/scene';
-import { extent } from '@/shared/util';
+import { extent, tooltipContentOf } from '@/shared/util';
 
 export interface RadialSectorSeriesBaseOptions extends PolarSeriesBaseOptions {
   angleField: string;
@@ -22,6 +22,9 @@ export interface RadialSectorSeriesBaseOptions extends PolarSeriesBaseOptions {
   groupGap?: Fraction;
   /** Constant-width gap between adjacent sectors, px (1 by default). */
   sectorSpacing?: Pixels;
+  tooltip?: Switchable & {
+    renderer?: (params: RadialTooltipRendererParams) => TooltipContentData | string;
+  };
 }
 
 interface SectorGeometry {
@@ -142,6 +145,18 @@ export abstract class RadialSectorSeries<O extends RadialSectorSeriesBaseOptions
   tooltipFor(datumIndex: number): TooltipContentData {
     const datum = this.data[datumIndex];
     if (!datum) return { rows: [] };
+    const renderer = this.options.tooltip?.renderer;
+    if (renderer) {
+      return tooltipContentOf(
+        renderer({
+          datum,
+          label: String(datum[this.options.angleField]),
+          value: datum[this.options.radiusField],
+          seriesName: this.seriesName,
+          color: this.mainColor(),
+        }),
+      );
+    }
     return {
       heading: String(datum[this.options.angleField]),
       rows: [{ label: this.seriesName, value: String(datum[this.options.radiusField]), color: this.mainColor() }],

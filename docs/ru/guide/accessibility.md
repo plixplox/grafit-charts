@@ -30,8 +30,30 @@ Charts.create({
 ```
 
 Ключи: `loading`, `noData` (оверлеи), `downloadPng`, `resetZoom` (контекстное меню).
-Тексты осей, легенды и тултипов приходят из ваших данных и `formatter`-ов,
-поэтому отдельной локализации не требуют.
+Тексты осей и легенды приходят из ваших данных и `formatter`-ов, поэтому
+отдельной локализации не требуют — как и большинство подсказок.
+
+Исключение — подсказка, которая разбирает величину на части: части ей
+приходится называть самой, и это уже слова библиотеки, а не ваши. Они тоже
+ключи:
+
+| Серия | Ключи | По умолчанию |
+| ----- | ----- | ------------ |
+| каскад | `waterfallTotal`, `waterfallCumulative` | `Total`, `Cumulative` |
+| ящик с усами | `boxPlotMax`, `boxPlotQ3`, `boxPlotMedian`, `boxPlotQ1`, `boxPlotMin` | `max`, `q3`, `median`, `q1`, `min` |
+| свечи, OHLC | `ohlcOpen`, `ohlcHigh`, `ohlcLow`, `ohlcClose` | `O`, `H`, `L`, `C` |
+
+```ts
+locale: {
+  localeText: {
+    waterfallTotal: 'Итог',
+    waterfallCumulative: 'Накопленный итог',
+    boxPlotMedian: 'Медиана',
+  },
+},
+```
+
+`tooltip.renderer` пишет подсказку целиком и ни одному ключу не подчиняется.
 
 ## Опции
 
@@ -39,8 +61,8 @@ Charts.create({
 | ------------------- | ------------------------------------ | ------------------------ |
 | `locale.localeText` | `Partial<Record<LocaleKey, string>>` | переопределение строк UI |
 
-Ключи `LocaleKey`: `loading`, `noData`, `downloadPng`, `resetZoom` —
-дефолтные русские строки в `DEFAULT_LOCALE`.
+Ключи `LocaleKey`: `loading`, `noData`, `downloadPng`, `resetZoom` и ключи
+подсказок выше — значения по умолчанию лежат в `DEFAULT_LOCALE`.
 
 Клавиатура (включена всегда): стрелки — перемещение подсветки по точкам
 серии, `Escape` — сброс подсветки и зума. Состояние анонсируется через

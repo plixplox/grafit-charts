@@ -1,10 +1,11 @@
+import { placePointLabel, POINT_LABEL_GAP, type PointLabelPlacement } from './point-label';
 import { PolarSeries, type PolarSeriesBaseOptions } from './polar-series';
 import { numericValues } from '@/shared/data';
-import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
+import { DEFAULT_DIM_OPACITY, FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LegendItemDescriptor, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction, Switchable } from '@/shared/options';
-import { Group, Marker, Path, type MarkerShape } from '@/shared/scene';
-import { extent } from '@/shared/util';
+import type { ColorValue, Datum, FontOptions, Pixels, Fraction, Switchable } from '@/shared/options';
+import { Group, Marker, Path, Text, type MarkerShape } from '@/shared/scene';
+import { contrastTextColor, extent } from '@/shared/util';
 
 export interface RadarSeriesBaseOptions extends PolarSeriesBaseOptions {
   /** Category along the angle. */
@@ -16,10 +17,24 @@ export interface RadarSeriesBaseOptions extends PolarSeriesBaseOptions {
   strokeWidth?: Pixels;
   fillOpacity?: Fraction;
   marker?: Switchable & { shape?: MarkerShape; size?: Pixels };
+  /**
+   * Value labels on the vertices. `placement` hangs the label off its point:
+   * `'outward'` (the default) pushes it away from the centre along the spoke,
+   * where the web is empty whichever way the point leans; the four sides and
+   * `'inside'` behave as they do on a line.
+   */
+  label?: Switchable &
+    FontOptions & {
+      placement?: RadarLabelPlacement;
+      formatter?: (params: { value: number; datum: Datum }) => string;
+    };
   tooltip?: Switchable & {
     renderer?: (params: RadarTooltipRendererParams) => TooltipContentData | string;
   };
 }
+
+/** Where a vertex label sits: along the spoke, or off one of the four sides. */
+export type RadarLabelPlacement = PointLabelPlacement | 'outward';
 
 export interface RadarTooltipRendererParams {
   datum: Datum;
@@ -36,6 +51,9 @@ interface RadarPoint {
   index: number;
   x: number;
   y: number;
+  /** Angle of the spoke the point sits on — where an outward label leans. */
+  angle: number;
+  value: number;
 }
 
 /** Base for radar-line / radar-area: points by category on a circle. */
@@ -79,7 +97,7 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
       if (Number.isNaN(angle)) return;
       const radius = radiusScale.convert(value) * t;
       const point = PolarSeries.pointAt(centerX, centerY, angle, radius);
-      this.points.push({ index, x: point.x, y: point.y });
+      this.points.push({ index, x: point.x, y: point.y, angle, value });
     });
     if (this.points.length === 0) return;
 
@@ -144,10 +162,48 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
       }
     }
 
+    if (this.options.label?.enabled === true) {
+      for (const point of this.points) this.appendLabel(group, point, data[point.index]);
+    }
+
     if (ctx.highlight && !ctx.highlight.allSeries && ctx.highlight.seriesId !== this.id) {
       group.opacity = ctx.dimOpacity ?? DEFAULT_DIM_OPACITY;
     }
     ctx.layer.append(group);
+  }
+
+  /**
+   * The value of one vertex, hung off its point. An outward label leans along
+   * the spoke: the web has no room inside the polygon, and which way "outside"
+   * points depends on where on the circle the vertex is.
+   */
+  private appendLabel(group: Group, point: RadarPoint, datum: Datum | undefined): void {
+    const options = this.options.label;
+    if (!datum) return;
+    const label = new Text();
+    label.text = options?.formatter ? options.formatter({ value: point.value, datum }) : String(datum[this.options.radiusField]);
+    const placement = options?.placement ?? 'outward';
+    const offset = (this.options.marker?.enabled === false ? 0 : (this.options.marker?.size ?? 6) / 2) + POINT_LABEL_GAP;
+    if (placement === 'outward') {
+      const dx = Math.sin(point.angle);
+      const dy = -Math.cos(point.angle);
+      label.x = point.x + dx * offset;
+      label.y = point.y + dy * offset;
+      label.textAlign = dx > 0.3 ? 'left' : dx < -0.3 ? 'right' : 'center';
+      label.textBaseline = dy > 0.3 ? 'top' : dy < -0.3 ? 'bottom' : 'middle';
+    } else {
+      const placed = placePointLabel(point.x, point.y, placement, placement === 'inside' ? 0 : offset);
+      label.x = placed.x;
+      label.y = placed.y;
+      label.textAlign = placed.align;
+      label.textBaseline = placed.baseline;
+    }
+    label.fontSize = options?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
+    label.fontFamily = options?.fontFamily ?? this.env.theme.fontFamily;
+    if (options?.fontWeight !== undefined) label.fontWeight = String(options.fontWeight);
+    label.fill = options?.color ?? (placement === 'inside' ? contrastTextColor(this.mainColor()) : this.env.theme.foregroundColor);
+    if (placement === 'inside') label.outline = this.mainColor();
+    group.append(label);
   }
 
   pick(x: number, y: number, searchRadius?: number): SeriesPick | undefined {
@@ -160,6 +216,14 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
       }
     }
     return best;
+  }
+
+  override pickInRect(x0: number, y0: number, x1: number, y1: number): number[] {
+    const minX = Math.min(x0, x1);
+    const maxX = Math.max(x0, x1);
+    const minY = Math.min(y0, y1);
+    const maxY = Math.max(y0, y1);
+    return this.points.filter((point) => point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY).map((point) => point.index);
   }
 
   nodeAt(datumIndex: number): SeriesPick | undefined {

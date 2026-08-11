@@ -22,7 +22,7 @@ Chart-level blocks (`legend`, `tooltip`, `highlight`, `zoom`, `selection`,
 ## Value labels (`label`)
 
 A uniform structure shared by line/area/scatter/bubble/bar/histogram/range-bar/
-waterfall/heatmap/treemap/funnel/pyramid/sunburst/sankey/chord:
+waterfall/heatmap/treemap/funnel/pyramid/sunburst/sankey/chord/radar:
 
 | Sub-option     | Type                  | Default                                       | Description                              |
 | -------------- | --------------------- | --------------------------------------------- | ---------------------------------------- |

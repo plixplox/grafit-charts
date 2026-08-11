@@ -1,10 +1,10 @@
-import { PolarSeries, type PolarSeriesBaseOptions } from '@/entities/series/base';
+import { PolarSeries, type PolarSeriesBaseOptions, type RadialTooltipRendererParams } from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { LegendItemDescriptor, PolarRenderContext, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, Fraction, Switchable } from '@/shared/options';
 import { Group, Sector } from '@/shared/scene';
-import { extent } from '@/shared/util';
+import { extent, tooltipContentOf } from '@/shared/util';
 
 export interface RadialBarSeriesOptions extends PolarSeriesBaseOptions {
   type: 'radial-bar';
@@ -15,6 +15,9 @@ export interface RadialBarSeriesOptions extends PolarSeriesBaseOptions {
   fillOpacity?: Fraction;
   stroke?: ColorValue;
   strokeWidth?: Pixels;
+  tooltip?: Switchable & {
+    renderer?: (params: RadialTooltipRendererParams) => TooltipContentData | string;
+  };
 }
 
 interface BarGeometry {
@@ -146,6 +149,18 @@ export class RadialBarSeries extends PolarSeries<RadialBarSeriesOptions> {
   tooltipFor(datumIndex: number): TooltipContentData {
     const datum = this.data[datumIndex];
     if (!datum) return { rows: [] };
+    const renderer = this.options.tooltip?.renderer;
+    if (renderer) {
+      return tooltipContentOf(
+        renderer({
+          datum,
+          label: String(datum[this.options.angleField]),
+          value: datum[this.options.radiusField],
+          seriesName: this.seriesName,
+          color: this.mainColor(),
+        }),
+      );
+    }
     return {
       heading: String(datum[this.options.angleField]),
       rows: [{ label: this.seriesName, value: String(datum[this.options.radiusField]), color: this.mainColor() }],

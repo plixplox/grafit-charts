@@ -27,3 +27,13 @@
 ## Опции
 
 Общие опции всех серий (`name`, `showInLegend`, `tooltip.renderer`, …) — в разделе [Общие опции серий](/ru/guide/series-options).
+
+Ящик — это пять чисел, и `tooltip.renderer` получает их все —
+`BoxPlotTooltipRendererParams`: `{ datum, xValue, min, q1, median, q3, max, seriesName, color }`.
+
+```js
+tooltip: { renderer: ({ median, q1, q3 }) => `медиана ${median} (${q1}–${q3})` },
+```
+
+Без рендерера пять строк называются `max`, `q3`, `median`, `q1`, `min` — все они
+[ключи локали](/ru/guide/accessibility#локализация).

@@ -55,6 +55,19 @@ axes: [
 A second value axis on the opposite side gets its own scale; `keys` on each axis
 says which series it carries — see [Two value axes](/guide/axes#two-value-axes).
 
+A polar chart — radar, rose, radial bars — has two axes rather than a list of
+them, so it reads `axes` as a pair: `angle` for the categories around the rim and
+`radius` for the value rings.
+
+```ts
+axes: {
+  angle: { title: { text: 'Month' } },
+  radius: { min: 0, max: 60, ringCount: 3 },
+},
+```
+
+See [Polar axes](/guide/axes#polar-axes).
+
 ## Size
 
 Without `width`/`height` the chart tracks its container via `ResizeObserver` —

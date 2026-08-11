@@ -99,6 +99,16 @@ export type {
   LogAxisOptions,
   OrdinalTimeAxisOptions,
   GroupedCategoryAxisOptions,
+  GroupLabelOptions,
+  GroupLabelFormatterParams,
+  PolarAxesOptions,
+  PolarAngleAxisOptions,
+  PolarRadiusAxisOptions,
+  PolarAxisLabelOptions,
+  PolarAxisLabelParams,
+  PolarAxisLineOptions,
+  PolarAxisTitleOptions,
+  PolarGridLineOptions,
 } from '@/app/chart-factory';
 export { buildSparklineOptions } from '@/app/chart-factory';
 export type { FinancialChartOptions, GaugeOptions, SparklineOptions } from '@/app/chart-factory';

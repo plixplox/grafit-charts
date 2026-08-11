@@ -1,7 +1,7 @@
-export { CartesianSeries, type SeriesBaseOptions, type SeriesTooltipRendererParams } from './cartesian-series';
+export { CartesianSeries, type RangeTooltipRendererParams, type SeriesBaseOptions, type SeriesTooltipRendererParams } from './cartesian-series';
 export { MarkerSeries, type MarkerSeriesBaseOptions, type MarkerItemStylerParams, type MarkerItemStyle } from './marker-series';
 
-export { PolarSeries, type PolarSeriesBaseOptions } from './polar-series';
+export { PolarSeries, type PolarSeriesBaseOptions, type RadialTooltipRendererParams } from './polar-series';
 export { PieLikeSeries, type PieLikeSeriesOptions } from './pie-like-series';
 export { RadarSeries, type RadarSeriesBaseOptions } from './radar-series';
 export { RadialSectorSeries, type RadialSectorSeriesBaseOptions } from './radial-sector-series';

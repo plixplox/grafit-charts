@@ -53,3 +53,26 @@
 | `marker.enabled`           | `boolean`                                           | `true`        | маркеры вершин               |
 | `marker.shape`             | `MarkerShape`                                       | `circle`      | форма                        |
 | `marker.size`              | `Pixels`                                            | `6`           | размер                       |
+
+
+## Подписи значений
+
+`label.enabled` печатает величину на каждой вершине. `placement` по умолчанию
+`outward` — подпись отодвигается от центра вдоль своей спицы, где паутина пуста,
+куда бы вершина ни склонилась; `top`, `bottom`, `left`, `right` и `inside`
+ведут себя так же, как у линии.
+
+::: chart-example radar-labels
+
+| Опция              | Тип                                                      | По умолчанию | Описание             |
+| ------------------ | -------------------------------------------------------- | ------------ | -------------------- |
+| `label.enabled`    | `boolean`                                                | `false`      | показать подписи     |
+| `label.placement`  | `'outward' \| 'top' \| 'bottom' \| 'left' \| 'right' \| 'inside'` | `'outward'` | положение подписи |
+| `label.formatter`  | `({ value, datum }) => string`                           | значение     | содержимое подписи   |
+| `label.fontSize`   | `Pixels`                                                 | `11`         | размер шрифта        |
+| `label.fontWeight` | `string \| number`                                       | `normal`     | насыщенность         |
+| `label.fontFamily` | `string`                                                 | шрифт темы   | гарнитура            |
+| `label.color`      | `ColorValue`                                             | foreground; `inside` — автоконтраст | цвет текста |
+
+Кольца, спицы и числа рядом с ними принадлежат осям, а не серии — см.
+[Полярные оси](/ru/guide/axes#полярные-оси).

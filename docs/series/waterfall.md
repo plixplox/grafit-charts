@@ -34,3 +34,14 @@ labels — `label.formatter({ value, isTotal, datum })` (placements are the same
 ## Options
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
+
+Its tooltip is handed more than a value: a step is a difference and a running
+total at once, so `tooltip.renderer` receives `WaterfallTooltipRendererParams` —
+`{ datum, xValue, delta, total, isTotal, seriesName, color }`.
+
+```js
+tooltip: { renderer: ({ xValue, delta, total }) => `${String(xValue)}: ${delta > 0 ? '+' : ''}${delta} → ${total}` },
+```
+
+Without a renderer the rows are named `Total` and `Cumulative`; both are
+[locale keys](/guide/accessibility#localization).

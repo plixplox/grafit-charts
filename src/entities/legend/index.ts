@@ -14,7 +14,7 @@ import {
   type Switchable,
 } from '@/shared/options';
 import { Group, Line, Marker, Rect, resolveShadow, Text, type MarkerShape } from '@/shared/scene';
-import { resolveLength } from '@/shared/util';
+import { ellipsize, resolveLength } from '@/shared/util';
 
 export type LegendPlacement =
   | AxisPosition
@@ -236,14 +236,7 @@ interface PlacedItem {
 }
 
 /** Text cut to the room it has, with an ellipsis where it was cut. */
-export function ellipsize(text: string, font: string, room: number, measureText: (text: string, font: string) => number): string {
-  if (room <= 0) return '';
-  if (measureText(text, font) <= room) return text;
-  let cut = text.length;
-  while (cut > 0 && measureText(`${text.slice(0, cut)}…`, font) > room) cut--;
-  // not even one character and the ellipsis fit: the ellipsis alone says the same
-  return cut > 0 ? `${text.slice(0, cut)}…` : '…';
-}
+export { ellipsize };
 
 export const LEGEND_PAGER_PREV = '__legend_prev';
 export const LEGEND_PAGER_NEXT = '__legend_next';

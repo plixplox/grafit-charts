@@ -349,6 +349,7 @@ export class CartesianChart implements SyncMember {
           stroke: strokes[index % strokes.length] ?? '#436ff4',
         },
         theme: this.theme,
+        locale: this.inputs.locale,
       });
       // chartKind is checked above — this is a cartesian series
       this.applyHiddenState(instance as CartesianSeriesInstance);
@@ -365,8 +366,11 @@ export class CartesianChart implements SyncMember {
     // the default X axis type is suggested by the series (scatter/histogram prefer number)
     const xType = this.series.find((series) => series.preferredXAxisType?.())?.preferredXAxisType?.() ?? 'category';
     const yType = this.series.find((series) => series.preferredYAxisType?.())?.preferredYAxisType?.() ?? 'number';
+    // `axes` is a list here and a pair of polar axes on a polar chart; a chart
+    // handed the other kind falls back to its own defaults rather than throwing
+    const declared = Array.isArray(this.inputs.axes) ? this.inputs.axes : undefined;
     const defs =
-      this.inputs.axes ??
+      declared ??
       (swapped
         ? [
             { type: xType, position: 'left' as const },

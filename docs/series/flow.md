@@ -64,3 +64,23 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `label.color`      | `ColorValue`                  | foreground | color                     |
 | `node.width`       | `Pixels`                      | `14`       | sankey node width         |
 | `node.spacing`     | `Pixels`                      | `14`       | sankey node vertical gap  |
+
+
+## Tooltip and the name of a value
+
+A node is not a row of the data — it is a name and what it adds up to — so
+`tooltip.renderer` receives `NodeTooltipRendererParams`:
+`{ datum?, label, value, share, color }`. `datum` is the row the node was read
+from; a flow node is summed from several rows and has none.
+
+```js
+tooltip: { renderer: ({ label, value, share }) => `${label}: ${value} (${Math.round(share * 100)}%)` },
+```
+
+Without a renderer the row of the tooltip is named after the data key the value
+came from — a column name, not the name of a measure. `name` on the series says
+what it should be called instead:
+
+```js
+series: [{ type: 'treemap', sizeField: 'revenue', name: 'Revenue' }],
+```

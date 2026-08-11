@@ -19,9 +19,29 @@ import type {
 import type { ColorValue, Datum, Pixels, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
 import { BandScale, LinearScale } from '@/shared/scale';
 import { Group, Line, Rect, Text } from '@/shared/scene';
-import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
+import { localize } from '@/shared/locale';
+import { contrastTextColor, NO_OVERFLOW, tooltipContentOf } from '@/shared/util';
 
-export interface WaterfallSeriesOptions extends SeriesBaseOptions {
+/**
+ * What a waterfall tooltip is handed. A step is a difference and a running
+ * total at once, so its renderer is told both — `SeriesTooltipRendererParams`
+ * has only the one value a bar carries.
+ */
+export interface WaterfallTooltipRendererParams {
+  datum: Datum;
+  /** Value of xField — the category of the step. */
+  xValue: unknown;
+  /** The step itself: the difference between its start and its end. */
+  delta: number;
+  /** The running total at this step — where the bar ends. */
+  total: number;
+  /** Whether the bar is a subtotal, drawn from zero. */
+  isTotal: boolean;
+  seriesName: string;
+  color: ColorValue;
+}
+
+export interface WaterfallSeriesOptions extends SeriesBaseOptions<WaterfallTooltipRendererParams> {
   type: 'waterfall';
   item?: {
     positive?: { fill?: ColorValue };
@@ -236,13 +256,27 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
       : delta >= 0
         ? (this.options.item?.positive?.fill ?? this.env.colors.fill)
         : (this.options.item?.negative?.fill ?? this.env.theme.negativeColor);
+    const renderer = this.options.tooltip?.renderer;
+    if (renderer) {
+      return tooltipContentOf(
+        renderer({
+          datum,
+          xValue: datum[this.options.xField],
+          delta,
+          total: bar.end,
+          isTotal: bar.isTotal,
+          seriesName: this.options.name ?? this.options.yField,
+          color,
+        }),
+      );
+    }
     return {
       heading: String(datum[this.options.xField]),
       rows: bar.isTotal
-        ? [{ label: 'Total', value: String(bar.end), color }]
+        ? [{ label: localize(this.env.locale, 'waterfallTotal'), value: String(bar.end), color }]
         : [
             { label: this.options.name ?? this.options.yField, value: `${delta >= 0 ? '+' : ''}${delta}`, color },
-            { label: 'Cumulative', value: String(bar.end) },
+            { label: localize(this.env.locale, 'waterfallCumulative'), value: String(bar.end) },
           ],
     };
   }

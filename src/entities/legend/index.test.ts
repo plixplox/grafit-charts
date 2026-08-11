@@ -262,12 +262,12 @@ describe('ellipsize', () => {
   });
 
   it('cuts to the room it has and marks the cut', () => {
-    // 5 characters of room: 4 of the word plus the ellipsis
-    expect(ellipsize('Revenue', 'font', 50, measureText)).toBe('Reve…');
+    // 5 characters of room: 3 of the word plus the two dots of the mark
+    expect(ellipsize('Revenue', 'font', 50, measureText)).toBe('Rev..');
   });
 
   it('falls back to the ellipsis alone when not even one character fits', () => {
-    expect(ellipsize('Revenue', 'font', 10, measureText)).toBe('…');
+    expect(ellipsize('Revenue', 'font', 20, measureText)).toBe('..');
   });
 
   it('draws nothing at all without room', () => {
@@ -308,7 +308,7 @@ describe('size limits', () => {
   });
 
   it('cuts the labels that no longer fit rather than the chart', () => {
-    expect(labelsOf({ position: 'right', maxWidth: 140 })).toEqual(['Revenue fro…', 'Revenue fro…']);
+    expect(labelsOf({ position: 'right', maxWidth: 140 })).toEqual(['Revenue fr..', 'Revenue fr..']);
   });
 
   it('leaves the labels whole while they fit', () => {

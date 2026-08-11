@@ -30,6 +30,23 @@ export interface SeriesTooltipRendererParams {
  * renderer is handed: most series describe a datum by x and y, a series with
  * categories of its own (heatmap) has more to say and narrows it.
  */
+/**
+ * What the tooltip of a range mark is handed: a range spans two values, so its
+ * renderer is told both rather than the single `yValue` of an ordinary series.
+ * Shared by the range bar and the range area — one mark, two shapes.
+ */
+export interface RangeTooltipRendererParams {
+  datum: Datum;
+  /** Value of xField — the category of the mark. */
+  xValue: unknown;
+  /** Value of yLowField — where the range starts. */
+  low: unknown;
+  /** Value of yHighField — where it ends. */
+  high: unknown;
+  seriesName: string;
+  color: ColorValue;
+}
+
 export interface SeriesBaseOptions<TooltipParams = SeriesTooltipRendererParams> extends Showable {
   id?: string;
   xField: string;

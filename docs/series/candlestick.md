@@ -13,6 +13,16 @@ each point occupies a band, so weekends leave no gaps.
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
 
+`tooltip.renderer` is handed the four prices of the session —
+`OhlcTooltipRendererParams`: `{ datum, xValue, open, high, low, close, up, seriesName, color }`.
+
+```js
+tooltip: { renderer: ({ open, close, up }) => `${String(open)} → ${String(close)} ${up ? '▲' : '▼'}` },
+```
+
+Without a renderer the rows are named `O`, `H`, `L`, `C` — all
+[locale keys](/guide/accessibility#localization).
+
 | Option                     | Type                      | Default         | Description                                    |
 | -------------------------- | ------------------------- | --------------- | ---------------------------------------------- |
 | `xField`                   | `string`                  | —               | date (Date / timestamp / string)               |

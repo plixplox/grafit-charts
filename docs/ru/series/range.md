@@ -64,3 +64,11 @@ Range-area как фон + line поверх, общий тултип:
 ## Опции
 
 Общие опции всех серий (`name`, `showInLegend`, `tooltip.renderer`, …) — в разделе [Общие опции серий](/ru/guide/series-options).
+
+Элемент размаха занимает два значения, поэтому `tooltip.renderer` — и у range
+bar, и у range area — получает `RangeTooltipRendererParams`:
+`{ datum, xValue, low, high, seriesName, color }`.
+
+```js
+tooltip: { renderer: ({ low, high }) => `${String(low)} – ${String(high)}` },
+```

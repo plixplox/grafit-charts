@@ -1,17 +1,6 @@
-/** Localization of the library's built-in strings. */
-export type LocaleKey = 'loading' | 'noData' | 'downloadPng' | 'resetZoom';
-
-export interface LocaleOptions {
-  localeText?: Partial<Record<LocaleKey, string>>;
-}
-
-export const DEFAULT_LOCALE: Record<LocaleKey, string> = {
-  loading: 'Loading data…',
-  noData: 'No data to display',
-  downloadPng: 'Download PNG',
-  resetZoom: 'Reset zoom',
-};
-
-export function localize(options: LocaleOptions | undefined, key: LocaleKey): string {
-  return options?.localeText?.[key] ?? DEFAULT_LOCALE[key];
-}
+/**
+ * The locale as a feature: the strings themselves live in shared, where a
+ * series can reach them too — a tooltip that names the halves of a box has the
+ * same words to translate as the toolbar above it.
+ */
+export { DEFAULT_LOCALE, localize, type LocaleKey, type LocaleOptions } from '@/shared/locale';

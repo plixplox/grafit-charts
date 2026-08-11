@@ -34,3 +34,14 @@
 ## Опции
 
 Общие опции всех серий (`name`, `showInLegend`, `tooltip.renderer`, …) — в разделе [Общие опции серий](/ru/guide/series-options).
+
+Подсказке каскада передаётся не одна величина: ступень — это одновременно
+разница и накопленный итог, поэтому `tooltip.renderer` получает
+`WaterfallTooltipRendererParams` — `{ datum, xValue, delta, total, isTotal, seriesName, color }`.
+
+```js
+tooltip: { renderer: ({ xValue, delta, total }) => `${String(xValue)}: ${delta > 0 ? '+' : ''}${delta} → ${total}` },
+```
+
+Без рендерера строки называются `Total` и `Cumulative` — оба названия
+[ключи локали](/ru/guide/accessibility#локализация).

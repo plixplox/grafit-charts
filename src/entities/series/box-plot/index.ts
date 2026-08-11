@@ -5,9 +5,27 @@ import type { CartesianRenderContext, SeriesModule, SeriesPick, TooltipContentDa
 import type { ColorValue, Datum, Pixels, Fraction } from '@/shared/options';
 import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Line, Rect } from '@/shared/scene';
-import { extent } from '@/shared/util';
+import { localize } from '@/shared/locale';
+import { extent, tooltipContentOf } from '@/shared/util';
 
-export interface BoxPlotSeriesOptions extends Omit<SeriesBaseOptions, 'yField' | 'name'> {
+/**
+ * What a box-plot tooltip is handed: a box is five numbers, and a renderer
+ * that has to reach for them through `datum` would be doing the series' work.
+ */
+export interface BoxPlotTooltipRendererParams {
+  datum: Datum;
+  /** Value of xField — the category of the box. */
+  xValue: unknown;
+  min: number;
+  q1: number;
+  median: number;
+  q3: number;
+  max: number;
+  seriesName: string;
+  color: ColorValue;
+}
+
+export interface BoxPlotSeriesOptions extends Omit<SeriesBaseOptions<BoxPlotTooltipRendererParams>, 'yField' | 'name'> {
   type: 'box-plot';
   minField: string;
   q1Field: string;
@@ -168,14 +186,31 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
     const datum = this.lastCtx?.data[datumIndex];
     if (!datum) return { rows: [] };
     const color = this.mainColor();
+    const renderer = this.options.tooltip?.renderer;
+    if (renderer) {
+      return tooltipContentOf(
+        renderer({
+          datum,
+          xValue: datum[this.options.xField],
+          min: Number(datum[this.options.minField]),
+          q1: Number(datum[this.options.q1Field]),
+          median: Number(datum[this.options.medianField]),
+          q3: Number(datum[this.options.q3Field]),
+          max: Number(datum[this.options.maxField]),
+          seriesName: this.seriesName,
+          color,
+        }),
+      );
+    }
+    const locale = this.env.locale;
     return {
       heading: String(datum[this.options.xField]),
       rows: [
-        { label: 'max', value: String(datum[this.options.maxField]), color },
-        { label: 'q3', value: String(datum[this.options.q3Field]), color },
-        { label: 'median', value: String(datum[this.options.medianField]), color },
-        { label: 'q1', value: String(datum[this.options.q1Field]), color },
-        { label: 'min', value: String(datum[this.options.minField]), color },
+        { label: localize(locale, 'boxPlotMax'), value: String(datum[this.options.maxField]), color },
+        { label: localize(locale, 'boxPlotQ3'), value: String(datum[this.options.q3Field]), color },
+        { label: localize(locale, 'boxPlotMedian'), value: String(datum[this.options.medianField]), color },
+        { label: localize(locale, 'boxPlotQ1'), value: String(datum[this.options.q1Field]), color },
+        { label: localize(locale, 'boxPlotMin'), value: String(datum[this.options.minField]), color },
       ],
     };
   }

@@ -76,6 +76,8 @@ export interface PolarSeriesInstance {
   radiusDomain(data: Datum[]): [number, number] | undefined;
   update(ctx: PolarRenderContext): void;
   pick(x: number, y: number, searchRadius?: number): SeriesPick | undefined;
+  /** Marks inside a rubber band, for selection.boxSelect. */
+  pickInRect?(x0: number, y0: number, x1: number, y1: number): number[];
   /** pick() run backwards: the node of a datum, for tooltips addressed by index. */
   nodeAt?(datumIndex: number): SeriesPick | undefined;
   tooltipFor(datumIndex: number): TooltipContentData;

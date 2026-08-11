@@ -89,8 +89,8 @@ low/high и OHLC-поля; `id` серии тоже подходит, и так 
 
 ## Иерархические категории
 
-`grouped-category`: значения данных — массивы `[группа, элемент]`; под подписями
-элементов появляется строка групп с разделителями:
+`grouped-category`: значения данных — массивы `[группа, элемент]` (уровней может
+быть и больше); под подписями элементов появляется строка групп с разделителями:
 
 ::: chart-example axis-grouped
 
@@ -98,6 +98,51 @@ low/high и OHLC-поля; `id` серии тоже подходит, и так 
 с разделителями появляется слева от подписей элементов:
 
 ::: chart-example axis-grouped-horizontal
+
+### Столько ярусов, сколько уровней в кортеже
+
+Кортеж не ограничен двумя элементами: каждый, кроме последнего, получает свой
+ярус. `['2024', 1, 'Q1']` подписывает деления кварталами, над ними ставит ряд
+полугодий, а над ними — ряд годов: самый верхний уровень дальше всех от графика,
+как в шапке сводной таблицы. Разделитель принадлежит самому верхнему уровню, на
+котором он есть, — граница года рисуется один раз и проходит через все ярусы.
+
+Группа — это соседние категории с **равными значениями**, а не с равным текстом:
+`null` и `'null'`, `1` и `'1'` остаются двумя группами ровно так же, как они
+остаются двумя категориями. Два объекта `Date` на один и тот же момент — одна
+группа.
+
+::: chart-example axis-grouped-levels
+
+### Оформление и формат ярусов групп
+
+У ярусов свой блок опций — `groupLabel`: свой шрифт, цвет и формат, потому что
+надпись группы отвечает не на тот вопрос, что деление под ней. Форматтеру
+приходит сырое значение своего уровня, номер яруса и диапазон делений, которые
+группа накрывает: у группы нет индекса деления — она стоит над их рядом:
+
+```js
+axes: [
+  {
+    type: 'grouped-category',
+    groupLabel: {
+      fontSize: 12,
+      color: '#334155',
+      // уровень 0 — самый верхний ярус
+      formatter: ({ value, level }) => (level === 0 ? `FY ${value}` : `H${value}`),
+    },
+  },
+];
+```
+
+`groupLabel.format` — сериализуемая половина того же самого (`'%b %Y'`,
+`',.0f'`), применяется к значению уровня. Без того и другого группа печатается
+так же, как число на делении, — с сокращением миллионов и тысяч.
+
+`label.formatter` остаётся за подписями элементов: ему приходит весь кортеж и
+индекс деления, так что каждый ярус форматируется под свой вопрос.
+`groupLabel: { enabled: false }` убирает ярусы совсем — подписи элементов
+остаются, а ось перестаёт резервировать место под группы.
 
 ## Подписи всегда влезают
 
@@ -125,6 +170,47 @@ low/high и OHLC-поля; `id` серии тоже подходит, и так 
 подписи, которые налезли бы друг на друга, снимаются — сама сетка остаётся целой
 (см. [Радар](/ru/series/radar)). У круговой диаграммы и пончика радиус так же
 ограничивают выносные подписи.
+
+## Подписи, которые не влезают
+
+На горизонтальной оси у подписи ровно один шаг места. Когда названия длиннее,
+по умолчанию они прореживаются: остаётся каждая вторая — или каждая третья, —
+и та рисуется целиком. Для дат и чисел это читается хорошо: пропущенные значения
+достраиваются в уме. Для категорий — плохо: пропущенное название значит
+пропущенную категорию.
+
+Ось `grouped-category` прореживает не по оси целиком, а по прогонам: каждый
+прогон категорий оставляет столько подписей, сколько помещается между его
+собственными разделителями, и отбирает их от середины к краям. Подпись, которая
+вылезла бы за свой прогон, скрывается, а не рисуется поверх соседней группы, —
+и прогон уже собственной подписи остаётся без неё: за него говорит имя группы.
+
+`label.overflow: 'ellipsis'` выбирает другой размен: на оси остаются все
+подписи, и каждая обрезается по месту между тиками, а на месте обрезки встаёт
+`label.ellipsis` — по умолчанию `'..'`, можно задать `'…'`. Ничто больше не
+налезает на соседа и на линию тика между ними.
+
+::: chart-example axis-labels-ellipsis
+
+На оси `grouped-category` ярусы групп живут по тому же правилу: надпись держат
+в границах прогона категорий, над которым она стоит, — и она не доходит до
+разделителей по краям. `groupLabel.maxWidth` сужает её ещё, знак обрезки берётся
+из `label.ellipsis`; имя, от которого обрезка оставила бы один знак, скрывается.
+Имена групп живут внутри своих прогонов так же, как подписи: имя шире прогона
+скрывается, а не перешагивает разделитель к соседу.
+
+`label.maxWidth` — самостоятельное ограничение: действует независимо от тесноты,
+а на вертикальной оси заодно решает, сколько канвы подписи вправе отнять
+у графика — обрезанные длинные названия слева перестают двигать область
+построения вправо.
+
+```js
+axes: [
+  { type: 'category', position: 'bottom', label: { overflow: 'ellipsis' } },
+  // у левой оси нет шага, в который надо вписаться: границу задаёт maxWidth
+  { type: 'category', position: 'left', label: { maxWidth: 90, ellipsis: '…' } },
+];
+```
 
 ## Подписи внутри графика
 
@@ -166,73 +252,128 @@ k-я. `label.avoidCollisions: false` это отключает и рисует �
 
 ::: chart-example axis-crosslines
 
+## Полярные оси
+
+Радар, роза Найтингейл и радиальные столбцы рисуются на паутине, а паутина
+говорит то же, что пара картезианских осей: вот категории, вот значения.
+Настройки она принимает парой, а не списком: `angle` — категории по ободу,
+`radius` — кольца значений:
+
+```js
+axes: {
+  angle: { title: { text: 'Месяц' }, gridLine: { lineDash: [3, 3] }, line: { enabled: true } },
+  radius: { title: { text: 'Инциденты' }, min: 0, max: 60, ringCount: 3, label: { format: ',.0f' } },
+},
+```
+
+::: chart-example polar-axes
+
+`angle.gridLine` — спицы, `radius.gridLine` — кольца; `angle.line` замыкает
+паутину ободом, `radius.line` рисует вертикаль, вдоль которой читаются значения
+колец. Обе линии по умолчанию выключены — паутина и так очерчивает себя.
+Подписи принимают `format` или `formatter`, а заголовки стоят снаружи графика:
+заголовок категорий — под ним, заголовок значений — вдоль левого края. Место
+под них отнимается до подгонки сетки, поэтому заголовок никогда не перекрывает
+подпись.
+
+Радиальные столбцы переворачивают раскладку — их категории становятся кольцами,
+а значения спицами, — но опции следуют смыслу, а не форме: `angle` по-прежнему
+про категории, `radius` — про значения.
+
+| Опция                | Тип                                                 | По умолчанию | Описание                                   |
+| -------------------- | --------------------------------------------------- | ------------ | ------------------------------------------ |
+| `angle.gridLine`     | `enabled`, `stroke`, `width`, `lineDash`, `opacity` | тема         | спицы                                      |
+| `angle.line`         | `enabled`, `stroke`, `width`, `lineDash`            | выкл.        | обод вокруг паутины                        |
+| `angle.label`        | `enabled`, шрифт, `format`, `formatter`             | вкл.         | названия категорий                         |
+| `angle.title`        | `enabled`, `text`, шрифт                            | —            | заголовок под графиком                     |
+| `radius.gridLine`    | как выше                                            | тема         | кольца                                     |
+| `radius.line`        | как выше                                            | выкл.        | вертикаль, вдоль которой читаются значения |
+| `radius.label`       | `enabled`, шрифт, `format`, `formatter`             | вкл.         | значения колец                             |
+| `radius.title`       | `enabled`, `text`, шрифт                            | —            | заголовок вдоль левого края                |
+| `radius.min` / `max` | `number`                                            | по данным    | границы шкалы значений                     |
+| `radius.nice`        | `boolean`                                           | `true`       | округлять границы до целых шагов           |
+| `radius.ringCount`   | `number`                                            | `4`          | сколько колец у шкалы значений             |
+
 ## Опции оси
 
-| Блок       | Опции                              |
-| ---------- | ---------------------------------- |
-| number/log | `min`, `max`, `nice`, `base` (log) |
-| time       | `min`, `max` (Date/timestamp)      |
-| category   | `paddingInner`, `paddingOuter`     |
+| Блок                        | Опции                                                                               |
+| --------------------------- | ----------------------------------------------------------------------------------- |
+| number/log                  | `min`, `max`, `nice`, `base` (log)                                                  |
+| time                        | `min`, `max` (Date/timestamp)                                                       |
+| category                    | `paddingInner`, `paddingOuter`                                                      |
+| полярные `angle` / `radius` | см. [Полярные оси](#полярные-оси); у `radius` ещё `min`, `max`, `nice`, `ringCount` |
 
 ### Полный список опций
 
-| Опция                                                     | Тип                                                                                 | По умолчанию                | Описание                                                |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------- |
-| `type`                                                    | `'number' \| 'category' \| 'time' \| 'log' \| 'ordinal-time' \| 'grouped-category'` | по сериям                   | тип оси                                                 |
-| `position`                                                | `'bottom' \| 'left' \| 'top' \| 'right'`                                            | по типу                     | сторона оси                                             |
-| `title.enabled`                                           | `boolean`                                                                           | `true` при `text`           | заголовок оси                                           |
-| `title.text`                                              | `string`                                                                            | —                           | текст заголовка                                         |
-| `title.fontSize`                                          | `Pixels`                                                                            | `12`                        | шрифт заголовка                                         |
-| `title.color`                                             | `ColorValue`                                                                        | foreground                  | цвет заголовка                                          |
-| `line.enabled`                                            | `boolean`                                                                           | только ось категорий        | линия оси                                               |
-| `line.stroke`                                             | `ColorValue`                                                                        | axis темы (светло-серый)    | цвет линии                                              |
-| `line.width`                                              | `Pixels`                                                                            | `1`                         | толщина линии                                           |
-| `line.lineDash`                                           | `Pixels[]`                                                                          | сплошная                    | пунктир линии оси (`[]` — принудительно сплошная)       |
-| `tick.enabled`                                            | `boolean`                                                                           | `false`                     | тики                                                    |
-| `tick.size`                                               | `Pixels`                                                                            | `6`                         | длина тика                                              |
-| `tick.width`                                              | `Pixels`                                                                            | `1`                         | толщина тика                                            |
-| `tick.stroke`                                             | `ColorValue`                                                                        | axis темы (светло-серый)    | цвет тика (`tick.color` — алиас)                        |
-| `tick.lineDash`                                           | `Pixels[]`                                                                          | сплошной                    | пунктир тика                                            |
-| `label.enabled`                                           | `boolean`                                                                           | `true`                      | подписи делений                                         |
-| `label.fontSize`                                          | `Pixels`                                                                            | `11`                        | шрифт подписей                                          |
-| `label.fontFamily`                                        | `string`                                                                            | шрифт темы                  | гарнитура                                               |
-| `label.color`                                             | `ColorValue`                                                                        | muted темы                  | цвет подписей                                           |
-| `label.spacing`                                           | `Pixels`                                                                            | `8`                         | внешние подписи: отступ от тика или оси                 |
-| `label.insideSpacing`                                     | `Pixels`                                                                            | `4`                         | внутренние подписи: отступ от оси                       |
-| `label.insideAlign`                                       | `'element' \| 'gap'`                                                                | `'element'`                 | внутренние подписи: прижать к элементу или центрировать |
-| `label.insideGap`                                         | `Pixels`                                                                            | `4`                         | внутренние подписи: зазор до элемента                   |
-| `label.placement`                                         | `'outside' \| 'inside'`                                                             | `'outside'`                 | подписи у оси или внутри области построения             |
-| `label.format`                                            | `string`                                                                            | —                           | format-строка (`',.2f'`, `'.0%'`, `'%d %b'`)            |
-| `label.formatter`                                         | `({ value, index }) => string`                                                      | —                           | программный формат                                      |
-| `label.avoidCollisions`                                   | `boolean`                                                                           | `true`                      | пропуск пересекающихся подписей                         |
-| `gridLine.enabled`                                        | `boolean`                                                                           | только ось значений         | линии сетки                                             |
-| `gridLine.stroke`                                         | `ColorValue`                                                                        | axis темы (светло-серый)    | цвет сетки                                              |
-| `gridLine.width`                                          | `Pixels`                                                                            | `1`                         | толщина                                                 |
-| `gridLine.lineDash`                                       | `Pixels[]`                                                                          | `[4, 4]`                    | пунктир сетки                                           |
-| `interval.values`                                         | `unknown[]`                                                                         | авто                        | явные значения тиков                                    |
-| `interval.minSpacing`                                     | `Pixels`                                                                            | `8`                         | мин. расстояние подписей                                |
-| `crossLines[].type`                                       | `'line' \| 'range'`                                                                 | `'line'`                    | линия или диапазон                                      |
-| `crossLines[].value`                                      | значение                                                                            | —                           | координата линии                                        |
-| `crossLines[].range`                                      | `[от, до]`                                                                          | —                           | диапазон заливки                                        |
-| `crossLines[].stroke`                                     | `ColorValue`                                                                        | muted темы                  | цвет линии                                              |
-| `crossLines[].strokeWidth`                                | `Pixels`                                                                            | `1`                         | толщина линии                                           |
-| `crossLines[].lineDash`                                   | `Pixels[]`                                                                          | —                           | пунктир                                                 |
-| `crossLines[].fill`                                       | `ColorValue`                                                                        | muted темы                  | заливка диапазона                                       |
-| `crossLines[].fillOpacity`                                | `Fraction`                                                                          | `0.12`                      | прозрачность заливки                                    |
-| `crossLines[].label.text`                                 | `string`                                                                            | —                           | текст подписи                                           |
-| `crossLines[].label.color`                                | `ColorValue`                                                                        | muted темы                  | цвет подписи                                            |
-| `crossLines[].label.fontSize`                             | `Pixels`                                                                            | `11`                        | шрифт подписи                                           |
-| `min` (number, log)                                       | `number`                                                                            | домен данных                | нижняя граница                                          |
-| `max` (number, log)                                       | `number`                                                                            | домен данных                | верхняя граница                                         |
-| `nice (number)`                                           | `boolean`                                                                           | `true`                      | округление домена до «красивых» границ                  |
-| `base (log)`                                              | `number`                                                                            | `10`                        | основание логарифма                                     |
-| `paddingInner` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.2` (ordinal-time `0.25`) | зазор между элементами, доля шага                       |
-| `gap` (category, ordinal-time, grouped-category)          | `Pixels`                                                                            | —                           | зазор между элементами в px; главнее `paddingInner`     |
-| `paddingOuter` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.1`                       | внешний band-отступ                                     |
-| `groupSpacing` (grouped-category)                         | `Pixels`                                                                            | `8`                         | отступ между подписями элементов и строкой групп        |
+| Опция                                                     | Тип                                                                                 | По умолчанию                | Описание                                                         |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------- |
+| `type`                                                    | `'number' \| 'category' \| 'time' \| 'log' \| 'ordinal-time' \| 'grouped-category'` | по сериям                   | тип оси                                                          |
+| `position`                                                | `'bottom' \| 'left' \| 'top' \| 'right'`                                            | по типу                     | сторона оси                                                      |
+| `title.enabled`                                           | `boolean`                                                                           | `true` при `text`           | заголовок оси                                                    |
+| `title.text`                                              | `string`                                                                            | —                           | текст заголовка                                                  |
+| `title.fontSize`                                          | `Pixels`                                                                            | `12`                        | шрифт заголовка                                                  |
+| `title.color`                                             | `ColorValue`                                                                        | foreground                  | цвет заголовка                                                   |
+| `line.enabled`                                            | `boolean`                                                                           | только ось категорий        | линия оси                                                        |
+| `line.stroke`                                             | `ColorValue`                                                                        | axis темы (светло-серый)    | цвет линии                                                       |
+| `line.width`                                              | `Pixels`                                                                            | `1`                         | толщина линии                                                    |
+| `line.lineDash`                                           | `Pixels[]`                                                                          | сплошная                    | пунктир линии оси (`[]` — принудительно сплошная)                |
+| `tick.enabled`                                            | `boolean`                                                                           | `false`                     | тики                                                             |
+| `tick.size`                                               | `Pixels`                                                                            | `6`                         | длина тика                                                       |
+| `tick.width`                                              | `Pixels`                                                                            | `1`                         | толщина тика                                                     |
+| `tick.stroke`                                             | `ColorValue`                                                                        | axis темы (светло-серый)    | цвет тика (`tick.color` — алиас)                                 |
+| `tick.lineDash`                                           | `Pixels[]`                                                                          | сплошной                    | пунктир тика                                                     |
+| `label.enabled`                                           | `boolean`                                                                           | `true`                      | подписи делений                                                  |
+| `label.fontSize`                                          | `Pixels`                                                                            | `11`                        | шрифт подписей                                                   |
+| `label.fontFamily`                                        | `string`                                                                            | шрифт темы                  | гарнитура                                                        |
+| `label.color`                                             | `ColorValue`                                                                        | muted темы                  | цвет подписей                                                    |
+| `label.spacing`                                           | `Pixels`                                                                            | `8`                         | внешние подписи: отступ от тика или оси                          |
+| `label.insideSpacing`                                     | `Pixels`                                                                            | `4`                         | внутренние подписи: отступ от оси                                |
+| `label.insideAlign`                                       | `'element' \| 'gap'`                                                                | `'element'`                 | внутренние подписи: прижать к элементу или центрировать          |
+| `label.insideGap`                                         | `Pixels`                                                                            | `4`                         | внутренние подписи: зазор до элемента                            |
+| `label.placement`                                         | `'outside' \| 'inside'`                                                             | `'outside'`                 | подписи у оси или внутри области построения                      |
+| `label.format`                                            | `string`                                                                            | —                           | format-строка (`',.2f'`, `'.0%'`, `'%d %b'`)                     |
+| `label.formatter`                                         | `({ value, index }) => string`                                                      | —                           | программный формат                                               |
+| `label.avoidCollisions`                                   | `boolean`                                                                           | `true`                      | пропуск пересекающихся подписей                                  |
+| `label.overflow`                                          | `'thin' \| 'ellipsis'`                                                              | `'thin'`                    | тесные подписи: прореживать или оставить все и обрезать          |
+| `label.maxWidth`                                          | `Pixels`                                                                            | —                           | наибольшая ширина подписи; длиннее — обрезается                  |
+| `label.ellipsis`                                          | `string`                                                                            | `'..'`                      | знак на месте обрезки                                            |
+| `gridLine.enabled`                                        | `boolean`                                                                           | только ось значений         | линии сетки                                                      |
+| `gridLine.stroke`                                         | `ColorValue`                                                                        | axis темы (светло-серый)    | цвет сетки                                                       |
+| `gridLine.width`                                          | `Pixels`                                                                            | `1`                         | толщина                                                          |
+| `gridLine.lineDash`                                       | `Pixels[]`                                                                          | `[4, 4]`                    | пунктир сетки                                                    |
+| `interval.values`                                         | `unknown[]`                                                                         | авто                        | явные значения тиков                                             |
+| `interval.minSpacing`                                     | `Pixels`                                                                            | `8`                         | мин. расстояние подписей                                         |
+| `crossLines[].type`                                       | `'line' \| 'range'`                                                                 | `'line'`                    | линия или диапазон                                               |
+| `crossLines[].value`                                      | значение                                                                            | —                           | координата линии                                                 |
+| `crossLines[].range`                                      | `[от, до]`                                                                          | —                           | диапазон заливки                                                 |
+| `crossLines[].stroke`                                     | `ColorValue`                                                                        | muted темы                  | цвет линии                                                       |
+| `crossLines[].strokeWidth`                                | `Pixels`                                                                            | `1`                         | толщина линии                                                    |
+| `crossLines[].lineDash`                                   | `Pixels[]`                                                                          | —                           | пунктир                                                          |
+| `crossLines[].fill`                                       | `ColorValue`                                                                        | muted темы                  | заливка диапазона                                                |
+| `crossLines[].fillOpacity`                                | `Fraction`                                                                          | `0.12`                      | прозрачность заливки                                             |
+| `crossLines[].label.text`                                 | `string`                                                                            | —                           | текст подписи                                                    |
+| `crossLines[].label.color`                                | `ColorValue`                                                                        | muted темы                  | цвет подписи                                                     |
+| `crossLines[].label.fontSize`                             | `Pixels`                                                                            | `11`                        | шрифт подписи                                                    |
+| `min` (number, log)                                       | `number`                                                                            | домен данных                | нижняя граница                                                   |
+| `max` (number, log)                                       | `number`                                                                            | домен данных                | верхняя граница                                                  |
+| `nice (number)`                                           | `boolean`                                                                           | `true`                      | округление домена до «красивых» границ                           |
+| `base (log)`                                              | `number`                                                                            | `10`                        | основание логарифма                                              |
+| `paddingInner` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.2` (ordinal-time `0.25`) | зазор между элементами, доля шага                                |
+| `gap` (category, ordinal-time, grouped-category)          | `Pixels`                                                                            | —                           | зазор между элементами в px; главнее `paddingInner`              |
+| `paddingOuter` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.1`                       | внешний band-отступ                                              |
+| `groupSpacing` (grouped-category)                         | `Pixels`                                                                            | `8`                         | отступ между подписями элементов и ярусом групп, и между ярусами |
+| `groupLabel.enabled` (grouped-category)                   | `boolean`                                                                           | `true`                      | ярусы с надписями групп                                          |
+| `groupLabel.fontSize` (grouped-category)                  | `Pixels`                                                                            | `11`                        | размер шрифта надписи группы                                     |
+| `groupLabel.fontFamily` (grouped-category)                | `string`                                                                            | шрифт темы                  | гарнитура                                                        |
+| `groupLabel.fontWeight` (grouped-category)                | `FontWeight`                                                                        | `'bold'`                    | начертание надписи группы                                        |
+| `groupLabel.color` (grouped-category)                     | `ColorValue`                                                                        | foreground                  | цвет надписи группы                                              |
+| `groupLabel.format` (grouped-category)                    | `string`                                                                            | —                           | строка формата для значения уровня                               |
+| `groupLabel.formatter` (grouped-category)                 | `({ value, level, start, end }) => string`                                          | —                           | программное форматирование надписи группы                        |
+| `groupLabel.maxWidth` (grouped-category)                  | `Pixels`                                                                            | ширина прогона группы       | наибольшая ширина надписи группы                                 |
 
 Подписи горизонтальных осей автоматически прореживаются при тесноте
-(`label.avoidCollisions: false` отключает).
+(`label.avoidCollisions: false` отключает) — либо обрезаются, см.
+[Подписи, которые не влезают](#подписи-которые-не-влезают).
 
 ## Overlays
 

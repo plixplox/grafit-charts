@@ -36,3 +36,17 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `strokeWidth`   | `Pixels`     | `1`           | stroke                                           |
 | `groupGap`      | `Fraction`   | `0.2`         | gap between sectors of one group (radial-column) |
 | `sectorSpacing` | `Pixels`     | `1`           | constant-width gap between adjacent sectors      |
+
+
+## Tooltip and the grid
+
+`tooltip.renderer` receives `RadialTooltipRendererParams`:
+`{ datum, label, value, seriesName, color }` — the category the mark sits on and
+the value that gave it its radius.
+
+```js
+tooltip: { renderer: ({ label, value }) => `${label}: ${String(value)}` },
+```
+
+The rings, the spokes and the numbers beside them are settings of their own —
+see [Polar axes](/guide/axes#polar-axes).

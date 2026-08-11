@@ -1,4 +1,4 @@
-export { contrastTextColor } from './color';
+export { contrastTextColor, mixColors } from './color';
 export { ticks, tickStep, niceExtent, extent } from './ticks';
 export { formatValue, formatNumberPattern, formatDatePattern } from './format';
 export { textBounds, overflowOutside, maxOverflow, NO_OVERFLOW, type Bounds } from './overflow';
@@ -24,3 +24,4 @@ export {
   type SelectableMark,
 } from './parts';
 export { resolveLength } from './length';
+export { ellipsize, ELLIPSIS } from './text';

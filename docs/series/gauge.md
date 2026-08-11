@@ -53,3 +53,7 @@ Charts.createGauge({
 ## Options
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
+
+
+`tooltip.renderer` receives `NodeTooltipRendererParams` — `{ label, value, share, color }`,
+where `value` is the number the gauge shows.

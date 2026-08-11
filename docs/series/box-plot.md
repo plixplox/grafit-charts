@@ -27,3 +27,13 @@ Box colors, stroke, and the whisker width fraction (`capLengthRatio`):
 ## Options
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
+
+A box is five numbers, and `tooltip.renderer` is handed all of them —
+`BoxPlotTooltipRendererParams`: `{ datum, xValue, min, q1, median, q3, max, seriesName, color }`.
+
+```js
+tooltip: { renderer: ({ median, q1, q3 }) => `median ${median} (${q1}–${q3})` },
+```
+
+Without a renderer the five rows are named `max`, `q3`, `median`, `q1`, `min` —
+all [locale keys](/guide/accessibility#localization).

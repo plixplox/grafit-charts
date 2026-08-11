@@ -49,8 +49,13 @@ listeners: {
 Behavior:
 
 - clicking an empty spot clears the selection;
-- the box (`boxSelect: true`) works in `multiple` for Cartesian series (line, bar, area, scatter/bubble);
-  polar series (pie/donut, sector-based) and stage series (funnel, cone-funnel, pyramid)
-  are selected by clicks — a picked-out sector, stage or layer is outlined and the rest fade back;
+- the box (`boxSelect: true`) works in `multiple` wherever a mark has a place on the
+  screen: Cartesian series (line, bar, area, scatter/bubble), the vertices of a radar,
+  the sectors of a rose or a radial bar chart, and the tiles of a treemap, a sunburst or
+  a flow. Pie and donut, and the stage series (funnel, cone-funnel, pyramid), are selected
+  by clicks — a picked-out sector, stage or layer is outlined and the rest fade back;
+- a polar or hierarchical mark is caught by the spot the chart addresses it by: the
+  vertex of a radar, the middle of a sector, the box of a tile — so a band that crosses
+  a wedge without covering its middle leaves it alone;
 - with `boxSelect` enabled, dragging in the plot area is given to selection — zoom
   with the wheel/pinch (`zoom.dragSelect` yields priority); without it, dragging stays with zoom.

@@ -32,8 +32,30 @@ Charts.create({
 ```
 
 Keys: `loading`, `noData` (overlays), `downloadPng`, `resetZoom` (context
-menu). Axis, legend and tooltip texts come from your data and your
-`formatter`s, so they need no separate localization.
+menu). Axis and legend texts come from your data and your `formatter`s, so
+they need no separate localization — and neither do most tooltips.
+
+A tooltip that takes a value apart is the exception: it has to name the pieces
+itself, and those names are the library's own words rather than yours. Those
+are keys too:
+
+| Series | Keys | Default |
+| ------ | ---- | ------- |
+| waterfall | `waterfallTotal`, `waterfallCumulative` | `Total`, `Cumulative` |
+| box plot | `boxPlotMax`, `boxPlotQ3`, `boxPlotMedian`, `boxPlotQ1`, `boxPlotMin` | `max`, `q3`, `median`, `q1`, `min` |
+| candlestick, OHLC | `ohlcOpen`, `ohlcHigh`, `ohlcLow`, `ohlcClose` | `O`, `H`, `L`, `C` |
+
+```ts
+locale: {
+  localeText: {
+    waterfallTotal: 'Итог',
+    waterfallCumulative: 'Накопленный итог',
+    boxPlotMedian: 'Медиана',
+  },
+},
+```
+
+A `tooltip.renderer` writes the whole tooltip and answers to no key at all.
 
 ## Options
 
@@ -41,8 +63,8 @@ menu). Axis, legend and tooltip texts come from your data and your
 | ------------------- | ------------------------------------ | ------------------- |
 | `locale.localeText` | `Partial<Record<LocaleKey, string>>` | UI string overrides |
 
-`LocaleKey` keys: `loading`, `noData`, `downloadPng`, `resetZoom` — the
-default Russian strings live in `DEFAULT_LOCALE`.
+`LocaleKey` keys: `loading`, `noData`, `downloadPng`, `resetZoom`, plus the
+tooltip keys above — the defaults live in `DEFAULT_LOCALE`.
 
 Keyboard support (always on): arrow keys move the highlight across the
 series' points, `Escape` clears the highlight and the zoom. State is

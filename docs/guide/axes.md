@@ -91,8 +91,8 @@ years).
 
 ## Hierarchical categories
 
-`grouped-category`: data values are `[group, item]` arrays; a row of groups
-with separators appears below the item labels:
+`grouped-category`: data values are `[group, item]` arrays (deeper tuples are
+fine too); a row of groups with separators appears below the item labels:
 
 ::: chart-example axis-grouped
 
@@ -100,6 +100,52 @@ In horizontal charts the category axis is vertical, and the group column with
 separators appears to the left of the item labels:
 
 ::: chart-example axis-grouped-horizontal
+
+### As many rows as the tuple has levels
+
+The tuple is not limited to two: every element but the last gets a row of its
+own. `['2024', 1, 'Q1']` labels the ticks with quarters, puts the halves in a
+row above them and the years in a row above those — the outermost level furthest
+from the plot, the way a pivot table stacks its headers. A separator belongs to
+the outermost level that has it, so a year boundary is drawn once, running the
+full depth of the rows.
+
+Groups are runs of neighbouring categories with **equal values**, not with equal
+text: `null` and `'null'`, `1` and `'1'` stay two groups the same way they are
+two categories. Two `Date` objects standing for the same moment are one group.
+
+::: chart-example axis-grouped-levels
+
+### Styling and formatting the group rows
+
+The rows have their own block of options, `groupLabel` — font, colour and format
+of their own, because a group name answers a different question than the tick
+under it. Its formatter is handed the raw value of its own level, the row number
+and the run of categories the group covers; a group has no tick index, it stands
+over a range of them:
+
+```js
+axes: [
+  {
+    type: 'grouped-category',
+    groupLabel: {
+      fontSize: 12,
+      color: '#334155',
+      // level 0 is the outermost row
+      formatter: ({ value, level }) => (level === 0 ? `FY ${value}` : `H${value}`),
+    },
+  },
+];
+```
+
+`groupLabel.format` is the serializable half of the same thing (`'%b %Y'`,
+`',.0f'`), applied to the level value. Without either, a group prints the way a
+tick number does — millions and thousands shortened.
+
+`label.formatter` stays with the item labels: it is handed the whole tuple and a
+tick index, so the two rows keep formatting for their own question.
+`groupLabel: { enabled: false }` drops the rows altogether — the item labels
+stay, and the axis stops reserving room for groups.
 
 ## Labels always fit
 
@@ -128,6 +174,46 @@ only slides the centre across instead of shrinking the whole web. Where the
 spokes crowd together, labels that would collide are dropped while the grid
 itself stays whole (see [Radar](/series/radar)). For pie and donut, outside
 callout labels cap the radius the same way.
+
+## Labels that do not fit
+
+A horizontal axis has one step of room per label. When the names are longer than
+that, the default is to thin them out: every other label — or every third —
+is dropped, and the ones left are drawn whole. That reads well for dates and
+numbers, where the ones in between can be inferred; it reads badly for
+categories, where a missing name is a missing category.
+
+A `grouped-category` axis thins run by run instead of across the axis as a
+whole: each run of categories keeps as many labels as fit between its own
+separators, taken from its middle outwards, so a name never sits under the group
+next door. A run too narrow for a label of its own is left to its group name.
+
+`label.overflow: 'ellipsis'` chooses the other trade: every label stays on the
+axis and is cut to the room between two ticks, with `label.ellipsis` — `'..'` by
+default, `'…'` if you prefer — standing where the text was cut. Nothing then
+runs into its neighbour or into the tick line between them.
+
+::: chart-example axis-labels-ellipsis
+
+On a `grouped-category` axis the group rows follow the same rule: a name is held
+to the run of categories it stands over, so it stops short of the separators on
+either side. `groupLabel.maxWidth` caps it further, `label.ellipsis` supplies its
+mark; a name the cut would eat down to the mark alone is dropped instead. Group
+names live inside their runs the same way labels do: a name wider than the run it
+stands over goes, rather than reaching over the separator into its neighbour.
+
+`label.maxWidth` is the cap on its own — it applies whether or not the axis is
+crowded, and on a vertical axis it also decides how much of the canvas the
+labels may take from the plot: long category names on the left stop pushing the
+plot to the right once they are cut.
+
+```js
+axes: [
+  { type: 'category', position: 'bottom', label: { overflow: 'ellipsis' } },
+  // a left axis has no step to fit into: the cap is what bounds the names
+  { type: 'category', position: 'left', label: { maxWidth: 90, ellipsis: '…' } },
+];
+```
 
 ## Labels inside the plot
 
@@ -159,73 +245,127 @@ Reference lines and ranges in axis coordinates — with labels:
 
 ::: chart-example axis-crosslines
 
+## Polar axes
+
+A radar, a rose or a radial bar chart is drawn on a web, and the web says the
+same things a pair of cartesian axes says: these are the categories, these are
+the values. It takes its settings as a pair rather than as a list — `angle` for
+the categories around the rim, `radius` for the value rings:
+
+```js
+axes: {
+  angle: { title: { text: 'Month' }, gridLine: { lineDash: [3, 3] }, line: { enabled: true } },
+  radius: { title: { text: 'Incidents' }, min: 0, max: 60, ringCount: 3, label: { format: ',.0f' } },
+},
+```
+
+::: chart-example polar-axes
+
+`angle.gridLine` is the spokes, `radius.gridLine` the rings; `angle.line` closes
+the web with a rim, `radius.line` draws the vertical the ring values are read
+along. Both are off by default — the web already outlines itself. Labels take a
+`format` or a `formatter`, and the titles stand outside the chart: the category
+one under it, the value one along the left edge. The room they take is gone
+before the grid is fitted, so a title never covers a label.
+
+The radial-bar chart inverts the layout — its categories are the rings and its
+values are the spokes — but the options follow the meaning rather than the
+shape: `angle` still settles the categories, `radius` still settles the values.
+
+| Option               | Type                                                | Default       | Description                            |
+| -------------------- | --------------------------------------------------- | ------------- | -------------------------------------- |
+| `angle.gridLine`     | `enabled`, `stroke`, `width`, `lineDash`, `opacity` | theme         | the spokes                             |
+| `angle.line`         | `enabled`, `stroke`, `width`, `lineDash`            | off           | the rim around the web                 |
+| `angle.label`        | `enabled`, font, `format`, `formatter`              | on            | the category names                     |
+| `angle.title`        | `enabled`, `text`, font                             | —             | title under the chart                  |
+| `radius.gridLine`    | as above                                            | theme         | the rings                              |
+| `radius.line`        | as above                                            | off           | the vertical the values are read along |
+| `radius.label`       | `enabled`, font, `format`, `formatter`              | on            | the ring values                        |
+| `radius.title`       | `enabled`, `text`, font                             | —             | title along the left edge              |
+| `radius.min` / `max` | `number`                                            | from the data | bounds of the value scale              |
+| `radius.nice`        | `boolean`                                           | `true`        | round the bounds out to whole steps    |
+| `radius.ringCount`   | `number`                                            | `4`           | how many rings the values are read off |
+
 ## Axis options
 
-| Block      | Options                            |
-| ---------- | ---------------------------------- |
-| number/log | `min`, `max`, `nice`, `base` (log) |
-| time       | `min`, `max` (Date/timestamp)      |
-| category   | `paddingInner`, `paddingOuter`     |
+| Block                    | Options                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| number/log               | `min`, `max`, `nice`, `base` (log)                                             |
+| time                     | `min`, `max` (Date/timestamp)                                                  |
+| category                 | `paddingInner`, `paddingOuter`                                                 |
+| polar `angle` / `radius` | see [Polar axes](#polar-axes); `radius` adds `min`, `max`, `nice`, `ringCount` |
 
 ### Full option list
 
-| Option                                                    | Type                                                                                | Default                     | Description                                          |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------- |
-| `type`                                                    | `'number' \| 'category' \| 'time' \| 'log' \| 'ordinal-time' \| 'grouped-category'` | based on series             | axis type                                            |
-| `position`                                                | `'bottom' \| 'left' \| 'top' \| 'right'`                                            | based on type               | axis side                                            |
-| `title.enabled`                                           | `boolean`                                                                           | `true` when `text` is set   | axis title                                           |
-| `title.text`                                              | `string`                                                                            | —                           | title text                                           |
-| `title.fontSize`                                          | `Pixels`                                                                            | `12`                        | title font size                                      |
-| `title.color`                                             | `ColorValue`                                                                        | foreground                  | title color                                          |
-| `line.enabled`                                            | `boolean`                                                                           | category axis only          | axis line                                            |
-| `line.stroke`                                             | `ColorValue`                                                                        | theme axis (light grey)     | line color                                           |
-| `line.width`                                              | `Pixels`                                                                            | `1`                         | line width                                           |
-| `line.lineDash`                                           | `Pixels[]`                                                                          | solid                       | axis line dash pattern (`[]` forces a solid line)    |
-| `tick.enabled`                                            | `boolean`                                                                           | `false`                     | ticks                                                |
-| `tick.size`                                               | `Pixels`                                                                            | `6`                         | tick length                                          |
-| `tick.width`                                              | `Pixels`                                                                            | `1`                         | tick width                                           |
-| `tick.stroke`                                             | `ColorValue`                                                                        | theme axis (light grey)     | tick color (`tick.color` is an alias)                |
-| `tick.lineDash`                                           | `Pixels[]`                                                                          | solid                       | tick dash pattern                                    |
-| `label.enabled`                                           | `boolean`                                                                           | `true`                      | tick labels                                          |
-| `label.fontSize`                                          | `Pixels`                                                                            | `11`                        | label font size                                      |
-| `label.fontFamily`                                        | `string`                                                                            | theme font                  | typeface                                             |
-| `label.color`                                             | `ColorValue`                                                                        | theme muted                 | label color                                          |
-| `label.spacing`                                           | `Pixels`                                                                            | `8`                         | outside labels: gap from the tick or the axis        |
-| `label.insideSpacing`                                     | `Pixels`                                                                            | `4`                         | inside labels: indent from the axis                  |
-| `label.insideAlign`                                       | `'element' \| 'gap'`                                                                | `'element'`                 | inside labels: hug the element or centre in the gap  |
-| `label.insideGap`                                         | `Pixels`                                                                            | `4`                         | inside labels: clearance to their element            |
-| `label.placement`                                         | `'outside' \| 'inside'`                                                             | `'outside'`                 | labels beside the axis or inside the plot            |
-| `label.format`                                            | `string`                                                                            | —                           | format string (`',.2f'`, `'.0%'`, `'%d %b'`)         |
-| `label.formatter`                                         | `({ value, index }) => string`                                                      | —                           | programmatic formatting                              |
-| `label.avoidCollisions`                                   | `boolean`                                                                           | `true`                      | skip overlapping labels                              |
-| `gridLine.enabled`                                        | `boolean`                                                                           | value axis only             | grid lines                                           |
-| `gridLine.stroke`                                         | `ColorValue`                                                                        | theme axis (light grey)     | grid color                                           |
-| `gridLine.width`                                          | `Pixels`                                                                            | `1`                         | width                                                |
-| `gridLine.lineDash`                                       | `Pixels[]`                                                                          | `[4, 4]`                    | grid dash pattern                                    |
-| `interval.values`                                         | `unknown[]`                                                                         | auto                        | explicit tick values                                 |
-| `interval.minSpacing`                                     | `Pixels`                                                                            | `8`                         | minimum label spacing                                |
-| `crossLines[].type`                                       | `'line' \| 'range'`                                                                 | `'line'`                    | line or range                                        |
-| `crossLines[].value`                                      | value                                                                               | —                           | line coordinate                                      |
-| `crossLines[].range`                                      | `[from, to]`                                                                        | —                           | fill range                                           |
-| `crossLines[].stroke`                                     | `ColorValue`                                                                        | theme muted                 | line color                                           |
-| `crossLines[].strokeWidth`                                | `Pixels`                                                                            | `1`                         | line width                                           |
-| `crossLines[].lineDash`                                   | `Pixels[]`                                                                          | —                           | dash pattern                                         |
-| `crossLines[].fill`                                       | `ColorValue`                                                                        | theme muted                 | range fill                                           |
-| `crossLines[].fillOpacity`                                | `Fraction`                                                                          | `0.12`                      | fill opacity                                         |
-| `crossLines[].label.text`                                 | `string`                                                                            | —                           | label text                                           |
-| `crossLines[].label.color`                                | `ColorValue`                                                                        | theme muted                 | label color                                          |
-| `crossLines[].label.fontSize`                             | `Pixels`                                                                            | `11`                        | label font size                                      |
-| `min` (number, log)                                       | `number`                                                                            | data domain                 | lower bound                                          |
-| `max` (number, log)                                       | `number`                                                                            | data domain                 | upper bound                                          |
-| `nice (number)`                                           | `boolean`                                                                           | `true`                      | round the domain to “nice” bounds                    |
-| `base (log)`                                              | `number`                                                                            | `10`                        | logarithm base                                       |
-| `paddingInner` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.2` (ordinal-time `0.25`) | gap between elements, share of the step              |
-| `gap` (category, ordinal-time, grouped-category)          | `Pixels`                                                                            | —                           | gap between elements in px; wins over `paddingInner` |
-| `paddingOuter` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.1`                       | outer band padding                                   |
-| `groupSpacing` (grouped-category)                         | `Pixels`                                                                            | `8`                         | gap between item labels and the group row            |
+| Option                                                    | Type                                                                                | Default                     | Description                                                 |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------- |
+| `type`                                                    | `'number' \| 'category' \| 'time' \| 'log' \| 'ordinal-time' \| 'grouped-category'` | based on series             | axis type                                                   |
+| `position`                                                | `'bottom' \| 'left' \| 'top' \| 'right'`                                            | based on type               | axis side                                                   |
+| `title.enabled`                                           | `boolean`                                                                           | `true` when `text` is set   | axis title                                                  |
+| `title.text`                                              | `string`                                                                            | —                           | title text                                                  |
+| `title.fontSize`                                          | `Pixels`                                                                            | `12`                        | title font size                                             |
+| `title.color`                                             | `ColorValue`                                                                        | foreground                  | title color                                                 |
+| `line.enabled`                                            | `boolean`                                                                           | category axis only          | axis line                                                   |
+| `line.stroke`                                             | `ColorValue`                                                                        | theme axis (light grey)     | line color                                                  |
+| `line.width`                                              | `Pixels`                                                                            | `1`                         | line width                                                  |
+| `line.lineDash`                                           | `Pixels[]`                                                                          | solid                       | axis line dash pattern (`[]` forces a solid line)           |
+| `tick.enabled`                                            | `boolean`                                                                           | `false`                     | ticks                                                       |
+| `tick.size`                                               | `Pixels`                                                                            | `6`                         | tick length                                                 |
+| `tick.width`                                              | `Pixels`                                                                            | `1`                         | tick width                                                  |
+| `tick.stroke`                                             | `ColorValue`                                                                        | theme axis (light grey)     | tick color (`tick.color` is an alias)                       |
+| `tick.lineDash`                                           | `Pixels[]`                                                                          | solid                       | tick dash pattern                                           |
+| `label.enabled`                                           | `boolean`                                                                           | `true`                      | tick labels                                                 |
+| `label.fontSize`                                          | `Pixels`                                                                            | `11`                        | label font size                                             |
+| `label.fontFamily`                                        | `string`                                                                            | theme font                  | typeface                                                    |
+| `label.color`                                             | `ColorValue`                                                                        | theme muted                 | label color                                                 |
+| `label.spacing`                                           | `Pixels`                                                                            | `8`                         | outside labels: gap from the tick or the axis               |
+| `label.insideSpacing`                                     | `Pixels`                                                                            | `4`                         | inside labels: indent from the axis                         |
+| `label.insideAlign`                                       | `'element' \| 'gap'`                                                                | `'element'`                 | inside labels: hug the element or centre in the gap         |
+| `label.insideGap`                                         | `Pixels`                                                                            | `4`                         | inside labels: clearance to their element                   |
+| `label.placement`                                         | `'outside' \| 'inside'`                                                             | `'outside'`                 | labels beside the axis or inside the plot                   |
+| `label.format`                                            | `string`                                                                            | —                           | format string (`',.2f'`, `'.0%'`, `'%d %b'`)                |
+| `label.formatter`                                         | `({ value, index }) => string`                                                      | —                           | programmatic formatting                                     |
+| `label.avoidCollisions`                                   | `boolean`                                                                           | `true`                      | skip overlapping labels                                     |
+| `label.overflow`                                          | `'thin' \| 'ellipsis'`                                                              | `'thin'`                    | crowded labels: drop them, or keep and cut them             |
+| `label.maxWidth`                                          | `Pixels`                                                                            | —                           | widest a label may be; longer text is cut                   |
+| `label.ellipsis`                                          | `string`                                                                            | `'..'`                      | the mark standing where the text was cut                    |
+| `gridLine.enabled`                                        | `boolean`                                                                           | value axis only             | grid lines                                                  |
+| `gridLine.stroke`                                         | `ColorValue`                                                                        | theme axis (light grey)     | grid color                                                  |
+| `gridLine.width`                                          | `Pixels`                                                                            | `1`                         | width                                                       |
+| `gridLine.lineDash`                                       | `Pixels[]`                                                                          | `[4, 4]`                    | grid dash pattern                                           |
+| `interval.values`                                         | `unknown[]`                                                                         | auto                        | explicit tick values                                        |
+| `interval.minSpacing`                                     | `Pixels`                                                                            | `8`                         | minimum label spacing                                       |
+| `crossLines[].type`                                       | `'line' \| 'range'`                                                                 | `'line'`                    | line or range                                               |
+| `crossLines[].value`                                      | value                                                                               | —                           | line coordinate                                             |
+| `crossLines[].range`                                      | `[from, to]`                                                                        | —                           | fill range                                                  |
+| `crossLines[].stroke`                                     | `ColorValue`                                                                        | theme muted                 | line color                                                  |
+| `crossLines[].strokeWidth`                                | `Pixels`                                                                            | `1`                         | line width                                                  |
+| `crossLines[].lineDash`                                   | `Pixels[]`                                                                          | —                           | dash pattern                                                |
+| `crossLines[].fill`                                       | `ColorValue`                                                                        | theme muted                 | range fill                                                  |
+| `crossLines[].fillOpacity`                                | `Fraction`                                                                          | `0.12`                      | fill opacity                                                |
+| `crossLines[].label.text`                                 | `string`                                                                            | —                           | label text                                                  |
+| `crossLines[].label.color`                                | `ColorValue`                                                                        | theme muted                 | label color                                                 |
+| `crossLines[].label.fontSize`                             | `Pixels`                                                                            | `11`                        | label font size                                             |
+| `min` (number, log)                                       | `number`                                                                            | data domain                 | lower bound                                                 |
+| `max` (number, log)                                       | `number`                                                                            | data domain                 | upper bound                                                 |
+| `nice (number)`                                           | `boolean`                                                                           | `true`                      | round the domain to “nice” bounds                           |
+| `base (log)`                                              | `number`                                                                            | `10`                        | logarithm base                                              |
+| `paddingInner` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.2` (ordinal-time `0.25`) | gap between elements, share of the step                     |
+| `gap` (category, ordinal-time, grouped-category)          | `Pixels`                                                                            | —                           | gap between elements in px; wins over `paddingInner`        |
+| `paddingOuter` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.1`                       | outer band padding                                          |
+| `groupSpacing` (grouped-category)                         | `Pixels`                                                                            | `8`                         | gap between item labels and the group row, and between rows |
+| `groupLabel.enabled` (grouped-category)                   | `boolean`                                                                           | `true`                      | rows of group names                                         |
+| `groupLabel.fontSize` (grouped-category)                  | `Pixels`                                                                            | `11`                        | group name font size                                        |
+| `groupLabel.fontFamily` (grouped-category)                | `string`                                                                            | theme font                  | typeface                                                    |
+| `groupLabel.fontWeight` (grouped-category)                | `FontWeight`                                                                        | `'bold'`                    | group name weight                                           |
+| `groupLabel.color` (grouped-category)                     | `ColorValue`                                                                        | foreground                  | group name color                                            |
+| `groupLabel.format` (grouped-category)                    | `string`                                                                            | —                           | format string for the level value                           |
+| `groupLabel.formatter` (grouped-category)                 | `({ value, level, start, end }) => string`                                          | —                           | programmatic formatting of a group name                     |
+| `groupLabel.maxWidth` (grouped-category)                  | `Pixels`                                                                            | the run the group covers    | widest a group name may be                                  |
 
 Horizontal axis labels are automatically thinned out when crowded
-(`label.avoidCollisions: false` disables this).
+(`label.avoidCollisions: false` disables this), or cut instead — see
+[Labels that do not fit](#labels-that-do-not-fit).
 
 ## Overlays
 

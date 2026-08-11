@@ -36,3 +36,17 @@
 | `strokeWidth`   | `Pixels`     | `1`           | обводка                                            |
 | `groupGap`      | `Fraction`   | `0.2`         | зазор между секторами одной группы (radial-column) |
 | `sectorSpacing` | `Pixels`     | `1`           | зазор постоянной ширины между соседними секторами  |
+
+
+## Подсказка и сетка
+
+`tooltip.renderer` получает `RadialTooltipRendererParams`:
+`{ datum, label, value, seriesName, color }` — категорию, на которой стоит
+элемент, и величину, давшую ему радиус.
+
+```js
+tooltip: { renderer: ({ label, value }) => `${label}: ${String(value)}` },
+```
+
+Кольца, спицы и числа рядом с ними настраиваются отдельно — см.
+[Полярные оси](/ru/guide/axes#полярные-оси).

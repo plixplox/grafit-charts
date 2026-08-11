@@ -6,6 +6,7 @@ import type { ChartListeners, SelectedItem, SelectionOptions } from '@/features/
 import type { HtmlTooltip, TooltipApi, TooltipOptions } from '@/features/tooltip';
 import { Animator, type AnimationOptions } from '@/shared/animation';
 import { warnMissingFeature, type ChartWidgetModule } from '@/shared/kernel';
+import type { LocaleOptions } from '@/shared/locale';
 import type {
   ChartState,
   ChartWidget,
@@ -20,7 +21,7 @@ import type {
   ThemeContext,
 } from '@/shared/kernel';
 import { resolvePadding, type Datum, type PaddingValue } from '@/shared/options';
-import type { Scene } from '@/shared/scene';
+import { Rect, type Group, type Scene } from '@/shared/scene';
 import { LabelPlacements } from '@/shared/util';
 
 export interface StandaloneChartInputs {
@@ -36,11 +37,14 @@ export interface StandaloneChartInputs {
   animation?: AnimationOptions;
   selection?: SelectionOptions;
   listeners?: ChartListeners;
+  locale?: LocaleOptions;
 }
 
 const DEFAULT_PADDING = { top: 12, right: 20, bottom: 12, left: 20 };
 const LEGEND_GAP = 12;
 const DEFAULT_ANIMATION_MS = 600;
+/** A drag shorter than this in both axes was a click, not a rubber band. */
+const BOX_SELECT_MIN = 4;
 
 /** Widget for axis-less series: hierarchy (treemap/sunburst/pyramid) and flow (sankey/chord). */
 export class StandaloneChart implements ChartWidget {
@@ -54,6 +58,8 @@ export class StandaloneChart implements ChartWidget {
   private readonly animator = new Animator();
   private hasAnimated = false;
   private readonly tooltip: HtmlTooltip | undefined;
+  /** The rubber band being dragged, in chart coordinates. */
+  private selectRect: { x0: number; y0: number; x1: number; y1: number } | undefined;
 
   constructor(
     private readonly scene: Scene,
@@ -86,6 +92,7 @@ export class StandaloneChart implements ChartWidget {
           stroke: fills[index % fills.length] ?? '#436ff4',
         },
         theme: this.theme,
+        locale: this.inputs.locale,
       }) as StandaloneSeriesInstance;
     });
     if (inputs.tooltip && inputs.tooltip.enabled !== false && !this.tooltip) warnMissingFeature('tooltip');
@@ -109,7 +116,8 @@ export class StandaloneChart implements ChartWidget {
     const seriesLayer = this.scene.layer('series');
     const legendLayer = this.scene.layer('legend');
     const captionLayer = this.scene.layer('caption');
-    for (const layer of [backgroundLayer, seriesLayer, legendLayer, captionLayer]) {
+    const overlayLayer = this.scene.layer('overlay');
+    for (const layer of [backgroundLayer, seriesLayer, legendLayer, captionLayer, overlayLayer]) {
       layer.clear();
     }
     this.scene.markDirty();
@@ -189,6 +197,8 @@ export class StandaloneChart implements ChartWidget {
         },
       });
     }
+
+    this.renderSelectBox(overlayLayer);
   }
 
   handlePointerMove(x: number, y: number): void {
@@ -275,8 +285,18 @@ export class StandaloneChart implements ChartWidget {
   private emitNodeClick(seriesId: string, datumIndex: number): void {
     const listener = this.inputs.listeners?.nodeClick;
     if (!listener) return;
-    const datum = (this.inputs.data ?? [])[datumIndex];
+    const datum = this.datumOf(seriesId, datumIndex);
     if (datum) listener({ seriesId, datumIndex, datum });
+  }
+
+  /**
+   * The row a node stands for. A hierarchy numbers every node it draws, nested
+   * ones included, so the index of a node addresses the data of the chart only
+   * on a tree one level deep — the series is the one that knows.
+   */
+  private datumOf(seriesId: string, datumIndex: number): Datum | undefined {
+    const series = this.series.find((instance) => instance.id === seriesId);
+    return series?.datumAt?.(datumIndex) ?? (this.inputs.data ?? [])[datumIndex];
   }
 
   /** Click semantics of the selection: single replaces it, multiple toggles the node. */
@@ -297,11 +317,10 @@ export class StandaloneChart implements ChartWidget {
   }
 
   private collectSelection(): SelectedItem[] {
-    const data = this.inputs.data ?? [];
     const items: SelectedItem[] = [];
     for (const [seriesId, indices] of this.selectedMap) {
       for (const datumIndex of indices) {
-        const datum = data[datumIndex];
+        const datum = this.datumOf(seriesId, datumIndex);
         if (datum) items.push({ seriesId, datumIndex, datum });
       }
     }
@@ -321,9 +340,65 @@ export class StandaloneChart implements ChartWidget {
 
   handleDoubleClick(): void {}
   handleWheel(): void {}
-  handleDragStart(): void {}
-  handleDragMove(): void {}
-  handleDragEnd(): void {}
+
+  /**
+   * Rubber-band selection: opt-in through `selection.boxSelect`, and only where
+   * a selection can hold more than one node — a band that replaced the whole
+   * selection with its last node would be a click with extra steps.
+   */
+  handleDragStart(x: number, y: number): void {
+    this.selectRect = undefined;
+    const selection = this.inputs.selection;
+    if (!selection?.enabled || selection.boxSelect !== true || selection.mode !== 'multiple') return;
+    this.selectRect = { x0: x, y0: y, x1: x, y1: y };
+  }
+
+  handleDragMove(x: number, y: number): void {
+    if (!this.selectRect) return;
+    this.selectRect.x1 = x;
+    this.selectRect.y1 = y;
+    this.layoutAndRender();
+    this.requestRender();
+  }
+
+  handleDragEnd(): void {
+    const rect = this.selectRect;
+    this.selectRect = undefined;
+    if (!rect) return;
+    // a band too small to have been dragged on purpose is a click; the click
+    // handler has already had its say, so this one keeps quiet
+    if (Math.abs(rect.x1 - rect.x0) <= BOX_SELECT_MIN && Math.abs(rect.y1 - rect.y0) <= BOX_SELECT_MIN) {
+      this.layoutAndRender();
+      this.requestRender();
+      return;
+    }
+    for (const series of this.series) {
+      if (!series.visible || !series.pickInRect) continue;
+      const indices = series.pickInRect(rect.x0, rect.y0, rect.x1, rect.y1);
+      if (indices.length === 0) continue;
+      const set = this.selectedMap.get(series.id) ?? new Set<number>();
+      for (const index of indices) set.add(index);
+      this.selectedMap.set(series.id, set);
+    }
+    this.afterSelectionChange();
+  }
+
+  /** The band itself, drawn over everything while the pointer is down. */
+  protected renderSelectBox(layer: Group): void {
+    const rect = this.selectRect;
+    if (!rect) return;
+    const box = new Rect();
+    box.x = Math.min(rect.x0, rect.x1);
+    box.y = Math.min(rect.y0, rect.y1);
+    box.width = Math.abs(rect.x1 - rect.x0);
+    box.height = Math.abs(rect.y1 - rect.y0);
+    box.fill = this.theme.palette.fills[0] ?? '#436ff4';
+    box.opacity = 0.15;
+    box.stroke = this.theme.palette.fills[0] ?? '#436ff4';
+    box.strokeWidth = 1;
+    layer.append(box);
+  }
+
 
   getState(): ChartState {
     return {};

@@ -21,6 +21,11 @@ Most series count data rows, and `datum` is the row that was clicked. A histogra
 counts bars — bin by bin, group within bin — so there is no single row behind one:
 `datum` is absent and `node` describes what was actually hit.
 
+A hierarchy numbers every node it draws, nested ones included, so on a treemap or
+a sunburst `datumIndex` counts nodes rather than rows of `data`. `datum` is still
+the row the node was read from — the nested `children` object for an inner node,
+which is what a drill-down needs.
+
 ```ts
 listeners: {
   nodeClick: ({ datum, node }) => {
@@ -79,6 +84,7 @@ bouncing back into the listener above.
 ## Notes
 
 - Callbacks are isolated leaves of options: the rest of the object is serializable.
-- `datum` is a reference to the original object from `data` (not a copy).
+- `datum` is a reference to the original object from `data` (not a copy), nested
+  `children` rows of a hierarchy included.
 - To react to hover, use the [tooltip](/interactivity/tooltip) modes
   and `highlight`; there is no separate hover event.

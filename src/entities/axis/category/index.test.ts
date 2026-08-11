@@ -316,6 +316,66 @@ describe('labels hanging over the ends of the axis', () => {
   });
 });
 
+describe('labels cut to the room they have', () => {
+  /**
+   * Four names on a 400 px axis: the step is 100 px, so a label has 92 px once
+   * the 8 px of minimum spacing are gone. Rendering measures without a canvas —
+   * 0.6 · 11 px = 6.6 px per character — which is what these expectations count in.
+   */
+  const long = ['Strawberry jam', 'Blueberry pie', 'Raspberry tart', 'Blackcurrant'];
+
+  /** Label texts as they are drawn. */
+  function drawn(instance: CategoryAxis): Array<string | undefined> {
+    const { layer, nodes } = capture();
+    instance.render(layer, new Group(), plot);
+    return nodes.map((node) => node.text);
+  }
+
+  it('drops the crowded labels by default', () => {
+    // 92.4 px of name plus 8 px of spacing overruns the 100 px step: every other one goes
+    expect(drawn(axis({}, 'bottom', long))).toEqual(['Strawberry jam', 'Raspberry tart']);
+  });
+
+  it('keeps every label and cuts the ones that do not fit', () => {
+    expect(drawn(axis({ label: { overflow: 'ellipsis' } }, 'bottom', long))).toEqual([
+      'Strawberry ..',
+      // the two that fit their 92 px are drawn whole
+      'Blueberry pie',
+      'Raspberry t..',
+      'Blackcurrant',
+    ]);
+  });
+
+  it('leaves no label wider than its own step', () => {
+    for (const text of drawn(axis({ label: { overflow: 'ellipsis' } }, 'bottom', long))) {
+      expect(text!.length * 6.6).toBeLessThanOrEqual(92);
+    }
+  });
+
+  it('takes the mark that stands for the cut from label.ellipsis', () => {
+    const single = drawn(axis({ label: { overflow: 'ellipsis', ellipsis: '…' } }, 'bottom', long));
+    expect(single[2]).toBe('Raspberry ta…');
+  });
+
+  it('holds a label to maxWidth whether or not the axis is crowded', () => {
+    // one name on a 400 px axis crowds nobody, and is still cut to the 40 px asked for
+    expect(drawn(axis({ label: { maxWidth: 40 } }, 'bottom', ['Strawberry jam']))).toEqual(['Stra..']);
+  });
+
+  it('shrinks the room a vertical axis takes to the width its labels are cut to', () => {
+    // measureText counts 10 px per character here: four characters and the mark make 50
+    expect(axis({ label: { maxWidth: 50 } }, 'left', long).measure(measureText)).toBe(8 + 50);
+    expect(axis({}, 'left', long).measure(measureText)).toBe(8 + 140);
+  });
+
+  it('asks for no room past the ends of the axis for a cut label', () => {
+    const wide = axis({ label: { overflow: 'ellipsis', maxWidth: 20 } }, 'bottom', ['Alfa', 'Bravo Charlie Delta Echo']);
+    const overflow = wide.labelOverflow(measureText, plot);
+    // the mark alone is what is left of the last name, and half of it clears the plot edge
+    expect(overflow.right).toBe(0);
+  });
+});
+
 describe('gap between categories in px', () => {
   it('holds the gap exactly, whatever the count', () => {
     for (const count of [3, 6]) {

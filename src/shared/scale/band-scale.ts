@@ -65,7 +65,8 @@ export function groupSlot(
 
 /** Category comparison key: arrays (grouped-category) and dates are compared by value. */
 function bandKey(value: unknown): string {
-  if (Array.isArray(value)) return 'a:' + value.map(String).join('\u00a6');
+  // element by element, keeping each one's own type: [null, 'x'] is not ['null', 'x']
+  if (Array.isArray(value)) return 'a:' + value.map(bandKey).join('\u00a6');
   if (value instanceof Date) return 'd:' + value.getTime();
   return typeof value + ':' + String(value);
 }

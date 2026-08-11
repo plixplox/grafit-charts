@@ -137,7 +137,11 @@ export class RadialGaugeSeries extends StandaloneSeries<RadialGaugeSeriesOptions
   }
 
   override tooltipFor(): TooltipContentData {
-    return { rows: [{ label: 'Value', value: String(this.options.value), color: this.colorFor(0) }] };
+    return (
+      this.renderedTooltip() ?? {
+        rows: [{ label: this.options.name ?? 'Value', value: String(this.options.value), color: this.colorFor(0) }],
+      }
+    );
   }
 }
 

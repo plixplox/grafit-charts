@@ -95,7 +95,9 @@ export class LinearGaugeSeries extends StandaloneSeries<LinearGaugeSeriesOptions
   }
 
   override tooltipFor(): TooltipContentData {
-    const rows = [{ label: 'Value', value: String(this.options.value), color: this.colorFor(0) }];
+    const rendered = this.renderedTooltip();
+    if (rendered) return rendered;
+    const rows = [{ label: this.options.name ?? 'Value', value: String(this.options.value), color: this.colorFor(0) }];
     if (this.options.target !== undefined) {
       rows.push({ label: 'Target', value: String(this.options.target), color: this.env.theme.foregroundColor });
     }

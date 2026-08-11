@@ -3,6 +3,7 @@ import {
   labelFont,
   placeRectLabel,
   rectLabelOverflow,
+  type RangeTooltipRendererParams,
   type RectLabelPlacement,
   type SeriesBaseOptions,
 } from '@/entities/series/base';
@@ -20,9 +21,9 @@ import type {
 import type { ColorValue, Datum, Pixels, Fraction, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
 import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
-import { extent, contrastTextColor, NO_OVERFLOW } from '@/shared/util';
+import { extent, contrastTextColor, NO_OVERFLOW, tooltipContentOf } from '@/shared/util';
 
-export interface RangeBarSeriesOptions extends Omit<SeriesBaseOptions, 'yField' | 'name'> {
+export interface RangeBarSeriesOptions extends Omit<SeriesBaseOptions<RangeTooltipRendererParams>, 'yField' | 'name'> {
   type: 'range-bar';
   direction?: 'vertical' | 'horizontal';
   yLowField: string;
@@ -214,13 +215,27 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
     if (!datum) return { rows: [] };
     const low = Number(datum[this.options.yLowField]);
     const high = Number(datum[this.options.yHighField]);
+    const color = this.fillFor({ low, high, datum, index: datumIndex });
+    const renderer = this.options.tooltip?.renderer;
+    if (renderer) {
+      return tooltipContentOf(
+        renderer({
+          datum,
+          xValue: datum[this.options.xField],
+          low: datum[this.options.yLowField],
+          high: datum[this.options.yHighField],
+          seriesName: this.seriesName,
+          color,
+        }),
+      );
+    }
     return {
       heading: String(datum[this.options.xField]),
       rows: [
         {
           label: this.seriesName,
           value: `${datum[this.options.yLowField]} – ${datum[this.options.yHighField]}`,
-          color: this.fillFor({ low, high, datum, index: datumIndex }),
+          color,
         },
       ],
     };
