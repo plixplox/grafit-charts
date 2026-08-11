@@ -1,6 +1,7 @@
 import {
   CartesianSeries,
   labelFont,
+  plotBands,
   placeRectLabel,
   rectLabelOverflow,
   type RectLabelPlacement,
@@ -17,7 +18,7 @@ import type {
   TooltipContentData,
 } from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
-import { BandScale, LinearScale } from '@/shared/scale';
+import { LinearScale } from '@/shared/scale';
 import { Group, Line, Rect, Text } from '@/shared/scene';
 import { localize } from '@/shared/locale';
 import { contrastTextColor, NO_OVERFLOW, tooltipContentOf } from '@/shared/util';
@@ -115,26 +116,26 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
 
   /** Bars in plot coordinates; shared by rendering and label measurement (t = 1 there). */
   private layoutBars(ctx: CartesianGeometry, t: number): BarGeometry[] {
-    const bandScale = ctx.xScale;
     const valueScale = ctx.yScale;
-    if (!(bandScale instanceof BandScale) || !(valueScale instanceof LinearScale)) {
-      throw new Error('grafit: waterfall requires a category X axis and a numeric Y axis');
+    if (!(valueScale instanceof LinearScale)) {
+      throw new Error('grafit: waterfall requires a numeric Y axis');
     }
+    const bands = plotBands(ctx, 'x', ctx.bandSpan);
     const steps = this.cumulative(ctx.data);
     const bars: BarGeometry[] = [];
     ctx.data.forEach((datum, index) => {
       const step = steps[index];
       if (!step) return;
-      const bandStart = bandScale.convert(datum[this.options.xField]);
-      if (Number.isNaN(bandStart)) return;
+      const band = bands.bandOf(datum[this.options.xField]);
+      if (!band) return;
       const mid = (step.start + step.end) / 2;
       const p0 = valueScale.convert(mid + (step.start - mid) * Math.max(t, 0.001));
       const p1 = valueScale.convert(mid + (step.end - mid) * Math.max(t, 0.001));
       bars.push({
         index,
-        x: bandStart,
+        x: band.start,
         y: Math.min(p0, p1),
-        width: bandScale.bandwidth,
+        width: band.size,
         height: Math.max(1, Math.abs(p1 - p0)),
         start: step.start,
         end: step.end,

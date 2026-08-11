@@ -47,7 +47,7 @@ import type {
   TooltipContentData,
 } from '@/shared/kernel';
 import { deepMerge, resolvePadding, type Datum, type PaddingValue, type Switchable } from '@/shared/options';
-import { BandScale, LinearScale, TimeScale, type AnyScale } from '@/shared/scale';
+import { BandScale, closestSpan, LinearScale, TimeScale, toTimestamp, type AnyScale } from '@/shared/scale';
 import { Group, Rect, Text, type Scene } from '@/shared/scene';
 import { LabelPlacements, maxOverflow, NO_OVERFLOW } from '@/shared/util';
 
@@ -86,6 +86,12 @@ export interface CartesianChartInputs {
 export interface OverlaysOptions {
   loading?: Switchable & { text?: string };
   noData?: Switchable & { text?: string };
+  /**
+   * Shown when nothing could be drawn — every visible series refused the scales
+   * it was given, or the axis domain came to nothing. The reason itself goes to
+   * the console; this is the word the reader gets instead of an empty plot.
+   */
+  error?: Switchable & { text?: string };
 }
 
 const DEFAULT_PADDING = { top: 12, right: 20, bottom: 12, left: 20 };
@@ -129,6 +135,16 @@ export class CartesianChart implements SyncMember {
   private fadeHighlight: HighlightState | undefined;
   private leaveSync: (() => void) | undefined;
   private suppressSyncBroadcast = false;
+  /**
+   * Series that threw on the scales they were given. A render must not take the
+   * chart down with it: the animation tick and the ResizeObserver call it from
+   * outside anyone's try, so a throw there is an unhandled error every frame.
+   */
+  private readonly failedSeries = new Set<string>();
+  /** The chart itself has nothing to draw — a domain that parsed to nothing. */
+  private chartError = false;
+  /** Reasons already spoken; a render runs many times a second and says each one once. */
+  private readonly reportedIssues = new Set<string>();
 
   constructor(
     private readonly scene: Scene,
@@ -147,10 +163,38 @@ export class CartesianChart implements SyncMember {
     return api;
   }
 
+  /**
+   * Runs the part of a render a series is allowed to refuse — it may be handed
+   * scales its marks cannot be drawn on. What it throws is the reason it draws
+   * nothing, and everything else on the chart is drawn regardless: a render is
+   * called from the animation tick and from a ResizeObserver, outside any try
+   * of the caller's, so a throw here would be an unhandled error every frame.
+   */
+  private guard(seriesId: string, action: () => void): void {
+    try {
+      action();
+    } catch (error) {
+      this.failedSeries.add(seriesId);
+      this.report(`series:${seriesId}`, error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /** Says a thing once: a render runs many times a second and the reason does not change. */
+  private report(key: string, message: string): void {
+    const issue = `${key}¦${message}`;
+    if (this.reportedIssues.has(issue)) return;
+    this.reportedIssues.add(issue);
+    console.error(message);
+  }
+
   setOptions(inputs: CartesianChartInputs, theme: ThemeContext): void {
     this.inputs = inputs;
     this.theme = theme;
     this.highlight = undefined;
+    // a new configuration is a new chance: what failed before may be fixed now,
+    // and its reason is worth stating again if it is not
+    this.reportedIssues.clear();
+    this.failedSeries.clear();
     this.buildSeries();
     this.buildAxes();
     if (inputs.tooltip && inputs.tooltip.enabled !== false && !this.tooltip) warnMissingFeature('tooltip');
@@ -560,12 +604,20 @@ export class CartesianChart implements SyncMember {
     // each value axis is scaled by the series it carries, and only by those
     const valueAxes = this.axes.filter((axis) => !this.alongCategories(axis.position, swapped));
     const valueAxisOf = bindSeriesToValueAxes(this.series, valueAxes);
+    // how wide a bar stands where the axis has no bands of its own; one figure
+    // for the whole chart, so grouped bars keep sharing a single band
+    const categoryAxis = this.axes.find((axis) => this.alongCategories(axis.position, swapped));
+    const bandSpan = bandSpanOf(categoryAxis, categories);
+    // a band is centred on its value and hangs half of itself past each end of
+    // the data: the axis makes room for that, as paddingOuter does on a band axis
+    const bandRoom = visibleSeries.some((series) => series.occupiesBandSlot());
     for (const axis of this.axes) {
       const horizontalAxis = axis.position === 'bottom' || axis.position === 'top';
       const isCategoryDirection = this.alongCategories(axis.position, swapped);
       const window = horizontalAxis ? this.zoomX : this.zoomY;
       if (isCategoryDirection) {
-        axis.setDomain(sliceDomain(categories, window));
+        const visible = sliceDomain(categories, window);
+        axis.setDomain(bandRoom ? padForBands(axis, visible, bandSpan) : visible);
       } else if (axis.type === 'category') {
         // categorical value axis (heatmap)
         axis.setDomain(sliceDomain(yCategories, window));
@@ -573,6 +625,14 @@ export class CartesianChart implements SyncMember {
         const own = visibleSeries.filter((series) => valueAxisOf.get(series.id) === axis);
         axis.setDomain(windowExtent(this.collectValueDomain(own, data, stacks), window));
       }
+    }
+    // an axis that could make nothing of its domain draws a chart that is empty
+    // without being wrong anywhere: the only place that can say why is here
+    this.chartError = false;
+    for (const axis of this.axes) {
+      if (!axis.domainError) continue;
+      this.chartError = true;
+      this.report(`axis:${axis.type}:${axis.position}`, axis.domainError);
     }
 
     // gradient legend (heatmap) occupies a strip on the right
@@ -626,7 +686,17 @@ export class CartesianChart implements SyncMember {
     let frame: LayoutRect = { ...avail };
     for (let pass = 0; pass < LAYOUT_PASSES; pass++) {
       for (const axis of this.axes) axis.layout(frame);
-      const overflow = this.labelOverflow(frame, plot, measureText, { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, barePlot });
+      const overflow = this.labelOverflow(frame, plot, measureText, {
+        data,
+        xAxis,
+        yAxis,
+        valueAxisOf,
+        swapped,
+        stacks,
+        slots,
+        bandSpan,
+        barePlot,
+      });
       const inset = { top: 0, right: 0, bottom: 0, left: 0 };
       // an axis-less chart reserves no axis zones, but its labels still need room
       if (!barePlot) {
@@ -664,6 +734,7 @@ export class CartesianChart implements SyncMember {
       swapped,
       stacks,
       slots,
+      bandSpan,
       navigatorRect,
       colorInfo,
       gradientRect,
@@ -692,6 +763,7 @@ export class CartesianChart implements SyncMember {
       swapped: boolean;
       stacks: Map<string, StackSegment>;
       slots: Map<string, { index: number; count: number }>;
+      bandSpan: number | undefined;
       barePlot: boolean;
     },
   ): { axes: Insets; series: Insets } {
@@ -707,19 +779,24 @@ export class CartesianChart implements SyncMember {
     for (const instance of this.series) {
       if (!instance.visible || !instance.labelOverflow) continue;
       const scales = seriesScales(xAxis, yAxis, cache.valueAxisOf.get(instance.id), cache.swapped);
-      series = maxOverflow(
-        series,
-        instance.labelOverflow({
-          data: cache.data,
-          xScale: scales.xScale,
-          yScale: scales.yScale,
-          swapped: cache.swapped,
-          plot: frame,
-          stack: cache.stacks.get(instance.id),
-          group: cache.slots.get(instance.id),
-          measureText,
-        }),
-      );
+      // a series that cannot lay its marks out cannot measure their labels
+      // either; the layout carries on and the render states the reason
+      this.guard(instance.id, () => {
+        series = maxOverflow(
+          series,
+          instance.labelOverflow!({
+            data: cache.data,
+            xScale: scales.xScale,
+            yScale: scales.yScale,
+            swapped: cache.swapped,
+            plot: frame,
+            stack: cache.stacks.get(instance.id),
+            group: cache.slots.get(instance.id),
+            bandSpan: cache.bandSpan,
+            measureText,
+          }),
+        );
+      });
     }
     return { axes, series };
   }
@@ -735,6 +812,8 @@ export class CartesianChart implements SyncMember {
         swapped: boolean;
         stacks: Map<string, StackSegment>;
         slots: Map<string, { index: number; count: number }>;
+        /** Width of a bar in axis units where the axis has no bands of its own. */
+        bandSpan: number | undefined;
         navigatorRect: LayoutRect | undefined;
         colorInfo: ColorScaleInfo | undefined;
         /** Strip the colour scale was given during layout. */
@@ -755,37 +834,43 @@ export class CartesianChart implements SyncMember {
     seriesLayer.clear();
     seriesLabelLayer.clear();
     overlayLayer.clear();
-    const { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, navigatorRect, colorInfo, gradientRect } = cache;
+    const { data, xAxis, yAxis, valueAxisOf, swapped, stacks, slots, bandSpan, navigatorRect, colorInfo, gradientRect } = cache;
     const plot = this.plot;
     // the labels of the whole frame share one guard, so series avoid each other too
     const measureText: MeasureText = (text, font) => this.scene.measureText(text, font);
     const labelGuard = new LabelPlacements(measureText);
 
     if (xAxis && yAxis) {
+      // what failed is decided anew every pass: new data, or new options, and a
+      // series that could not draw itself before draws itself now
+      this.failedSeries.clear();
       for (const series of this.series) {
         const scales = seriesScales(xAxis, yAxis, valueAxisOf.get(series.id), swapped);
-        series.update({
-          data,
-          xScale: scales.xScale,
-          yScale: scales.yScale,
-          swapped,
-          plot,
-          layer: seriesLayer,
-          measureText,
-          labelLayer: seriesLabelLayer,
-          labelGuard,
-          highlight: this.inputs.highlight?.enabled !== false ? (this.highlight ?? this.fadeHighlight) : undefined,
-          dimOpacity: this.effectiveDimOpacity(),
-          selected: this.selectedMap.get(series.id),
-          selectionActive: this.selectionActive(),
-          selectionStyle: {
-            ...this.inputs.selection?.itemStyle,
-            inactiveOpacity: this.inputs.selection?.inactiveOpacity,
-          },
-          stack: stacks.get(series.id),
-          group: slots.get(series.id),
-          animationT: this.animator.t,
-        });
+        this.guard(series.id, () =>
+          series.update({
+            data,
+            xScale: scales.xScale,
+            yScale: scales.yScale,
+            swapped,
+            plot,
+            layer: seriesLayer,
+            measureText,
+            labelLayer: seriesLabelLayer,
+            labelGuard,
+            highlight: this.inputs.highlight?.enabled !== false ? (this.highlight ?? this.fadeHighlight) : undefined,
+            dimOpacity: this.effectiveDimOpacity(),
+            selected: this.selectedMap.get(series.id),
+            selectionActive: this.selectionActive(),
+            selectionStyle: {
+              ...this.inputs.selection?.itemStyle,
+              inactiveOpacity: this.inputs.selection?.inactiveOpacity,
+            },
+            stack: stacks.get(series.id),
+            group: slots.get(series.id),
+            bandSpan,
+            animationT: this.animator.t,
+          }),
+        );
       }
       if (this.inputs.annotations?.length) {
         this.feature<AnnotationsApi>('annotations', true)?.render(this.inputs.annotations, {
@@ -890,11 +975,16 @@ export class CartesianChart implements SyncMember {
 
   private renderOverlays(layer: Group, plot: LayoutRect, data: Datum[], visibleCount: number): void {
     const overlays = this.inputs.overlays;
+    // nothing of the data reached the plot: every visible series refused its
+    // scales, or the axis made nothing of its domain
+    const nothingDrawn = this.chartError || (visibleCount > 0 && this.failedSeries.size >= visibleCount);
     let message: string | undefined;
     if (this.inputs.loading && overlays?.loading?.enabled !== false) {
       message = overlays?.loading?.text ?? localize(this.inputs.locale, 'loading');
     } else if ((data.length === 0 || visibleCount === 0) && overlays?.noData?.enabled !== false) {
       message = overlays?.noData?.text ?? localize(this.inputs.locale, 'noData');
+    } else if (nothingDrawn && overlays?.error?.enabled !== false) {
+      message = overlays?.error?.text ?? localize(this.inputs.locale, 'renderError');
     }
     if (!message) return;
     const text = new Text();
@@ -1552,6 +1642,35 @@ function windowFromSelection(
  * the value direction is the series' own axis — which is the horizontal one on
  * a swapped chart.
  */
+/**
+ * How wide a bar stands where the axis under it has no bands: the option if the
+ * axis was given one, else the step of the data — the smallest distance between
+ * neighbouring values, which is the widest band that never overlaps its
+ * neighbour. In axis units, so a zoom keeps a bar over its own period.
+ */
+function bandSpanOf(axis: CartesianAxisInstance | undefined, categories: unknown[]): number | undefined {
+  if (!axis || axis.scale instanceof BandScale) return undefined;
+  if (axis.bandSpan !== undefined) return axis.bandSpan;
+  return closestSpan(categories, axisValueOf(axis));
+}
+
+/**
+ * The domain a continuous axis is given so the bands built on it fit: half a
+ * band past the first value and past the last one. A band axis needs none of
+ * this — its own paddingOuter is the same room, measured in bands.
+ */
+function padForBands(axis: CartesianAxisInstance, domain: unknown[], span: number | undefined): unknown[] {
+  if (span === undefined || axis.scale instanceof BandScale) return domain;
+  const numbers = domain.map(axisValueOf(axis)).filter((value) => Number.isFinite(value));
+  if (numbers.length === 0) return domain;
+  return [...domain, Math.min(...numbers) - span / 2, Math.max(...numbers) + span / 2];
+}
+
+/** How the axis itself reads a value: a time axis parses dates, the rest take numbers. */
+function axisValueOf(axis: CartesianAxisInstance): (value: unknown) => number {
+  return axis.scale instanceof TimeScale ? toTimestamp : (value: unknown) => Number(value);
+}
+
 function seriesScales(
   xAxis: CartesianAxisInstance,
   yAxis: CartesianAxisInstance,

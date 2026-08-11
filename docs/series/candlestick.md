@@ -1,7 +1,8 @@
 # Candlestick and OHLC
 
 Financial series: `openField` / `highField` / `lowField` / `closeField`. The X axis is `ordinal-time`:
-each point occupies a band, so weekends leave no gaps.
+each point occupies a band, so weekends leave no gaps. A `time` axis works too, and
+then the sessions stand at their real distance apart — weekends included.
 
 ::: chart-example candlestick-basic
 

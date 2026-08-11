@@ -5,10 +5,11 @@
  * the grid is built from all the data, so the bars of different groups line up
  * and can be stacked, laid side by side or drawn over each other.
  */
-import { binEdges, binIndexOf, type BinEdge, type BinningOptions } from './bins';
+import { binEdges, binIndexOf, timeBinUnit, type BinEdge, type BinningOptions } from './bins';
 import { normalizeValues, type HistogramNormalize } from './normalize';
 import { numericValues, uniqueValues } from '@/shared/data';
 import type { Datum } from '@/shared/options';
+import { toTimestamp } from '@/shared/scale';
 
 /** How the groups of one bin share the space. */
 export type HistogramGroupMode =
@@ -75,12 +76,26 @@ function labelFor(key: unknown): string {
 }
 
 /**
+ * The values the grid is built from. A calendar grain reads them as dates —
+ * a Date, a timestamp or an ISO string; a numeric grid takes numbers, and a
+ * Date beside them still means the moment it stands for.
+ */
+export function binnedValues(data: Datum[], key: string, time: boolean): number[] {
+  return data.map((datum) => {
+    const value = datum[key];
+    if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
+    if (value instanceof Date) return value.getTime();
+    return time ? toTimestamp(value) : NaN;
+  });
+}
+
+/**
  * Bins, groups and the value of every slice. `hidden` holds the indices of the
  * groups switched off in the legend: they draw nothing and count towards no
  * total, the way a filtered-out category does in a BI tool.
  */
 export function buildModel(data: Datum[], options: HistogramModelOptions, hidden?: ReadonlySet<number>): HistogramModel {
-  const xs = numericValues(data, options.xField);
+  const xs = binnedValues(data, options.xField, timeBinUnit(options) !== undefined);
   const edges = binEdges(xs, options);
   const ys = options.yField ? numericValues(data, options.yField) : [];
   const aggregation = options.aggregation ?? (options.yField ? 'sum' : 'count');

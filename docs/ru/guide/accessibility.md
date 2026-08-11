@@ -29,7 +29,8 @@ Charts.create({
 });
 ```
 
-Ключи: `loading`, `noData` (оверлеи), `downloadPng`, `resetZoom` (контекстное меню).
+Ключи: `loading`, `noData`, `renderError` (оверлеи), `downloadPng`, `resetZoom`
+(контекстное меню).
 Тексты осей и легенды приходят из ваших данных и `formatter`-ов, поэтому
 отдельной локализации не требуют — как и большинство подсказок.
 
@@ -42,6 +43,7 @@ Charts.create({
 | каскад | `waterfallTotal`, `waterfallCumulative` | `Total`, `Cumulative` |
 | ящик с усами | `boxPlotMax`, `boxPlotQ3`, `boxPlotMedian`, `boxPlotQ1`, `boxPlotMin` | `max`, `q3`, `median`, `q1`, `min` |
 | свечи, OHLC | `ohlcOpen`, `ohlcHigh`, `ohlcLow`, `ohlcClose` | `O`, `H`, `L`, `C` |
+| гистограмма по календарным корзинам | `quarter` | `Q` |
 
 ```ts
 locale: {

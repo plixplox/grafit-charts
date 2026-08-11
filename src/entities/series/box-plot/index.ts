@@ -1,9 +1,9 @@
-import { CartesianSeries, type SeriesBaseOptions } from '@/entities/series/base';
+import { CartesianSeries, plotBands, type SeriesBaseOptions } from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { CartesianRenderContext, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction } from '@/shared/options';
-import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
+import { LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Line, Rect } from '@/shared/scene';
 import { localize } from '@/shared/locale';
 import { extent, tooltipContentOf } from '@/shared/util';
@@ -83,14 +83,13 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
     this.lastCtx = ctx;
     this.boxes = [];
     if (!this.visible) return;
-    const bandScale = ctx.xScale;
     const valueScale = ctx.yScale;
-    if (!(bandScale instanceof BandScale) || !(valueScale instanceof LinearScale)) {
-      throw new Error('grafit: box-plot requires a category X axis and a numeric Y axis');
+    if (!(valueScale instanceof LinearScale)) {
+      throw new Error('grafit: box-plot requires a numeric Y axis');
     }
+    const bands = plotBands(ctx, 'x', ctx.bandSpan);
     const stroke = this.options.stroke ?? this.mainColor();
     const strokeWidth = this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1.5;
-    const slot = groupSlot(bandScale.bandwidth, ctx.group, this.options.groupGap);
     const highlighted =
       ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
     const group = new Group();
@@ -105,9 +104,10 @@ export class BoxPlotSeries extends CartesianSeries<BoxPlotSeriesOptions & { yFie
       ].map((key) => Number(datum[key]));
       if (stats.some((value) => Number.isNaN(value))) return;
       const [min, q1, median, q3, max] = stats as [number, number, number, number, number];
-      const bandStart = bandScale.convert(datum[this.options.xField]);
-      if (Number.isNaN(bandStart)) return;
-      const x = bandStart + slot.start + slot.size * 0.15;
+      const band = bands.bandOf(datum[this.options.xField]);
+      if (!band) return;
+      const slot = groupSlot(band.size, ctx.group, this.options.groupGap);
+      const x = band.start + slot.start + slot.size * 0.15;
       const width = slot.size * 0.7;
       const centerX = x + width / 2;
       const pq1 = valueScale.convert(q1);

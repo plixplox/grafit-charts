@@ -1,6 +1,6 @@
 # Histogram
 
-Distribution of a numeric field across bins. `xField` is a numeric field; without `yField`, the number of records is counted.
+Distribution of a numeric field across bins. `xField` is a numeric field — a date field with a calendar `binWidth`; without `yField`, the number of records is counted.
 
 ::: chart-example histogram-basic
 
@@ -37,6 +37,31 @@ Explicit `bins` win over both: `[[0, 18], [18, 65], [65, 120]]` builds three bin
 unequal width. A value on an edge goes to the bin on the right (`[x0, x1)`), with the
 last bin closed on both ends so the maximum is never dropped; `binInclusive: 'right'`
 mirrors that.
+
+## Calendar bins
+
+`binWidth` also takes a calendar unit — `'second'`, `'minute'`, `'hour'`,
+`'day'`, `'week'`, `'month'`, `'quarter'`, `'year'` — and then the values are
+read as dates: a `Date`, a timestamp or an ISO string. The rows arrive as they
+were recorded and the chart does the collapsing, the way a BI tool asks its
+warehouse for a time grain:
+
+::: chart-example histogram-time
+
+```ts
+series: [{ type: 'histogram', xField: 'placedAt', yField: 'amount', binWidth: 'month', aggregation: 'sum' }];
+```
+
+Months and quarters are stepped by the calendar rather than by a fixed number of
+milliseconds, so a February bar is as narrow as February is. The grid is aligned
+in UTC, where the ticks of the time axis are, and a bar therefore ends exactly
+on one; a week starts on Monday. Without explicit `axes` the series asks for a
+`time` axis by itself, and a tooltip names the period — `February 2025`, `Q1
+2025` — instead of printing two timestamps.
+
+A grain far finer than the range (seconds across a decade) would ask for
+millions of bars: the step grows by whole units until the grid fits within a
+thousand of them.
 
 ## Range and outliers
 
@@ -147,11 +172,11 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 
 | Option             | Type                                               | Default                                 | Description                               |
 | ------------------ | -------------------------------------------------- | --------------------------------------- | ----------------------------------------- |
-| `xField`           | `string`                                           | —                                       | numeric field to bin                      |
+| `xField`           | `string`                                           | —                                       | field to bin: numbers, or dates with a calendar `binWidth` |
 | `yField`           | `string`                                           | —                                       | aggregation field (optional)              |
 | `aggregation`      | `'count' \| 'sum' \| 'mean'`                       | `count` / `sum`                         | aggregation method (sum with `yField`)    |
 | `binCount`         | `number \| BinRule`                                | `'auto'`                                | number of bins, or the rule that picks it |
-| `binWidth`         | `number`                                           | —                                       | bin width; wins over `binCount`           |
+| `binWidth`         | `number \| TimeBinUnit`                            | —                                       | bin width, or a calendar unit; wins over `binCount` |
 | `binOrigin`        | `number`                                           | `0`                                     | value the bin grid is aligned to          |
 | `nice`             | `boolean`                                          | `true`                                  | round the computed step to 1/2/5×10ⁿ      |
 | `binInclusive`     | `'left' \| 'right'`                                | `'left'`                                | which side of a bin owns an edge value    |

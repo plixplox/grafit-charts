@@ -221,6 +221,13 @@ export interface CartesianGeometry {
   stack?: StackSegment;
   /** For grouped series: position within the group. */
   group?: { index: number; count: number };
+  /**
+   * Step of the data along the category direction, in axis units — the width a
+   * bar takes where the axis is continuous (time, number) and has no bands of
+   * its own. The chart measures it across every visible series, so grouped bars
+   * share one band; undefined on a band axis, which knows its own width.
+   */
+  bandSpan?: number;
 }
 
 /** Layout-time query: how far do the value labels reach outside the plot rect. */
@@ -356,6 +363,17 @@ export interface CartesianAxisInstance {
   readonly scale: AnyScale;
   /** Value fields (or series ids) this axis carries; undefined — it takes whatever is left. */
   readonly keys?: readonly string[];
+  /**
+   * Band width in axis units the options asked for — a continuous axis carrying
+   * bars. Without it the chart measures the step off the data.
+   */
+  readonly bandSpan?: number;
+  /**
+   * Why the domain the axis was handed came to nothing: dates that parse to
+   * nothing collapse a time axis, and a chart drawn over that domain is empty
+   * without being wrong anywhere. Set during setDomain, read by the chart.
+   */
+  readonly domainError?: string;
   setDomain(domain: unknown[]): void;
   /** Binds the scale range to the plot rect (orientation per position/type). */
   layout(plot: LayoutRect): void;

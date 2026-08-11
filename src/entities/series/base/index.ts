@@ -18,3 +18,4 @@ export {
   type PlacedPointLabel,
 } from './point-label';
 export { placeRectLabel, rectLabelOverflow, labelFont, type RectLabelPlacement, type PlacedRectLabel, type LabelFont } from './rect-label';
+export { categoryBands, plotBands } from './band-geometry';

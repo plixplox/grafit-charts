@@ -52,6 +52,15 @@ For hierarchical categories (year → quarter), use the
 
 ::: chart-example axis-grouped
 
+## Dates instead of categories
+
+With a [`time` axis](/guide/axes#bars-on-a-time-axis) the bars stand at the real
+distance between their dates, so a period with no data keeps its place instead
+of closing up. The width comes from the step of the data, and `bandSpan` on the
+axis overrides it:
+
+::: chart-example bar-time
+
 ## Horizontal bars
 
 `direction: 'horizontal'` flips the chart: categories move to the vertical axis.

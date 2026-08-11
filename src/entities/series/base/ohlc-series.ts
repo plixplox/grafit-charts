@@ -1,9 +1,10 @@
+import { plotBands } from './band-geometry';
 import { CartesianSeries } from './cartesian-series';
 import { numericValues } from '@/shared/data';
 import type { CartesianRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import { localize } from '@/shared/locale';
 import type { ColorValue, Datum, Pixels, Showable, Switchable } from '@/shared/options';
-import { BandScale, LinearScale } from '@/shared/scale';
+import { LinearScale } from '@/shared/scale';
 import { Group, type SceneNode } from '@/shared/scene';
 import { extent, tooltipContentOf } from '@/shared/util';
 
@@ -80,6 +81,11 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
     return 'category';
   }
 
+  /** A candle stands in a band of its own — on a continuous axis the axis keeps room for it. */
+  override occupiesBandSlot(): boolean {
+    return true;
+  }
+
   protected upStyle(): Required<OhlcItemStyle> {
     const up = this.options.item?.up;
     const color = this.env.theme.positiveColor;
@@ -108,11 +114,11 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
     this.lastCtx = ctx;
     this.candles = [];
     if (!this.visible) return;
-    const bandScale = ctx.xScale;
     const valueScale = ctx.yScale;
-    if (!(bandScale instanceof BandScale) || !(valueScale instanceof LinearScale)) {
-      throw new Error('grafit: candlestick/ohlc requires a category X axis (ordinal-time) and a numeric Y axis');
+    if (!(valueScale instanceof LinearScale)) {
+      throw new Error('grafit: candlestick/ohlc requires a numeric Y axis');
     }
+    const bands = plotBands(ctx, 'x', ctx.bandSpan);
     const opens = numericValues(ctx.data, this.options.openField);
     const highs = numericValues(ctx.data, this.options.highField);
     const lows = numericValues(ctx.data, this.options.lowField);
@@ -127,13 +133,13 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
       const low = lows[index];
       const close = closes[index];
       if ([open, high, low, close].some((value) => value === undefined || Number.isNaN(value))) return;
-      const bandStart = bandScale.convert(datum[this.options.xField]);
-      if (Number.isNaN(bandStart)) return;
+      const band = bands.bandOf(datum[this.options.xField]);
+      if (!band) return;
       const geometry: CandleGeometry = {
         index,
-        centerX: bandStart + bandScale.bandwidth / 2,
-        bodyX: bandStart,
-        bodyWidth: bandScale.bandwidth,
+        centerX: band.start + band.size / 2,
+        bodyX: band.start,
+        bodyWidth: band.size,
         open: valueScale.convert(open!),
         close: valueScale.convert(close!),
         high: valueScale.convert(high!),

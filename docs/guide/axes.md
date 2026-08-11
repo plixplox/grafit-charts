@@ -82,6 +82,38 @@ years).
 
 ::: chart-example axis-time
 
+### Bars on a time axis
+
+Bars, ranges, boxes and candles stand on a `time` axis as readily as on a band
+one — the difference is that the axis places them by their real distance apart,
+so a month with no data leaves its place empty instead of vanishing:
+
+::: chart-example bar-time
+
+A band axis knows how wide a band is; a continuous one is told. The width comes
+from the step of the data — the **smallest** distance between neighbouring
+values, measured across every visible series so that grouped bars keep sharing
+one band. The smallest rather than the average: months are of unequal length,
+and a mean step would have November overlap December.
+
+`bandSpan` overrides it, in axis units — milliseconds on a time axis, so a bar
+keeps covering its own period through a zoom, where a width in pixels would not:
+
+```ts
+axes: [
+  // hourly readings with the odd gap: a bar is an hour wide whatever the gaps say
+  { type: 'time', position: 'bottom', bandSpan: 60 * 60 * 1000 },
+  { type: 'number', position: 'left' },
+]
+```
+
+The same option is on the `number` axis, in its own units. A single point says
+nothing about a step, so its bar falls back to a tenth of the plot.
+
+Where the dates line up evenly — trading sessions, weeks without weekends — the
+`ordinal-time` axis is the other answer: bands of equal width with calendar
+labels above them, so the gaps close and nothing is placed by distance.
+
 ## Logarithmic axis
 
 `log` — for data growing by orders of magnitude; ticks at powers of `base`
@@ -290,8 +322,8 @@ shape: `angle` still settles the categories, `radius` still settles the values.
 
 | Block                    | Options                                                                        |
 | ------------------------ | ------------------------------------------------------------------------------ |
-| number/log               | `min`, `max`, `nice`, `base` (log)                                             |
-| time                     | `min`, `max` (Date/timestamp)                                                  |
+| number/log               | `min`, `max`, `nice`, `base` (log), `bandSpan` (number)                        |
+| time                     | `min`, `max` (Date/timestamp), `bandSpan` (ms)                                 |
 | category                 | `paddingInner`, `paddingOuter`                                                 |
 | polar `angle` / `radius` | see [Polar axes](#polar-axes); `radius` adds `min`, `max`, `nice`, `ringCount` |
 
@@ -353,6 +385,7 @@ shape: `angle` still settles the categories, `radius` still settles the values.
 | `paddingInner` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.2` (ordinal-time `0.25`) | gap between elements, share of the step                     |
 | `gap` (category, ordinal-time, grouped-category)          | `Pixels`                                                                            | —                           | gap between elements in px; wins over `paddingInner`        |
 | `paddingOuter` (category, ordinal-time, grouped-category) | `Fraction`                                                                          | `0.1`                       | outer band padding                                          |
+| `bandSpan` (time, number)                                 | `number`                                                                            | step of the data            | width of a bar in axis units (ms on a time axis)            |
 | `groupSpacing` (grouped-category)                         | `Pixels`                                                                            | `8`                         | gap between item labels and the group row, and between rows |
 | `groupLabel.enabled` (grouped-category)                   | `boolean`                                                                           | `true`                      | rows of group names                                         |
 | `groupLabel.fontSize` (grouped-category)                  | `Pixels`                                                                            | `11`                        | group name font size                                        |

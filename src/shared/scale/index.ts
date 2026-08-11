@@ -3,6 +3,7 @@ import type { LinearScale } from './linear-scale';
 
 export { LinearScale } from './linear-scale';
 export { BandScale, DEFAULT_GROUP_GAP, groupSlot } from './band-scale';
+export { bandLayout, closestSpan, type Band, type BandLayout } from './band-layout';
 export { LogScale } from './log-scale';
 export { TimeScale, toTimestamp, type TimeUnit } from './time-scale';
 export { ColorScale } from './color-scale';

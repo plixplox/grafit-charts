@@ -7,6 +7,10 @@
 export type LocaleKey =
   | 'loading'
   | 'noData'
+  /** Nothing could be drawn: the reason itself goes to the console. */
+  | 'renderError'
+  /** Histogram: what a quarter bin is called, before its number. */
+  | 'quarter'
   | 'downloadPng'
   | 'resetZoom'
   /** Waterfall: the subtotal bar, and the running total beside a step. */
@@ -31,6 +35,8 @@ export interface LocaleOptions {
 export const DEFAULT_LOCALE: Record<LocaleKey, string> = {
   loading: 'Loading data…',
   noData: 'No data to display',
+  renderError: 'The chart could not be drawn',
+  quarter: 'Q',
   downloadPng: 'Download PNG',
   resetZoom: 'Reset zoom',
   waterfallTotal: 'Total',

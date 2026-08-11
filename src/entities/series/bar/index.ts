@@ -1,5 +1,6 @@
 import {
   CartesianSeries,
+  categoryBands,
   labelFont,
   placeRectLabel,
   rectLabelOverflow,
@@ -18,7 +19,7 @@ import type {
   StackSegment,
 } from '@/shared/kernel';
 import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Fraction, Switchable } from '@/shared/options';
-import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
+import { LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
 import { extent } from '@/shared/util';
@@ -98,13 +99,12 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
    */
   private layoutBars(ctx: CartesianGeometry, t: number): BarRect[] {
     const { data, swapped } = ctx;
-    const bandScale = swapped ? ctx.yScale : ctx.xScale;
     const valueScale = swapped ? ctx.xScale : ctx.yScale;
-    if (!(bandScale instanceof BandScale) || !(valueScale instanceof LinearScale)) {
-      throw new Error('grafit: bar series requires a band category axis and a numeric value axis');
+    if (!(valueScale instanceof LinearScale)) {
+      throw new Error('grafit: bar series requires a numeric value axis');
     }
 
-    const slot = groupSlot(bandScale.bandwidth, ctx.group, this.options.groupGap);
+    const bands = categoryBands(ctx);
     const values = numericValues(data, this.options.yField);
     const zero = valueScale.convert(0);
     const rects: BarRect[] = [];
@@ -112,14 +112,15 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
     data.forEach((datum, index) => {
       const value = values[index];
       if (value === undefined || Number.isNaN(value)) return;
-      const bandStart = bandScale.convert(datum[this.options.xField]);
-      if (Number.isNaN(bandStart)) return;
+      const band = bands.bandOf(datum[this.options.xField]);
+      if (!band) return;
+      const slot = groupSlot(band.size, ctx.group, this.options.groupGap);
 
       const v0 = ctx.stack ? (ctx.stack.y0[index] ?? 0) : 0;
       const v1 = ctx.stack ? (ctx.stack.y1[index] ?? 0) : value;
       const p0 = zero + (valueScale.convert(v0) - zero) * t;
       const p1 = zero + (valueScale.convert(v1) - zero) * t;
-      const along = bandStart + slot.start;
+      const along = band.start + slot.start;
 
       rects.push(
         swapped

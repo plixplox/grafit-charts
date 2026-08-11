@@ -1,5 +1,6 @@
 import {
   CartesianSeries,
+  categoryBands,
   labelFont,
   placeRectLabel,
   rectLabelOverflow,
@@ -19,7 +20,7 @@ import type {
   TooltipContentData,
 } from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
-import { BandScale, LinearScale, groupSlot } from '@/shared/scale';
+import { LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { extent, contrastTextColor, NO_OVERFLOW, tooltipContentOf } from '@/shared/util';
 
@@ -94,26 +95,26 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
 
   /** Bars in plot coordinates; shared by rendering and label measurement (t = 1 there). */
   private layoutBars(ctx: CartesianGeometry, t: number): BarRect[] {
-    const bandScale = ctx.swapped ? ctx.yScale : ctx.xScale;
     const valueScale = ctx.swapped ? ctx.xScale : ctx.yScale;
-    if (!(bandScale instanceof BandScale) || !(valueScale instanceof LinearScale)) {
-      throw new Error('grafit: range-bar requires a category axis and a numeric axis');
+    if (!(valueScale instanceof LinearScale)) {
+      throw new Error('grafit: range-bar requires a numeric value axis');
     }
+    const bands = categoryBands(ctx);
     const lows = numericValues(ctx.data, this.options.yLowField);
     const highs = numericValues(ctx.data, this.options.yHighField);
-    const slot = groupSlot(bandScale.bandwidth, ctx.group, this.options.groupGap);
     const rects: BarRect[] = [];
 
     ctx.data.forEach((datum, index) => {
       const low = lows[index];
       const high = highs[index];
       if (low === undefined || high === undefined || Number.isNaN(low) || Number.isNaN(high)) return;
-      const bandStart = bandScale.convert(datum[this.options.xField]);
-      if (Number.isNaN(bandStart)) return;
+      const band = bands.bandOf(datum[this.options.xField]);
+      if (!band) return;
+      const slot = groupSlot(band.size, ctx.group, this.options.groupGap);
       const mid = (low + high) / 2;
       const p0 = valueScale.convert(mid + (low - mid) * t);
       const p1 = valueScale.convert(mid + (high - mid) * t);
-      const along = bandStart + slot.start;
+      const along = band.start + slot.start;
       rects.push(
         ctx.swapped
           ? { index, low, high, x: Math.min(p0, p1), y: along, width: Math.abs(p1 - p0), height: slot.size }

@@ -1,4 +1,4 @@
-import { type BinEdge, type BinningOptions } from './bins';
+import { timeBinUnit, type BinEdge, type BinningOptions, type TimeBinUnit } from './bins';
 import { buildModel, type BinSlice, type HistogramGroupMode, type HistogramModel, type HistogramNormalizeWithin } from './model';
 import { type HistogramNormalize } from './normalize';
 import {
@@ -22,6 +22,7 @@ import type {
   TooltipContentData,
 } from '@/shared/kernel';
 import type { ColorValue, Datum, Pixels, Fraction, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
+import { localize } from '@/shared/locale';
 import { LinearScale } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
@@ -118,8 +119,14 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
     return this.options.fill ?? this.env.colors.fill;
   }
 
-  preferredXAxisType(): 'number' {
-    return 'number';
+  preferredXAxisType(): 'number' | 'time' {
+    // calendar bins are periods: the axis that reads them is the time one
+    return this.timeUnit ? 'time' : 'number';
+  }
+
+  /** The calendar grain the bins were asked for; undefined over a numeric grid. */
+  private get timeUnit(): TimeBinUnit | undefined {
+    return timeBinUnit(this.options);
   }
 
   protected override get seriesName(): string {
@@ -445,9 +452,16 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
       normalized || percentOfBin ? `${this.formatValue(slice.value)} (${formatEdge(slice.raw)})` : this.formatValue(slice.value);
     const label = this.model.grouped ? (this.model.groups[groupIndex]?.label ?? this.seriesName) : this.seriesName;
     return {
-      heading: `${formatEdge(edge.x0)} – ${formatEdge(edge.x1)}`,
+      heading: this.headingFor(edge),
       rows: [{ label, value, color: this.colorFor(groupIndex) }],
     };
+  }
+
+  /** What a tooltip calls a bin: a period where the bins are calendar ones, its bounds otherwise. */
+  private headingFor(edge: BinEdge): string {
+    const unit = this.timeUnit;
+    if (!unit) return `${formatEdge(edge.x0)} – ${formatEdge(edge.x1)}`;
+    return formatPeriod(edge.x0, edge.x1, unit, localize(this.env.locale, 'quarter'));
   }
 
   /** A legend click on a group: switched off, it draws nothing and counts towards no total. */
@@ -484,8 +498,40 @@ function formatEdge(value: number): string {
   return String(Number(value.toFixed(6)));
 }
 
-export type { BinningOptions, BinRule, BinInclusive, BinOutliers, BinEdge } from './bins';
-export { binEdges, binIndexOf, binCountFor } from './bins';
+/**
+ * What a calendar bin is called: the period it stands for, rather than the two
+ * numbers it runs between. Read in UTC, where the grid was aligned — a month
+ * named in another zone is the evening before it.
+ */
+function formatPeriod(x0: number, x1: number, unit: TimeBinUnit, quarterPrefix: string): string {
+  const utc = { timeZone: 'UTC' } as const;
+  const date = new Date(x0);
+  switch (unit) {
+    case 'second':
+      return date.toLocaleTimeString(undefined, { ...utc, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    case 'minute':
+    case 'hour':
+      return date.toLocaleString(undefined, { ...utc, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    case 'day':
+      return date.toLocaleDateString(undefined, { ...utc, day: 'numeric', month: 'short', year: 'numeric' });
+    case 'week': {
+      // the last day of the week, not the first of the next one
+      const last = new Date(x1 - 1);
+      const from = date.toLocaleDateString(undefined, { ...utc, day: 'numeric', month: 'short' });
+      const to = last.toLocaleDateString(undefined, { ...utc, day: 'numeric', month: 'short', year: 'numeric' });
+      return `${from} – ${to}`;
+    }
+    case 'month':
+      return date.toLocaleDateString(undefined, { ...utc, month: 'long', year: 'numeric' });
+    case 'quarter':
+      return `${quarterPrefix}${Math.floor(date.getUTCMonth() / 3) + 1} ${date.getUTCFullYear()}`;
+    case 'year':
+      return String(date.getUTCFullYear());
+  }
+}
+
+export type { BinningOptions, BinRule, BinInclusive, BinOutliers, BinEdge, TimeBinUnit } from './bins';
+export { binEdges, binIndexOf, binCountFor, timeBinUnit } from './bins';
 export type { HistogramNormalize } from './normalize';
 export { normalizeValues } from './normalize';
 export type { HistogramGroupMode, HistogramNormalizeWithin, HistogramModel, HistogramGroup, BinSlice } from './model';

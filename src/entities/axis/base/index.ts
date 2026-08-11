@@ -128,6 +128,8 @@ export const DEFAULT_PADDING_OUTER = 0.1;
 export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> implements CartesianAxisInstance {
   abstract readonly type: string;
   abstract readonly scale: AnyScale;
+  /** Set by setDomain when the domain it was handed made no sense; the chart says so out loud. */
+  domainError: string | undefined;
 
   constructor(
     protected readonly options: O,

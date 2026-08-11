@@ -111,3 +111,40 @@ describe('groupMode: normalized', () => {
     ]);
   });
 });
+
+describe('binning by a calendar grain', () => {
+  /** The same three days, said three ways — and one row in the month after. */
+  const dated = [
+    { at: new Date(Date.UTC(2025, 0, 5)), amount: 10 },
+    { at: Date.UTC(2025, 0, 20), amount: 20 },
+    { at: '2025-01-31T18:00:00Z', amount: 5 },
+    { at: new Date(Date.UTC(2025, 1, 3)), amount: 7 },
+  ];
+
+  it('reads dates however they are written, and sums them by month', () => {
+    const model = buildModel(dated, { xField: 'at', yField: 'amount', binWidth: 'month' });
+    expect(model.edges).toHaveLength(2);
+    expect(valuesOf(model)).toEqual([[35, 7]]);
+  });
+
+  it('counts rows per period without a value field', () => {
+    const model = buildModel(dated, { xField: 'at', binWidth: 'month' });
+    expect(valuesOf(model)).toEqual([[3, 1]]);
+  });
+
+  it('groups keep sharing one calendar grid', () => {
+    const split = dated.map((row, index) => ({ ...row, source: index % 2 === 0 ? 'web' : 'app' }));
+    const model = buildModel(split, { xField: 'at', yField: 'amount', binWidth: 'month', groupField: 'source' });
+    // web took the 5th and the 31st, app the 20th and the 3rd of February
+    expect(valuesOf(model)).toEqual([
+      [15, 0],
+      [20, 7],
+    ]);
+  });
+
+  it('a numeric grid still refuses text where a calendar one reads it', () => {
+    const rows = [{ at: '2025-01-05T00:00:00Z' }, { at: '2025-02-05T00:00:00Z' }];
+    expect(buildModel(rows, { xField: 'at', binWidth: 'month' }).edges).toHaveLength(2);
+    expect(buildModel(rows, { xField: 'at', binWidth: 10 }).edges).toHaveLength(0);
+  });
+});

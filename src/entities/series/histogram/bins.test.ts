@@ -146,3 +146,58 @@ describe('which bin a value lands in', () => {
     expect(binIndexOf(27, grid, { ...options, outliers: 'clamp' as const })).toBe(2);
   });
 });
+
+describe('calendar bins', () => {
+  const utc = (year: number, month: number, day = 1, hour = 0) => Date.UTC(year, month, day, hour);
+  const starts = (edges: Array<{ x0: number; x1: number }>): string[] => edges.map((edge) => new Date(edge.x0).toISOString());
+
+  it('a month bin is as long as its own month', () => {
+    const edges = binEdges([utc(2025, 0, 15), utc(2025, 2, 3)], { binWidth: 'month' });
+    expect(starts(edges)).toEqual(['2025-01-01T00:00:00.000Z', '2025-02-01T00:00:00.000Z', '2025-03-01T00:00:00.000Z']);
+    // February is three days shorter than January, and its bin is too
+    expect(widths(edges)).toEqual([31 * 86400000, 28 * 86400000, 31 * 86400000]);
+  });
+
+  it('a value on a boundary opens its own period rather than closing the one before', () => {
+    const edges = binEdges([utc(2025, 0, 1), utc(2025, 1, 1)], { binWidth: 'month' });
+    expect(edges).toHaveLength(2);
+    expect(binIndexOf(utc(2025, 1, 1), edges)).toBe(1);
+  });
+
+  it('quarters and years step by three months and twelve', () => {
+    const quarters = binEdges([utc(2025, 1, 10), utc(2025, 8, 2)], { binWidth: 'quarter' });
+    expect(starts(quarters)).toEqual(['2025-01-01T00:00:00.000Z', '2025-04-01T00:00:00.000Z', '2025-07-01T00:00:00.000Z']);
+    const years = binEdges([utc(2023, 5, 1), utc(2025, 0, 1)], { binWidth: 'year' });
+    expect(starts(years)).toEqual(['2023-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z']);
+  });
+
+  it('a week starts on Monday', () => {
+    // 2025-01-15 is a Wednesday; its week starts on the 13th
+    const edges = binEdges([utc(2025, 0, 15), utc(2025, 0, 22)], { binWidth: 'week' });
+    expect(starts(edges)).toEqual(['2025-01-13T00:00:00.000Z', '2025-01-20T00:00:00.000Z']);
+  });
+
+  it('days and hours are grids of their own', () => {
+    const days = binEdges([utc(2025, 0, 1, 9), utc(2025, 0, 2, 21)], { binWidth: 'day' });
+    expect(starts(days)).toEqual(['2025-01-01T00:00:00.000Z', '2025-01-02T00:00:00.000Z']);
+    const hours = binEdges([utc(2025, 0, 1, 9), utc(2025, 0, 1, 11)], { binWidth: 'hour' });
+    expect(hours).toHaveLength(3);
+  });
+
+  it('a grain far finer than the range steps by whole units instead of asking for millions of bars', () => {
+    // seconds across a year: the step grows, the grid still covers the range
+    const edges = binEdges([utc(2025, 0, 1), utc(2026, 0, 1)], { binWidth: 'second' });
+    expect(edges.length).toBeLessThanOrEqual(1000);
+    expect(edges.at(-1)!.x1).toBeGreaterThanOrEqual(utc(2026, 0, 1));
+  });
+
+  it('one moment still gets a bin of its own', () => {
+    const edges = binEdges([utc(2025, 0, 15)], { binWidth: 'month' });
+    expect(starts(edges)).toEqual(['2025-01-01T00:00:00.000Z']);
+  });
+
+  it('explicit bins still win over a calendar grain', () => {
+    const edges = binEdges([utc(2025, 0, 15)], { binWidth: 'month', bins: [[0, 10]] });
+    expect(edges).toEqual([{ x0: 0, x1: 10 }]);
+  });
+});

@@ -31,8 +31,8 @@ Charts.create({
 });
 ```
 
-Keys: `loading`, `noData` (overlays), `downloadPng`, `resetZoom` (context
-menu). Axis and legend texts come from your data and your `formatter`s, so
+Keys: `loading`, `noData`, `renderError` (overlays), `downloadPng`, `resetZoom`
+(context menu). Axis and legend texts come from your data and your `formatter`s, so
 they need no separate localization — and neither do most tooltips.
 
 A tooltip that takes a value apart is the exception: it has to name the pieces
@@ -44,6 +44,7 @@ are keys too:
 | waterfall | `waterfallTotal`, `waterfallCumulative` | `Total`, `Cumulative` |
 | box plot | `boxPlotMax`, `boxPlotQ3`, `boxPlotMedian`, `boxPlotQ1`, `boxPlotMin` | `max`, `q3`, `median`, `q1`, `min` |
 | candlestick, OHLC | `ohlcOpen`, `ohlcHigh`, `ohlcLow`, `ohlcClose` | `O`, `H`, `L`, `C` |
+| histogram over calendar bins | `quarter` | `Q` |
 
 ```ts
 locale: {

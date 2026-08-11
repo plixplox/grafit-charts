@@ -16,13 +16,25 @@ export type BinInclusive = 'left' | 'right';
 /** What happens to a value outside `domain`. */
 export type BinOutliers = 'exclude' | 'clamp';
 
+/**
+ * A bin one calendar step wide — the time grain a BI tool asks its warehouse
+ * for. Months and quarters are stepped by the calendar rather than by a fixed
+ * number of milliseconds, so a February bin is as short as February is.
+ */
+export type TimeBinUnit = 'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+
 export interface BinningOptions {
   /** Explicit edges: [[min,max], ...]. Wins over every other option here. */
   bins?: Array<[number, number]>;
   /** Number of bins, or the rule that picks it. Default `'auto'`. */
   binCount?: number | BinRule;
-  /** Bin width. Wins over binCount: the step is the intent, the count follows. */
-  binWidth?: number;
+  /**
+   * Bin width. Wins over binCount: the step is the intent, the count follows.
+   * A calendar unit (`'month'`, `'week'`, …) bins dates instead of numbers —
+   * the values are read as dates and the grid is aligned in UTC, where the
+   * ticks of the time axis are.
+   */
+  binWidth?: number | TimeBinUnit;
   /** Value the grid is aligned to (default 0): edges fall on binOrigin + k·width. */
   binOrigin?: number;
   /** Round the computed step to 1/2/5×10ⁿ (default true; ignored with binWidth). */
@@ -123,6 +135,71 @@ function grid(min: number, max: number, step: number, origin: number): BinEdge[]
   }));
 }
 
+/** The calendar grain the bins were asked for, or undefined for a numeric grid. */
+export function timeBinUnit(options: BinningOptions): TimeBinUnit | undefined {
+  return typeof options.binWidth === 'string' ? options.binWidth : undefined;
+}
+
+const SECOND = 1_000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const WEEK = 7 * DAY;
+/** The first Monday of the epoch — where a week grid is measured from. */
+const MONDAY_EPOCH = Date.UTC(1970, 0, 5);
+
+/** Units of a fixed length; months and up are stepped by the calendar instead. */
+const FIXED_UNIT_MS: Partial<Record<TimeBinUnit, number>> = {
+  second: SECOND,
+  minute: MINUTE,
+  hour: HOUR,
+  day: DAY,
+  week: WEEK,
+};
+
+/** Months in one bin of a calendar unit. */
+const UNIT_MONTHS: Record<'month' | 'quarter' | 'year', number> = { month: 1, quarter: 3, year: 12 };
+
+/**
+ * Bins one calendar step wide covering [min, max], aligned in UTC — the same
+ * calendar the ticks of the time axis fall on, so a bar ends where a tick
+ * stands. A grain far finer than the range (seconds across a decade) would ask
+ * for millions of bars: the step grows by whole units until it fits the cap.
+ */
+function calendarEdges(min: number, max: number, unit: TimeBinUnit): BinEdge[] {
+  const fixed = FIXED_UNIT_MS[unit];
+  // the grid of `units` units per bin: where it starts and how many bins it takes.
+  // The last unit is a bin of its own — a value landing on a boundary opens the
+  // period it starts rather than closing the one before it.
+  const grid = (units: number): { start: number; step: number; count: number } => {
+    if (fixed !== undefined) {
+      const origin = unit === 'week' ? MONDAY_EPOCH : 0;
+      const step = fixed * units;
+      const start = Math.floor((min - origin) / step) * step + origin;
+      return { start, step, count: Math.max(1, Math.floor((max - start) / step) + 1) };
+    }
+    const step = UNIT_MONTHS[unit as 'month' | 'quarter' | 'year'] * units;
+    const first = new Date(min);
+    const last = new Date(max);
+    const startMonth = Math.floor((first.getUTCFullYear() * 12 + first.getUTCMonth()) / step) * step;
+    const months = last.getUTCFullYear() * 12 + last.getUTCMonth() - startMonth;
+    return { start: startMonth, step, count: Math.max(1, Math.floor(months / step) + 1) };
+  };
+
+  // a grain far finer than the range asks for millions of bars: the step grows
+  // by whole units until the grid fits, re-aligning as it goes
+  let units = 1;
+  let fitted = grid(units);
+  while (fitted.count > MAX_BINS) fitted = grid((units = Math.max(units + 1, Math.ceil(fitted.count / MAX_BINS))));
+
+  const { start, step, count } = fitted;
+  if (fixed !== undefined) {
+    return Array.from({ length: count }, (_, index) => ({ x0: start + index * step, x1: start + (index + 1) * step }));
+  }
+  const monthStart = (index: number): number => Date.UTC(Math.floor((start + index * step) / 12), (start + index * step) % 12, 1);
+  return Array.from({ length: count }, (_, index) => ({ x0: monthStart(index), x1: monthStart(index + 1) }));
+}
+
 /**
  * The bin edges for a set of values. Empty when there is nothing to bin —
  * a chart with no bars says more than a chart with one empty one.
@@ -137,8 +214,10 @@ export function binEdges(values: number[], options: BinningOptions = {}): BinEdg
   if (!bounds) return [];
 
   const [min, max] = bounds;
+  const unit = timeBinUnit(options);
+  if (unit) return calendarEdges(min, max, unit);
   const origin = options.binOrigin ?? 0;
-  const width = options.binWidth !== undefined && options.binWidth > 0 ? options.binWidth : undefined;
+  const width = typeof options.binWidth === 'number' && options.binWidth > 0 ? options.binWidth : undefined;
   // one distinct value: a single bin around it, or the cell of the grid it falls in
   if (max === min) return width ? grid(min, max, width, origin) : [{ x0: min - 0.5, x1: min + 0.5 }];
   if (width) return grid(min, max, width, origin);

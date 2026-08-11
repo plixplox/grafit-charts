@@ -1,9 +1,9 @@
-import { CartesianSeries, type SeriesBaseOptions } from '@/entities/series/base';
+import { CartesianSeries, plotBands, type SeriesBaseOptions } from '@/entities/series/base';
 import { numericValues, uniqueValues } from '@/shared/data';
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { CartesianRenderContext, ColorScaleInfo, SeriesModule, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Switchable } from '@/shared/options';
-import { BandScale, ColorScale } from '@/shared/scale';
+import { closestSpan, ColorScale } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { contrastTextColor, extent, formatValue } from '@/shared/util';
 
@@ -108,10 +108,11 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
     this.lastCtx = ctx;
     this.cells = [];
     if (!this.visible) return;
-    const { data, xScale, yScale } = ctx;
-    if (!(xScale instanceof BandScale) || !(yScale instanceof BandScale)) {
-      throw new Error('grafit: heatmap requires category X and Y axes');
-    }
+    const { data } = ctx;
+    const xBands = plotBands(ctx, 'x', ctx.bandSpan);
+    // the vertical categories belong to the heatmap alone, so where that axis is
+    // continuous nobody but the series knows how far apart its rows stand
+    const yBands = plotBands(ctx, 'y', closestSpan(uniqueValues(data, this.options.yField)));
     const values = numericValues(data, this.options.colorField);
     const domain = extent(values.filter((value) => !Number.isNaN(value))) ?? [0, 1];
     this.scale = new ColorScale(domain, this.options.colorRange ?? this.env.theme.palette.sequential);
@@ -122,18 +123,16 @@ export class HeatmapSeries extends CartesianSeries<HeatmapSeriesOptions> {
     data.forEach((datum, index) => {
       const value = values[index];
       if (value === undefined || Number.isNaN(value)) return;
-      const x = xScale.convert(datum[this.options.xField]);
-      const y = yScale.convert(datum[this.options.yField]);
-      if (Number.isNaN(x) || Number.isNaN(y)) return;
+      const xBand = xBands.bandOf(datum[this.options.xField]);
+      const yBand = yBands.bandOf(datum[this.options.yField]);
+      if (!xBand || !yBand) return;
       // the cell takes the full band step: only itemPadding sets the gap
-      const stepX = xScale.stepSize;
-      const stepY = yScale.stepSize;
       const cell: CellRect = {
         index,
-        x: x - (stepX - xScale.bandwidth) / 2 + pad / 2,
-        y: y - (stepY - yScale.bandwidth) / 2 + pad / 2,
-        width: stepX - pad,
-        height: stepY - pad,
+        x: xBand.start - (xBand.step - xBand.size) / 2 + pad / 2,
+        y: yBand.start - (yBand.step - yBand.size) / 2 + pad / 2,
+        width: xBand.step - pad,
+        height: yBand.step - pad,
       };
       this.cells.push(cell);
       const node = new Rect();

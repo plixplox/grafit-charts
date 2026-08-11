@@ -99,6 +99,14 @@ All caption options with live examples: [Title and subtitle](/interactivity/capt
 | `loading`               | `boolean` | `false`       | show the “Loading data…” overlay |
 | `overlays.loading.text` | `string`  | from `locale` | loading overlay text             |
 | `overlays.noData.text`  | `string`  | from `locale` | text shown when `data` is empty  |
+| `overlays.error.text`   | `string`  | from `locale` | text shown when nothing could be drawn |
+
+A series handed scales its marks cannot be drawn on — bars against a value axis
+of categories, a `time` axis whose values are no dates — is left out rather than
+taken as an error: the chart draws everything else, states the reason once in
+the console, and shows the `error` overlay only when nothing was drawn at all.
+A render is called from the animation tick and from a `ResizeObserver`, where a
+throw would be an unhandled error every frame, so it never throws.
 
 ## Conventions
 

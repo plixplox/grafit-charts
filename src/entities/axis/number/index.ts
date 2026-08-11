@@ -9,6 +9,11 @@ export interface NumberAxisOptions extends AxisBaseOptions {
   max?: number;
   /** Round the domain to "nice" boundaries (true by default). */
   nice?: boolean;
+  /**
+   * Width of a bar in axis units — the numeric counterpart of the same option
+   * on the time axis. Without it the step is measured off the data.
+   */
+  bandSpan?: number;
 }
 
 const TICK_PIXEL_INTERVAL = 70;
@@ -19,6 +24,10 @@ export class NumberAxis extends BaseAxis<NumberAxisOptions> {
 
   /** The data extent as it came in; `nice` bounds are derived from it, never stacked on top. */
   private rawDomain: [number, number] = [0, 1];
+
+  get bandSpan(): number | undefined {
+    return this.options.bandSpan;
+  }
 
   setDomain(domain: unknown[]): void {
     const values = domain.filter((value): value is number => typeof value === 'number');
