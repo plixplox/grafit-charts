@@ -57,6 +57,8 @@ const GROUP_ROW_LEADING = 5;
 const GROUP_SPACING = 8;
 /** How far the separator between groups runs past the group row. */
 const SEPARATOR_OVERSHOOT = 10;
+/** Leading between the label rows of a vertical axis: they read as lines of text, not as words in one. */
+const LABEL_ROW_LEADING = 4;
 
 /** A run of neighbouring categories that share a level, in pixels along the axis. */
 interface GroupRun {
@@ -251,7 +253,7 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
     const ticks = super.displayTicks();
     if (this.isHorizontal || this.labelsInside) return ticks;
     if (this.options.label?.avoidCollisions === false || this.options.label?.enabled === false) return ticks;
-    return this.thinTicks(ticks, this.labelSize + this.minLabelSpacing);
+    return this.thinTicks(ticks, this.labelSize + LABEL_ROW_LEADING);
   }
 
   /**
