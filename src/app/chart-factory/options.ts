@@ -40,6 +40,7 @@ import type {
   HistogramSeriesOptions,
   HistogramTooltipRendererParams,
 } from '@/entities/series/histogram';
+import type { GaugeLabelOptions, GaugeSegment } from '@/entities/series/base';
 import type { LineSeriesOptions } from '@/entities/series/line';
 import type { LinearGaugeSeriesOptions } from '@/entities/series/linear-gauge';
 import type { NightingaleSeriesOptions } from '@/entities/series/nightingale';
@@ -230,6 +231,8 @@ export type {
   ChordSeriesOptions,
   RadialGaugeSeriesOptions,
   LinearGaugeSeriesOptions,
+  GaugeLabelOptions,
+  GaugeSegment,
   LocaleOptions,
   AnnotationOptions,
   SelectionOptions,

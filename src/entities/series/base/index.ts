@@ -8,6 +8,14 @@ export { RadialSectorSeries, type RadialSectorSeriesBaseOptions } from './radial
 export { FunnelSeriesBase, type FunnelSeriesBaseOptions } from './funnel-series';
 export { OhlcSeriesBase, type OhlcSeriesBaseOptions, type CandleGeometry, UP_COLOR, DOWN_COLOR } from './ohlc-series';
 export { StandaloneSeries, type StandaloneSeriesBaseOptions } from './standalone-series';
+export {
+  gaugeLabelText,
+  gaugeTextStyle,
+  styleGaugeText,
+  type GaugeLabelOptions,
+  type GaugeSegment,
+  type GaugeTextStyle,
+} from './gauge';
 export { FlowSeries, type FlowSeriesBaseOptions, type FlowLabelFormatterParams } from './flow-series';
 export {
   placePointLabel,

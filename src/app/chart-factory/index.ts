@@ -100,6 +100,8 @@ export type {
   ChordSeriesOptions,
   RadialGaugeSeriesOptions,
   LinearGaugeSeriesOptions,
+  GaugeLabelOptions,
+  GaugeSegment,
   LocaleOptions,
   AnnotationOptions,
   SelectionOptions,
