@@ -80,6 +80,7 @@ export interface PolarSeriesInstance {
   pickInRect?(x0: number, y0: number, x1: number, y1: number): number[];
   /** pick() run backwards: the node of a datum, for tooltips addressed by index. */
   nodeAt?(datumIndex: number): SeriesPick | undefined;
-  tooltipFor(datumIndex: number): TooltipContentData;
+  /** `shared` asks for the row of this series alone — the widget stacks them into one tooltip. */
+  tooltipFor(datumIndex: number, mode?: 'single' | 'shared'): TooltipContentData;
   legendItems(): LegendItemDescriptor[];
 }

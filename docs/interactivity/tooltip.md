@@ -17,6 +17,13 @@ By default the tooltip shows the `xField` value as the heading and a "series nam
 
 ::: chart-example tooltip-shared
 
+The mode means the same thing wherever series share a category: a radar carries a
+measure per series the way a line chart does, so a spoke under the cursor answers
+for all of them at once — and so do a rose and radial columns, which share their
+angle axis too.
+
+::: chart-example tooltip-shared-radar
+
 ## Options (chart-level)
 
 | Option              | Type                              | Default    | Description                                                                                                              |

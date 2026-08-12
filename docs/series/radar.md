@@ -99,3 +99,8 @@ where the web is empty whichever way the vertex leans; `top`, `bottom`, `left`,
 
 The rings, the spokes and the numbers beside them belong to the axes rather than
 to the series — see [Polar axes](/guide/axes#polar-axes).
+
+A radar usually carries a measure per series, so `tooltip.mode: 'shared'` reads
+the same here as on a line chart: the spoke under the cursor answers for every
+series at once, each one picked out on its vertex and none of them dimmed. See
+[Tooltip](/interactivity/tooltip#modes).

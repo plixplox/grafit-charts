@@ -353,3 +353,43 @@ test('a pyramid selects its layers the way a pie selects its sectors', async () 
     },
   );
 });
+
+test("a radar in tooltip mode 'shared' answers for every measure of the spoke", async () => {
+  const rows = [
+    { metric: 'Speed', alpha: 8, beta: 5 },
+    { metric: 'Quality', alpha: 6, beta: 9 },
+    { metric: 'Cost', alpha: 4, beta: 7 },
+  ];
+  const radar = (extra?: Partial<ChartOptions>): ChartOptions => ({
+    data: rows,
+    series: [
+      { type: 'radar-line', angleField: 'metric', radiusField: 'alpha', name: 'Alpha' },
+      { type: 'radar-line', angleField: 'metric', radiusField: 'beta', name: 'Beta' },
+    ],
+    animation: { enabled: false },
+    width: 480,
+    height: 300,
+    ...extra,
+  });
+
+  await withChart(radar({ tooltip: { mode: 'shared' } }), async (chart, container) => {
+    expect(chart.showTooltip({ datumIndex: 1 })).toBe(true);
+    await chart.waitForUpdate();
+    const shown = tooltipText(container) ?? '';
+    // the spoke names the tooltip, and both series say what they read there
+    expect(shown).toContain('Quality');
+    expect(shown).toContain('Alpha');
+    expect(shown).toContain('6');
+    expect(shown).toContain('Beta');
+    expect(shown).toContain('9');
+  });
+
+  // single mode is the default: only the series the node belongs to speaks
+  await withChart(radar({ tooltip: {} }), async (chart, container) => {
+    expect(chart.showTooltip({ datumIndex: 1 })).toBe(true);
+    await chart.waitForUpdate();
+    const shown = tooltipText(container) ?? '';
+    expect(shown).toContain('Alpha');
+    expect(shown).not.toContain('Beta');
+  });
+});

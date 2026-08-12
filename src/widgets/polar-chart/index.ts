@@ -34,6 +34,7 @@ import type {
   SelectedNode,
   SeriesPick,
   ThemeContext,
+  TooltipContentData,
 } from '@/shared/kernel';
 import type { LocaleOptions } from '@/shared/locale';
 import { resolvePadding, type Datum, type PaddingValue } from '@/shared/options';
@@ -814,7 +815,11 @@ export class PolarChart implements ChartWidget {
 
   handlePointerMove(x: number, y: number): void {
     const pick = this.pickNearest(x, y);
-    const next: HighlightState | undefined = pick ? { seriesId: pick.seriesId, datumIndex: pick.datumIndex } : undefined;
+    // shared: the category under the cursor is picked out in every series, and
+    // none of them is dimmed — the tooltip speaks for all of them at once
+    const next: HighlightState | undefined = pick
+      ? { seriesId: pick.seriesId, datumIndex: pick.datumIndex, allSeries: this.sharedTooltip || undefined }
+      : undefined;
     if (!sameHighlight(this.highlight, next)) {
       const previous = this.highlight;
       this.highlight = next;
@@ -837,11 +842,35 @@ export class PolarChart implements ChartWidget {
       }
     }
     if (pick && this.tooltip && this.inputs.tooltip?.enabled !== false) {
-      const series = this.series.find((instance) => instance.id === pick.seriesId);
-      if (series) this.tooltip.show(series.tooltipFor(pick.datumIndex), ...this.tooltipAnchor(pick, x, y), this.theme, this.inputs.tooltip);
+      const content = this.tooltipContent(pick);
+      if (content) this.tooltip.show(content, ...this.tooltipAnchor(pick, x, y), this.theme, this.inputs.tooltip);
     } else {
       this.tooltip?.hide();
     }
+  }
+
+  /** Whether the tooltip speaks for every series at once (tooltip.mode). */
+  private get sharedTooltip(): boolean {
+    return this.inputs.tooltip?.mode === 'shared';
+  }
+
+  /**
+   * What the tooltip says about a pick: the series under the cursor on its own,
+   * or — in shared mode — a row per visible series for the same category. A
+   * radar carries a measure per series the way a line chart does, so the mode
+   * means the same thing here.
+   */
+  private tooltipContent(pick: SeriesPick): TooltipContentData | undefined {
+    if (!this.sharedTooltip) return this.series.find((instance) => instance.id === pick.seriesId)?.tooltipFor(pick.datumIndex);
+    const rows: TooltipContentData['rows'] = [];
+    let heading: TooltipContentData['heading'];
+    for (const series of this.series) {
+      if (!series.visible) continue;
+      const content = series.tooltipFor(pick.datumIndex, 'shared');
+      heading ??= content.heading;
+      rows.push(...content.rows);
+    }
+    return { heading, rows };
   }
 
   /** Tooltip anchor point respecting tooltip.position. */
@@ -908,18 +937,19 @@ export class PolarChart implements ChartWidget {
   showTooltip(target: NodeRef): boolean {
     const found = this.resolveNode(target);
     if (!found) return false;
-    const { series, pick } = found;
+    const { pick } = found;
     const previous = this.highlight;
-    this.highlight = { seriesId: pick.seriesId, datumIndex: pick.datumIndex };
+    this.highlight = { seriesId: pick.seriesId, datumIndex: pick.datumIndex, allSeries: this.sharedTooltip || undefined };
     if (previous) {
       this.layoutAndRender();
       this.requestRender();
     } else {
       this.animateHover(1);
     }
-    if (this.tooltip && this.inputs.tooltip?.enabled !== false) {
+    const content = this.tooltipContent(pick);
+    if (content && this.tooltip && this.inputs.tooltip?.enabled !== false) {
       // no pointer to fall back on: the node's own anchor stands in for one
-      this.tooltip.show(series.tooltipFor(pick.datumIndex), ...this.tooltipAnchor(pick, pick.x, pick.y), this.theme, this.inputs.tooltip);
+      this.tooltip.show(content, ...this.tooltipAnchor(pick, pick.x, pick.y), this.theme, this.inputs.tooltip);
     }
     return true;
   }
