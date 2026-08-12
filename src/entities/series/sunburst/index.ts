@@ -3,7 +3,10 @@ import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LegendItemDescriptor, SeriesModule, SeriesPick, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
 import type { ColorValue, Datum, FontOptions, Pixels, Switchable } from '@/shared/options';
 import { Group, Sector, Text } from '@/shared/scene';
-import { contrastTextColor } from '@/shared/util';
+import { contrastTextColor, mixColors } from '@/shared/util';
+
+/** How far a hovered sector is lifted towards its own contrast colour. */
+const HIGHLIGHT_LIFT = 0.18;
 
 export interface SunburstSeriesOptions extends StandaloneSeriesBaseOptions {
   type: 'sunburst';
@@ -123,16 +126,18 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
         sector.outerRadius = geometry.outerRadius;
         sector.startAngle = geometry.startAngle;
         sector.endAngle = geometry.endAngle;
-        sector.fill = this.colorFor(node.branchIndex);
-        sector.opacity = Math.max(0.35, 1 - depth * 0.22);
+        // Every ring of a branch carries that branch's colour at full strength —
+        // a sector further out is deeper, not fainter, and the ring it sits in is
+        // told by the gap between rings. Hovering lifts one sector towards its own
+        // contrast colour instead of paling the rest, as a treemap tile does.
+        const branchColor = this.colorFor(node.branchIndex);
+        const fill = nodeIndex === highlighted ? mixColors(branchColor, contrastTextColor(branchColor), HIGHLIGHT_LIFT) : branchColor;
+        sector.fill = fill;
         const spacing = this.options.sectorSpacing ?? 0;
         sector.edgeInset = spacing / 2;
         sector.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 0;
         sector.stroke = this.options.stroke ?? (spacing > 0 ? undefined : this.env.theme.backgroundColor);
         sector.strokeWidth = this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1;
-        if (nodeIndex === highlighted) {
-          sector.opacity = 1;
-        }
         group.append(sector);
 
         if (this.options.label?.enabled === true) {
@@ -151,8 +156,8 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
             text.fontSize = labelOptions.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
             text.fontWeight = labelOptions.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
             text.fontFamily = labelOptions.fontFamily ?? this.env.theme.fontFamily;
-            text.fill = labelOptions.color ?? contrastTextColor(this.colorFor(node.branchIndex));
-            text.outline = this.colorFor(node.branchIndex);
+            text.fill = labelOptions.color ?? contrastTextColor(fill);
+            text.outline = fill;
             group.append(text);
           }
         }

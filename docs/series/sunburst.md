@@ -3,6 +3,11 @@
 Rings per nesting level, with the angle proportional to the value. Data is nested
 via `children`; a node's value is the leaf's `sizeField` or the sum of its descendants.
 
+Every ring of a branch carries that branch's colour at full strength — a sector
+further out is deeper, not fainter — and one ring is told from the next by the
+gap between them. Hovering lifts a sector towards its own contrast colour
+instead of paling the others, the way a treemap tile does.
+
 ::: chart-example sunburst-basic
 
 ## Spacing and corner rounding
