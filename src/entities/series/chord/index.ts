@@ -1,10 +1,9 @@
-import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
-import { FONT_STEP, themeFont } from '@/shared/kernel';
+import { FlowSeries, type FlowSeriesBaseOptions } from '@/entities/series/base';
 import type { SeriesModule, SeriesPick, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
-import type { FontOptions, Pixels, Switchable } from '@/shared/options';
-import { Group, Path, Sector, Text } from '@/shared/scene';
+import type { Pixels } from '@/shared/options';
+import { Group, Path, Sector } from '@/shared/scene';
 
-export interface ChordSeriesOptions extends StandaloneSeriesBaseOptions {
+export interface ChordSeriesOptions extends FlowSeriesBaseOptions {
   type: 'chord';
   fromField: string;
   toField: string;
@@ -13,11 +12,6 @@ export interface ChordSeriesOptions extends StandaloneSeriesBaseOptions {
   nodeSpacing?: Pixels;
   /** Ribbon opacity (0.35 by default). */
   linkOpacity?: number;
-  /** Node labels. */
-  label?: Switchable &
-    FontOptions & {
-      formatter?: (params: { name: string; total: number }) => string;
-    };
 }
 
 interface ChordNode {
@@ -29,8 +23,10 @@ interface ChordNode {
 }
 
 const RING = 12;
+/** Clearance between the ring of arcs and the labels around it. */
+const LABEL_GAP = 8;
 
-export class ChordSeries extends StandaloneSeries<ChordSeriesOptions> {
+export class ChordSeries extends FlowSeries<ChordSeriesOptions> {
   readonly type = 'chord';
   private nodeList: ChordNode[] = [];
   private center = { x: 0, y: 0 };
@@ -121,22 +117,25 @@ export class ChordSeries extends StandaloneSeries<ChordSeriesOptions> {
       arc.fill = this.colorFor(index);
       group.append(arc);
 
+      if (!this.labelsShown || !this.worthLabelling(node.total, grandTotal)) return;
       const mid = (node.startAngle + node.endAngle) / 2;
-      const at = this.pointAt(mid, this.outerRadius + 8);
-      if (this.options.label?.enabled === false) return;
-      const labelOptions = this.options.label;
-      const label = new Text();
-      label.text = labelOptions?.formatter ? labelOptions.formatter({ name: node.name, total: node.total }) : node.name;
-      label.x = at.x;
-      label.y = at.y;
+      const at = this.pointAt(mid, this.outerRadius + LABEL_GAP);
+      const parts = this.labelPartsFor({ name: node.name, total: node.total, share: node.total / grandTotal });
       const sin = Math.sin(mid);
-      label.textAlign = Math.abs(sin) < 0.25 ? 'center' : sin > 0 ? 'left' : 'right';
-      label.textBaseline = Math.cos(mid) > 0.6 ? 'bottom' : Math.cos(mid) < -0.6 ? 'top' : 'middle';
-      label.fontSize = labelOptions?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
-      label.fontWeight = labelOptions?.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
-      label.fontFamily = labelOptions?.fontFamily ?? this.env.theme.fontFamily;
-      label.fill = labelOptions?.color ?? this.env.theme.foregroundColor;
-      group.append(label);
+      const cos = Math.cos(mid);
+      // the block is centred on the point it is given, so a label above or
+      // below the ring is lifted off it by half its own height
+      const height = this.labelSize(parts, ctx.measureText).height;
+      const lift = cos > 0.6 ? -height / 2 : cos < -0.6 ? height / 2 : 0;
+      this.drawNodeLabel(
+        group,
+        parts,
+        at.x,
+        at.y + lift,
+        Math.abs(sin) < 0.25 ? 'center' : sin > 0 ? 'left' : 'right',
+        ctx.measureText,
+        ctx.labelGuard,
+      );
     });
     ctx.layer.append(group);
   }

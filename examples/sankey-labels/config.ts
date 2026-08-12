@@ -5,7 +5,7 @@ export function createOptions(): ChartOptions {
   return {
     data: getData(),
     title: { text: 'Budget flow' },
-    subtitle: { text: 'labels with totals, wide nodes, dense links' },
+    subtitle: { text: 'the name and the total of a node, each with its own font' },
     series: [
       {
         type: 'sankey',
@@ -16,8 +16,9 @@ export function createOptions(): ChartOptions {
         linkOpacity: 0.5,
         label: {
           fontSize: 12,
-          fontWeight: 'bold',
-          formatter: ({ name, total }) => `${name} · ${total}K`,
+          // the name and the number are one label, styled apart
+          category: { fontWeight: 'bold' },
+          value: { enabled: true, format: ',.0f', fontSize: 11, color: '#8892a4' },
         },
       },
     ],

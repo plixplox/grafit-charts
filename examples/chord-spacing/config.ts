@@ -5,7 +5,7 @@ export function createOptions(): ChartOptions {
   return {
     data: getData(),
     title: { text: 'User migration between platforms' },
-    subtitle: { text: 'nodeSpacing: 28, dense ribbons, labels with totals' },
+    subtitle: { text: 'nodeSpacing: 28, dense ribbons, a share under every name' },
     series: [
       {
         type: 'chord',
@@ -16,7 +16,8 @@ export function createOptions(): ChartOptions {
         linkOpacity: 0.55,
         label: {
           fontSize: 12,
-          formatter: ({ name, total }) => `${name} (${total})`,
+          // the value half reads as a share of the ring, on a line of its own
+          value: { enabled: true, type: 'percent', fontSize: 10, color: '#8892a4' },
         },
       },
     ],

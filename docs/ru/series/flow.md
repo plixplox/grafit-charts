@@ -11,8 +11,12 @@
 
 ### Подписи и настройка узлов
 
-`label` (шрифт, цвет, `formatter({ name, total })`), `node.width`/`node.spacing`
-и `linkOpacity`:
+Подпись узла — его имя и то, что через него течёт, нарисованные одним блоком:
+`label.category` — имя, `label.value` — число, у каждого свои шрифт, цвет и
+формат; ровно та же форма, что у подписи сектора круговой. Имя печатается само
+по себе, пока `value.enabled` не попросит и число; `layout` ставит половины в
+одну строку вместо двух, а сам `label` несёт шрифт, к которому обе половины
+откатываются. Рядом с ними — `node.width` / `node.spacing` и `linkOpacity`:
 
 ::: chart-example sankey-labels
 
@@ -36,7 +40,8 @@
 ### Отступы и подписи
 
 `nodeSpacing` — зазор между дугами (px по внутреннему радиусу), `linkOpacity` —
-плотность лент, `label.formatter` получает имя и сумму узла:
+плотность лент. Блок подписи тот же, что у санкея: здесь его числовая половина
+читается как доля кольца (`value.type: 'percent'`), а не как сам поток:
 
 ::: chart-example chord-spacing
 
@@ -58,13 +63,24 @@
 | `linkOpacity`      | обе                           | `0.35`       | прозрачность лент потоков       |
 | `nodeSpacing`      | chord                         | `12`         | зазор между дугами узлов, px    |
 | `label.enabled`    | `boolean`                     | `true`       | подписи узлов                   |
-| `label.formatter`  | `({ name, total }) => string` | имя узла     | содержимое                      |
-| `label.fontSize`   | `Pixels`                      | `11`         | размер шрифта подписи           |
+| `label.formatter`  | `({ name, total, share }) => string` | —     | вся подпись сразу; сильнее `category`/`value` |
+| `label.fontSize`   | `Pixels`                      | `11`         | шрифт, к которому откатываются обе половины |
 | `label.fontWeight` | `string \| number`            | `normal`     | насыщенность                    |
 | `label.fontFamily` | `string`                      | шрифт темы   | гарнитура                       |
 | `label.color`      | `ColorValue`                  | foreground   | цвет                            |
+| `label.layout`     | `'stacked' \| 'inline'`       | `'stacked'`  | половины в две строки или в одну |
+| `label.separator`  | `string`                      | `' · '`      | между половинами подписи в одну строку |
+| `label.category`   | `enabled`, шрифт, `format`, `formatter` | вкл. | имя узла                       |
+| `label.value`      | `enabled`, `type`, шрифт, `format`, `formatter` | выкл. | то, что течёт через узел |
+| `label.value.type` | `'value' \| 'percent'`        | `'value'`    | сам поток или его доля от целого |
+| `label.minShare`   | `Fraction`                    | `0`          | доля, начиная с которой узел стоит подписи |
+| `label.avoidOverlap` | `boolean`                   | `false`      | снимать подпись, которой не хватило места |
 | `node.width`       | `Pixels`                      | `14`         | ширина узла sankey              |
 | `node.spacing`     | `Pixels`                      | `14`         | вертикальный зазор узлов sankey |
+
+Целое, от которого считается доля, — то, среди чего стоит узел: своя колонка у
+санкея, всё кольцо у хорды. `minShare` считает от того же целого, поэтому `0.02`
+оставляет без подписей мелочь переполненной колонки.
 
 
 ## Подсказка и имя величины

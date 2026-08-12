@@ -1,11 +1,10 @@
 import { columnHeight, fitNodeSpacing, fitValueScale, MIN_NODE_HEIGHT } from './layout';
-import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
-import { FONT_STEP, themeFont } from '@/shared/kernel';
+import { FlowSeries, type FlowSeriesBaseOptions } from '@/entities/series/base';
 import type { SeriesModule, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
-import type { FontOptions, Pixels, Switchable } from '@/shared/options';
-import { Group, Path, Rect, Text } from '@/shared/scene';
+import type { Pixels } from '@/shared/options';
+import { Group, Path, Rect } from '@/shared/scene';
 
-export interface SankeySeriesOptions extends StandaloneSeriesBaseOptions {
+export interface SankeySeriesOptions extends FlowSeriesBaseOptions {
   type: 'sankey';
   fromField: string;
   toField: string;
@@ -13,17 +12,14 @@ export interface SankeySeriesOptions extends StandaloneSeriesBaseOptions {
   node?: { width?: Pixels; spacing?: Pixels };
   /** Opacity of the flow ribbons (0.35 by default). */
   linkOpacity?: number;
-  /** Node labels. */
-  label?: Switchable &
-    FontOptions & {
-      formatter?: (params: { name: string; total: number }) => string;
-    };
 }
 
 interface SankeyNode {
   name: string;
   depth: number;
   total: number;
+  /** What the whole column carries — the whole this node is a share of. */
+  columnTotal: number;
   x: number;
   y: number;
   height: number;
@@ -34,8 +30,10 @@ interface SankeyNode {
 
 const DEFAULT_NODE_WIDTH = 14;
 const DEFAULT_NODE_SPACING = 14;
+/** Clearance between a node and the label beside it. */
+const LABEL_GAP = 6;
 
-export class SankeySeries extends StandaloneSeries<SankeySeriesOptions> {
+export class SankeySeries extends FlowSeries<SankeySeriesOptions> {
   readonly type = 'sankey';
   private nodes = new Map<string, SankeyNode>();
   private nodeList: SankeyNode[] = [];
@@ -118,12 +116,14 @@ export class SankeySeries extends StandaloneSeries<SankeySeriesOptions> {
       );
       let y = plot.y + (plot.height - span) / 2;
       const x = plot.x + (maxDepth === 0 ? 0 : (d / maxDepth) * (plot.width - nodeWidth));
+      const columnTotal = column.reduce((sum, name) => sum + (totals.get(name) ?? 0), 0);
       for (const name of column) {
         const height = Math.max(MIN_NODE_HEIGHT, (totals.get(name) ?? 0) * valueScale);
         const node: SankeyNode = {
           name,
           depth: d,
           total: totals.get(name) ?? 0,
+          columnTotal,
           x,
           y,
           height,
@@ -174,20 +174,24 @@ export class SankeySeries extends StandaloneSeries<SankeySeriesOptions> {
       group.append(rect);
       this.registerHit(index, node.x - 2, node.y - 2, nodeWidth + 4, node.height + 4);
 
-      if (this.options.label?.enabled === false) return;
-      const labelOptions = this.options.label;
-      const label = new Text();
-      label.text = labelOptions?.formatter ? labelOptions.formatter({ name: node.name, total: node.total }) : node.name;
+      // the label stands beside its node, on the side that has the room: the
+      // last column reads inwards, every other one outwards
+      if (!this.labelsShown || !this.worthLabelling(node.total, node.columnTotal)) return;
+      const parts = this.labelPartsFor({
+        name: node.name,
+        total: node.total,
+        share: node.columnTotal > 0 ? node.total / node.columnTotal : 0,
+      });
       const rightSide = node.x > plot.x + plot.width / 2;
-      label.x = rightSide ? node.x - 6 : node.x + nodeWidth + 6;
-      label.y = node.y + node.height / 2;
-      label.textAlign = rightSide ? 'right' : 'left';
-      label.textBaseline = 'middle';
-      label.fontSize = labelOptions?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
-      label.fontWeight = labelOptions?.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
-      label.fontFamily = labelOptions?.fontFamily ?? this.env.theme.fontFamily;
-      label.fill = labelOptions?.color ?? this.env.theme.foregroundColor;
-      group.append(label);
+      this.drawNodeLabel(
+        group,
+        parts,
+        rightSide ? node.x - LABEL_GAP : node.x + nodeWidth + LABEL_GAP,
+        node.y + node.height / 2,
+        rightSide ? 'right' : 'left',
+        ctx.measureText,
+        ctx.labelGuard,
+      );
     });
     ctx.layer.append(group);
   }
