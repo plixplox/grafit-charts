@@ -286,37 +286,66 @@ the categories around the rim, `radius` for the value rings:
 
 ```js
 axes: {
-  angle: { title: { text: 'Month' }, gridLine: { lineDash: [3, 3] }, line: { enabled: true } },
+  angle: { title: { text: 'Month' }, gridLine: { lineDash: [3, 3] }, line: { stroke: '#64748b' } },
   radius: { title: { text: 'Incidents' }, min: 0, max: 60, ringCount: 3, label: { format: ',.0f' } },
 },
 ```
 
 ::: chart-example polar-axes
 
-`angle.gridLine` is the spokes, `radius.gridLine` the rings; `angle.line` closes
-the web with a rim, `radius.line` draws the vertical the ring values are read
-along. Both are off by default — the web already outlines itself. Labels take a
-`format` or a `formatter`, and the titles stand outside the chart: the category
-one under it, the value one along the left edge. The room they take is gone
-before the grid is fitted, so a title never covers a label.
+The grid inside the web and the outlines around it are two different things, and
+they take two different settings. `angle.gridLine` is the spokes and
+`radius.gridLine` the rings — chrome, so they read as the theme's grid does:
+dashed, faint, behind the data. The outlines are `angle.line`, the rim that
+closes the web, and `radius.line`, the vertical the ring values are read along —
+each with its own stroke, width and dash, both solid and both there by default,
+wherever the theme keeps axis lines. The outermost ring gives way to the rim, so
+the two never stroke the same circle. An empty `lineDash` draws a solid grid line
+where the theme dashes it, and `enabled: false` takes any of the four away.
+
+The value scale is labelled from the centre outwards, the centre included —
+that is where the scale begins, whether the floor is zero or a `min` the options
+set. Labels take a `format` or a `formatter`, and the titles stand outside the
+chart: the category one under it, the value one along the left edge. The room
+they take is gone before the grid is fitted, so a title never covers a label.
 
 The radial-bar chart inverts the layout — its categories are the rings and its
 values are the spokes — but the options follow the meaning rather than the
 shape: `angle` still settles the categories, `radius` still settles the values.
+Its bars sweep part of the circle rather than all of it, so there the rim is a
+decision — `angle.line: { enabled: true }` draws it — while `radius.line` is the
+line the bars stand on, there by default as everywhere else.
 
 | Option               | Type                                                | Default       | Description                            |
 | -------------------- | --------------------------------------------------- | ------------- | -------------------------------------- |
-| `angle.gridLine`     | `enabled`, `stroke`, `width`, `lineDash`, `opacity` | theme         | the spokes                             |
-| `angle.line`         | `enabled`, `stroke`, `width`, `lineDash`            | off           | the rim around the web                 |
+| `angle.gridLine`     | `enabled`, `stroke`, `width`, `lineDash`, `opacity` | theme, dashed | the spokes                             |
+| `angle.line`         | `enabled`, `stroke`, `width`, `lineDash`            | on (rim)      | the rim around the web                 |
 | `angle.label`        | `enabled`, font, `format`, `formatter`              | on            | the category names                     |
 | `angle.title`        | `enabled`, `text`, font                             | —             | title under the chart                  |
-| `radius.gridLine`    | as above                                            | theme         | the rings                              |
-| `radius.line`        | as above                                            | off           | the vertical the values are read along |
+| `radius.gridLine`    | as above                                            | theme, dashed | the rings                              |
+| `radius.line`        | as above                                            | on            | the vertical the values are read along |
 | `radius.label`       | `enabled`, font, `format`, `formatter`              | on            | the ring values                        |
 | `radius.title`       | `enabled`, `text`, font                             | —             | title along the left edge              |
 | `radius.min` / `max` | `number`                                            | from the data | bounds of the value scale              |
 | `radius.nice`        | `boolean`                                           | `true`        | round the bounds out to whole steps    |
 | `radius.ringCount`   | `number`                                            | `4`           | how many rings the values are read off |
+
+### Every option at once
+
+The whole table spelled out, with every option set away from what it would
+default to — the same block on a rose and on a radar. Nothing in it is about the
+shape of the web: the rings come out as circles on one and as polygons on the
+other because of the series, not the axes.
+
+::: chart-example polar-axes-full
+
+::: chart-example radar-axes-full
+
+Worth reading off the pair: `nice: false` keeps `max` exactly where it was put,
+so the outermost ring stops short of the rim on the rose and lands on it on the
+radar — where it does land, the rim keeps the line and the ring gives way.
+`format` on one axis and `formatter` on the other; a formatter wins over a
+format string wherever both are given.
 
 ## Axis options
 

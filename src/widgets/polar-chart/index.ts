@@ -8,6 +8,7 @@ import {
   resolveTitleStyle,
   titleInsets,
   type PolarAxesOptions,
+  type ResolvedAxisLine,
   type ResolvedAxisText,
   type ResolvedGridLine,
 } from './axes';
@@ -92,6 +93,8 @@ const INVERSE_LABEL_GAP = 6;
 const AXIS_TITLE_GAP = 6;
 /** The inverted layout carries more rings, so its web fades back further. */
 const INVERSE_GRID_OPACITY = 0.2;
+/** Rings closer together than this, in px, are one line — one of them goes. */
+const RING_EPSILON = 0.5;
 
 /** A category label around the rim, ready to be placed on its spoke. */
 interface RimLabel {
@@ -190,10 +193,13 @@ export class PolarChart implements ChartWidget {
     const backgroundLayer = this.scene.layer('background');
     const gridLayer = this.scene.layer('grid');
     const seriesLayer = this.scene.layer('series');
+    // the web runs under the data, but the numbers it is read by must not: the
+    // value at the centre of a rose would be buried by the first petal drawn
+    const axisForegroundLayer = this.scene.layer('axis-foreground');
     const legendLayer = this.scene.layer('legend');
     const captionLayer = this.scene.layer('caption');
     const overlayLayer = this.scene.layer('overlay');
-    for (const layer of [backgroundLayer, gridLayer, seriesLayer, legendLayer, captionLayer, overlayLayer]) {
+    for (const layer of [backgroundLayer, gridLayer, seriesLayer, axisForegroundLayer, legendLayer, captionLayer, overlayLayer]) {
       layer.clear();
     }
     this.scene.markDirty();
@@ -302,7 +308,7 @@ export class PolarChart implements ChartWidget {
       radiusBandScale = new BandScale(categories, [radius * 0.25, radius]);
       radiusBandScale.paddingInner = 0.25;
       radiusBandScale.paddingOuter = 0.05;
-      this.renderInverseGrid(gridLayer, centerX, centerY, radiusBandScale, angleValueScale, measureText);
+      this.renderInverseGrid(gridLayer, axisForegroundLayer, centerX, centerY, radiusBandScale, angleValueScale, measureText);
     }
 
     let angleScale: BandScale<unknown> | undefined;
@@ -343,6 +349,7 @@ export class PolarChart implements ChartWidget {
       const kept = thinLabels(this.rimLabelBounds(labels, centerX, centerY, radius), { closed: true });
       this.renderPolarGrid(
         gridLayer,
+        axisForegroundLayer,
         centerX,
         centerY,
         angleScale,
@@ -416,25 +423,40 @@ export class PolarChart implements ChartWidget {
     return themeFont(this.theme, FONT_STEP.small);
   }
 
-  /** Font of the labels around the rim — the same one renderPolarGrid draws with. */
-  private rimLabelFont(fontSize: number): string {
-    return `normal ${fontSize}px ${this.theme.fontFamily}`;
+  /**
+   * Style of the category names, and of the ring values. The grid is fitted to
+   * the labels before it is drawn, so both passes have to ask the same question
+   * — a label measured in one font and drawn in another would not fit the room
+   * kept for it.
+   */
+  private get categoryStyle(): ResolvedAxisText {
+    return resolveLabelStyle(this.inputs.axes?.angle?.label, this.theme, this.categoryLabelSize);
   }
 
-  /** Category labels around the rim: text, its spoke angle and its measured width. */
+  private get valueStyle(): ResolvedAxisText {
+    return resolveLabelStyle(this.inputs.axes?.radius?.label, this.theme, this.ringLabelSize);
+  }
+
+  /**
+   * Category labels around the rim: the text a formatter settled on, its spoke
+   * angle and its measured width.
+   */
   private rimLabels(categories: unknown[], angleScale: BandScale<unknown>, measureText: MeasureText): RimLabel[] {
-    const font = this.rimLabelFont(this.categoryLabelSize);
-    return categories.map((category) => {
-      const text = String(category);
+    const font = axisFont(this.categoryStyle);
+    const options = this.inputs.axes?.angle?.label;
+    return categories.map((category, index) => {
+      const text = axisLabelText(category, index, options);
       return { text, angle: angleScale.center(category), width: measureText(text, font) };
     });
   }
 
-  /** Boxes the rim labels cover for a given grid radius. */
+  /** Boxes the rim labels cover for a given grid radius; none where they are switched off. */
   private rimLabelBounds(labels: RimLabel[], centerX: number, centerY: number, radius: number): Bounds[] {
+    const style = this.categoryStyle;
+    if (!style.visible) return [];
     return labels.map((label) => {
       const placed = placeRimLabel(centerX, centerY, radius + RIM_LABEL_GAP, label.angle);
-      return textBounds(placed.x, placed.y, label.width, this.categoryLabelSize, placed.align, placed.baseline);
+      return textBounds(placed.x, placed.y, label.width, style.size, placed.align, placed.baseline);
     });
   }
 
@@ -454,26 +476,36 @@ export class PolarChart implements ChartWidget {
     angleValueScale: LinearScale,
     measureText: MeasureText,
   ): PolarFit {
-    const categoryFont = this.rimLabelFont(this.categoryLabelSize);
-    const tickFont = this.rimLabelFont(this.ringLabelSize);
-    const names = categories.map((category) => measureText(String(category), categoryFont));
-    const ticks = angleValueScale
-      .ticks(4)
-      .filter((tick) => tick > 0)
-      .map((tick) => ({ angle: angleValueScale.convert(tick), width: measureText(String(tick), tickFont) }));
+    const categoryStyle = this.categoryStyle;
+    const valueStyle = this.valueStyle;
+    const categoryFont = axisFont(categoryStyle);
+    const tickFont = axisFont(valueStyle);
+    const names = categoryStyle.visible
+      ? categories.map((category, index) => measureText(axisLabelText(category, index, this.inputs.axes?.angle?.label), categoryFont))
+      : [];
+    const ticks = valueStyle.visible
+      ? angleValueScale.ticks(this.ringCount).map((tick, index) => ({
+          angle: angleValueScale.convert(tick),
+          width: measureText(axisLabelText(tick, index, this.inputs.axes?.radius?.label), tickFont),
+        }))
+      : [];
     return fitPolarGrid(area, startRadius, (centerX, centerY, radius) => [
       // the widest category name, measured from the innermost ring it can sit on
-      ...names.map((width) => textBounds(centerX - INVERSE_LABEL_GAP, centerY - radius, width, this.categoryLabelSize, 'right', 'middle')),
+      ...names.map((width) => textBounds(centerX - INVERSE_LABEL_GAP, centerY - radius, width, categoryStyle.size, 'right', 'middle')),
       ...ticks.map((tick) => {
         const at = placeRimLabel(centerX, centerY, radius + RIM_LABEL_GAP, tick.angle);
-        return textBounds(at.x, at.y, tick.width, this.ringLabelSize, 'center', 'middle');
+        return textBounds(at.x, at.y, tick.width, valueStyle.size, 'center', 'middle');
       }),
     ]);
   }
 
-  /** Grid: rings (polygon for radar, circles for radial), spokes, labels. */
+  /**
+   * Grid: rings (polygon for radar, circles for radial), spokes, labels. The
+   * web goes on `layer`, under the data; the labels on `labelLayer`, over it.
+   */
   private renderPolarGrid(
     layer: Group,
+    labelLayer: Group,
     centerX: number,
     centerY: number,
     angleScale: BandScale<unknown>,
@@ -485,19 +517,27 @@ export class PolarChart implements ChartWidget {
     const axes = this.inputs.axes;
     const categories = angleScale.domain;
     const polygonal = visibleSeries.some((series) => series.type.startsWith('radar'));
+    const corners = polygonal && categories.length > 2 ? categories.map((category) => angleScale.center(category)) : undefined;
     const maxRadius = radiusScale.range[1];
-    const ticks = radiusScale.ticks(this.ringCount).filter((tick) => tick > 0);
+    // every tick of the value axis, the one at the centre included: it has no
+    // ring to draw, but it is still a number the web is read by
+    const ticks = radiusScale.ticks(this.ringCount).map((tick) => ({ value: tick, radius: radiusScale.convert(tick) }));
     const rings = resolveGridLine(axes?.radius?.gridLine, this.theme);
     const spokes = resolveGridLine(axes?.angle?.gridLine, this.theme);
-    const rim = resolveAxisLine(axes?.angle?.line, this.theme);
-    const valueLine = resolveAxisLine(axes?.radius?.line, this.theme);
-    const categoryStyle = resolveLabelStyle(axes?.angle?.label, this.theme, this.categoryLabelSize);
-    const valueStyle = resolveLabelStyle(axes?.radius?.label, this.theme, this.ringLabelSize);
+    // both axes get an outline of their own, as a cartesian pair does: the rim
+    // closes the categories, the vertical carries the values from the centre out
+    const rim = resolveAxisLine(axes?.angle?.line, this.theme, this.theme.axis.line);
+    const valueLine = resolveAxisLine(axes?.radius?.line, this.theme, this.theme.axis.line);
+    const { categoryStyle, valueStyle } = this;
 
-    // the rings of the value axis: a polygon where the data is a polygon
+    // the rings of the value axis: a polygon where the data is a polygon. The
+    // outermost one gives way to the rim — the outline is that line's to draw,
+    // and two strokes on one circle only fight each other
     if (rings.visible) {
       for (const tick of ticks) {
-        layer.append(this.ringNode(centerX, centerY, radiusScale.convert(tick), polygonal, categories, angleScale, rings));
+        if (tick.radius <= RING_EPSILON) continue;
+        if (rim.visible && Math.abs(maxRadius - tick.radius) <= RING_EPSILON) continue;
+        layer.append(this.ringNode(centerX, centerY, tick.radius, corners, rings));
       }
     }
     // a spoke per category — the web stays whole even where a label was dropped
@@ -518,24 +558,9 @@ export class PolarChart implements ChartWidget {
     }
     // the rim closes the category axis, the vertical stands for the value one
     if (rim.visible) {
-      layer.append(
-        this.ringNode(centerX, centerY, maxRadius, polygonal, categories, angleScale, {
-          ...rim,
-          opacity: 1,
-        }),
-      );
+      layer.append(this.ringNode(centerX, centerY, maxRadius, corners, { ...rim, opacity: 1 }));
     }
-    if (valueLine.visible) {
-      const line = new Line();
-      line.x1 = centerX;
-      line.y1 = centerY;
-      line.x2 = centerX;
-      line.y2 = centerY - maxRadius;
-      line.stroke = valueLine.stroke;
-      line.strokeWidth = valueLine.width;
-      if (valueLine.lineDash) line.lineDash = valueLine.lineDash;
-      layer.append(line);
-    }
+    if (valueLine.visible) layer.append(verticalAxisLine(centerX, centerY, maxRadius, valueLine));
 
     const categoryFont = axisFont(categoryStyle);
     const rimBounds = categoryStyle.visible
@@ -551,7 +576,7 @@ export class PolarChart implements ChartWidget {
           label.fill = categoryStyle.color;
           label.textAlign = placed.align;
           label.textBaseline = placed.baseline;
-          layer.append(label);
+          labelLayer.append(label);
           return textBounds(
             placed.x,
             placed.y,
@@ -565,12 +590,14 @@ export class PolarChart implements ChartWidget {
 
     if (!valueStyle.visible) return;
     // ring values climb the vertical at twelve o'clock, where the category
-    // label of the first spoke already is: the outermost one gives way to it
+    // label of the first spoke already is: the outermost one gives way to it.
+    // The run starts at the centre — where the scale begins, whether that is
+    // zero or a floor the options set — so the web has a value to be read from
     const ringFont = axisFont(valueStyle);
     const ringLabels = ticks.map((tick, index) => {
-      const text = axisLabelText(tick, index, axes?.radius?.label);
+      const text = axisLabelText(tick.value, index, axes?.radius?.label);
       const x = centerX + RING_LABEL_GAP;
-      const y = centerY - radiusScale.convert(tick) - RING_LABEL_LIFT;
+      const y = centerY - tick.radius - RING_LABEL_LIFT;
       return { text, x, y, bounds: textBounds(x, y, measureText(text, ringFont), valueStyle.size, 'left', 'alphabetic') };
     });
     for (const index of keepClearOf(
@@ -587,7 +614,7 @@ export class PolarChart implements ChartWidget {
       label.fontFamily = valueStyle.family;
       label.fontWeight = valueStyle.weight;
       label.fill = valueStyle.color;
-      layer.append(label);
+      labelLayer.append(label);
     }
   }
 
@@ -596,20 +623,15 @@ export class PolarChart implements ChartWidget {
     return Math.max(1, Math.round(this.inputs.axes?.radius?.ringCount ?? DEFAULT_RING_COUNT));
   }
 
-  /** One ring of the web: a circle, or a polygon where the data is a polygon. */
-  private ringNode(
-    centerX: number,
-    centerY: number,
-    radius: number,
-    polygonal: boolean,
-    categories: unknown[],
-    angleScale: BandScale<unknown>,
-    style: ResolvedGridLine,
-  ): Path | Circle {
-    const node = polygonal && categories.length > 2 ? new Path() : new Circle();
+  /**
+   * One ring of the web: a polygon through `corners` — the spoke angles — where
+   * the data is a polygon, a circle where it is not.
+   */
+  private ringNode(centerX: number, centerY: number, radius: number, corners: number[] | undefined, style: ResolvedGridLine): Path | Circle {
+    const node = corners ? new Path() : new Circle();
     if (node instanceof Path) {
-      categories.forEach((category, index) => {
-        const point = pointAt(centerX, centerY, angleScale.center(category), radius);
+      corners?.forEach((angle, index) => {
+        const point = pointAt(centerX, centerY, angle, radius);
         if (index === 0) node.moveTo(point.x, point.y);
         else node.lineTo(point.x, point.y);
       });
@@ -663,6 +685,7 @@ export class PolarChart implements ChartWidget {
   /** Inverted layout grid (radial-bar): category rings + value spokes. */
   private renderInverseGrid(
     layer: Group,
+    labelLayer: Group,
     centerX: number,
     centerY: number,
     radiusBandScale: BandScale<unknown>,
@@ -675,8 +698,9 @@ export class PolarChart implements ChartWidget {
     // rings, the values are the spokes — the options follow the meaning, not the shape
     const categoryRings = resolveGridLine(axes?.angle?.gridLine, this.theme, INVERSE_GRID_OPACITY);
     const valueSpokes = resolveGridLine(axes?.radius?.gridLine, this.theme, INVERSE_GRID_OPACITY);
-    const categoryStyle = resolveLabelStyle(axes?.angle?.label, this.theme, this.categoryLabelSize);
-    const valueStyle = resolveLabelStyle(axes?.radius?.label, this.theme, this.ringLabelSize);
+    const rim = resolveAxisLine(axes?.angle?.line, this.theme);
+    const valueLine = resolveAxisLine(axes?.radius?.line, this.theme, this.theme.axis.line);
+    const { categoryStyle, valueStyle } = this;
     if (categoryRings.visible) {
       for (const category of categories) {
         const ring = new Circle();
@@ -719,15 +743,23 @@ export class PolarChart implements ChartWidget {
         label.fontFamily = categoryStyle.family;
         label.fontWeight = categoryStyle.weight;
         label.fill = categoryStyle.color;
-        layer.append(label);
+        labelLayer.append(label);
       }
     }
     const maxRadius = radiusBandScale.range[1];
+    // the vertical is the zero the bars grow from — the value axis' own line,
+    // there by default. The rim is asked for: the bars sweep part of the circle,
+    // so a ring all the way round is a decision rather than a default
+    if (rim.visible) {
+      layer.append(this.ringNode(centerX, centerY, maxRadius, undefined, { ...rim, opacity: 1 }));
+    }
+    if (valueLine.visible) layer.append(verticalAxisLine(centerX, centerY, maxRadius, valueLine));
     angleValueScale.ticks(this.ringCount).forEach((tick, index) => {
-      if (tick <= 0) return;
       const angle = angleValueScale.convert(tick);
       const end = { x: centerX + Math.sin(angle) * maxRadius, y: centerY - Math.cos(angle) * maxRadius };
-      if (valueSpokes.visible) {
+      // the spoke of the first tick is the line the bars start on: the value
+      // axis draws it, or nothing does — the grid keeps off it
+      if (valueSpokes.visible && tick > 0) {
         const spoke = new Line();
         spoke.x1 = centerX;
         spoke.y1 = centerY;
@@ -751,7 +783,7 @@ export class PolarChart implements ChartWidget {
       label.fontFamily = valueStyle.family;
       label.fontWeight = valueStyle.weight;
       label.fill = valueStyle.color;
-      layer.append(label);
+      labelLayer.append(label);
     });
   }
 
@@ -1131,6 +1163,23 @@ export class PolarChart implements ChartWidget {
     this.transitionAnimator.stop();
     this.tooltip?.destroy();
   }
+}
+
+/**
+ * The line of the value axis: the vertical at twelve o'clock, from the centre —
+ * where the scale starts — out to the rim. The values are read up it in both
+ * layouts, and in the inverted one the bars stand on it.
+ */
+function verticalAxisLine(centerX: number, centerY: number, maxRadius: number, style: ResolvedAxisLine): Line {
+  const line = new Line();
+  line.x1 = centerX;
+  line.y1 = centerY;
+  line.x2 = centerX;
+  line.y2 = centerY - maxRadius;
+  line.stroke = style.stroke;
+  line.strokeWidth = style.width;
+  if (style.lineDash) line.lineDash = style.lineDash;
+  return line;
 }
 
 function pointAt(centerX: number, centerY: number, angle: number, radius: number): { x: number; y: number } {

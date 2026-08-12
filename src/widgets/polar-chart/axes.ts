@@ -9,16 +9,24 @@ import type { ThemeContext } from '@/shared/kernel';
 import type { ColorValue, FontOptions, Fraction, Pixels, Switchable } from '@/shared/options';
 import { formatValue } from '@/shared/util';
 
-/** A line of the web: the rings of the value axis, the spokes of the category one. */
+/**
+ * A line inside the web: the rings of the value axis, the spokes of the category
+ * one. The grid is chrome rather than an outline, so it takes the theme's grid
+ * dash — dashed unless a theme or an option says otherwise.
+ */
 export interface PolarGridLineOptions extends Switchable {
   stroke?: ColorValue;
   width?: Pixels;
+  /** Dash pattern; an empty array draws a solid line. The theme's grid dash by default. */
   lineDash?: Pixels[];
   /** How far the line fades back behind the data (0.3 by default). */
   opacity?: Fraction;
 }
 
-/** The outline of an axis: the rim for the categories, the vertical for the values. */
+/**
+ * The outline of an axis, drawn apart from the grid it encloses: the rim for the
+ * categories, the vertical for the values. Solid unless a theme says otherwise.
+ */
 export interface PolarAxisLineOptions extends Switchable {
   stroke?: ColorValue;
   width?: Pixels;
@@ -92,14 +100,15 @@ export interface ResolvedGridLine {
 /**
  * Style of a web line: the option first, then the theme's axis tokens, then the
  * plain axis colour — the cascade `BaseAxis` uses, so a theme that dresses one
- * chart dresses the other.
+ * chart dresses the other. The dash comes from the same token a cartesian grid
+ * reads, which is how the web ends up dashed where a plot grid is.
  */
 export function resolveGridLine(options: PolarGridLineOptions | undefined, theme: ThemeContext, opacity = DEFAULT_GRID_OPACITY): ResolvedGridLine {
   return {
     visible: options?.enabled ?? theme.axis.gridLine,
     stroke: options?.stroke ?? theme.axis.gridColor ?? theme.mutedColor,
     width: options?.width ?? theme.axis.strokeWidth,
-    lineDash: options?.lineDash,
+    lineDash: options?.lineDash ?? theme.axis.gridDash,
     opacity: options?.opacity ?? opacity,
   };
 }
@@ -111,10 +120,14 @@ export interface ResolvedAxisLine {
   lineDash?: Pixels[];
 }
 
-/** Style of an axis outline. Off unless asked for: the web already draws itself. */
-export function resolveAxisLine(options: PolarAxisLineOptions | undefined, theme: ThemeContext): ResolvedAxisLine {
+/**
+ * Style of an axis outline. Whether it is there at all is the caller's to say:
+ * the rim closes the web and follows the theme's axis-line switch, the vertical
+ * inside it is asked for.
+ */
+export function resolveAxisLine(options: PolarAxisLineOptions | undefined, theme: ThemeContext, defaultVisible = false): ResolvedAxisLine {
   return {
-    visible: options?.enabled === true,
+    visible: options?.enabled ?? defaultVisible,
     stroke: options?.stroke ?? theme.axis.color ?? theme.axisColor,
     width: options?.width ?? theme.axis.strokeWidth,
     lineDash: options?.lineDash ?? theme.axis.lineDash,

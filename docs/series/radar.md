@@ -37,6 +37,29 @@ never overlap at twelve o'clock.
 
 ::: chart-example radar-many-categories
 
+## The web and its outlines
+
+The lines around the web and the lines inside it do different jobs, so they take
+different settings. The rim (`axes.angle.line`) and the vertical the values are
+read along (`axes.radius.line`) are outlines: solid, in the axis colour, each
+with its own stroke, width and dash. The spokes (`axes.angle.gridLine`) and the
+rings (`axes.radius.gridLine`) are chrome: dashed and faint, as a cartesian grid
+is, and following the same theme token. Where a ring would land on the rim, the
+rim keeps it — one circle, one stroke.
+
+The value scale is labelled from the centre out, the centre included: that is
+where the scale starts, and a web whose middle carries no number is a web with
+nothing to read the first ring against.
+
+```js
+axes: {
+  angle: { line: { stroke: '#64748b', width: 1.5 }, gridLine: { opacity: 0.45 } },
+  radius: { max: 10, ringCount: 5, line: { stroke: '#94a3b8', width: 1.5 } },
+},
+```
+
+::: chart-example radar-grid-style
+
 ## Options
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).

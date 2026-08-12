@@ -10,7 +10,7 @@ export function createOptions(): ChartOptions {
       angle: {
         title: { text: 'Month' },
         gridLine: { lineDash: [3, 3], opacity: 0.5 },
-        line: { enabled: true },
+        line: { stroke: '#64748b' },
       },
       radius: {
         title: { text: 'Incidents' },

@@ -48,12 +48,25 @@ describe('web lines', () => {
     expect(resolveGridLine(undefined, theme).opacity).toBe(0.3);
     expect(resolveGridLine(undefined, theme, 0.2).opacity).toBe(0.2);
   });
+
+  it('are dashed by the theme, as a cartesian grid is — and solid on an empty dash', () => {
+    expect(resolveGridLine(undefined, theme).lineDash).toEqual([4, 4]);
+    expect(resolveGridLine(undefined, { ...theme, axis: { ...theme.axis, gridDash: [] } }).lineDash).toEqual([]);
+    expect(resolveGridLine({ lineDash: [] }, theme).lineDash).toEqual([]);
+  });
 });
 
 describe('axis outlines', () => {
-  it('stay off until asked for — the web already draws itself', () => {
+  it('are there when the caller says so — the rim follows the theme, the vertical is asked for', () => {
     expect(resolveAxisLine(undefined, theme).visible).toBe(false);
+    expect(resolveAxisLine(undefined, theme, true).visible).toBe(true);
     expect(resolveAxisLine({ enabled: true }, theme).visible).toBe(true);
+    expect(resolveAxisLine({ enabled: false }, theme, true).visible).toBe(false);
+  });
+
+  it('stay solid where the grid is dashed — an outline is not chrome', () => {
+    expect(resolveAxisLine({ enabled: true }, theme).lineDash).toBeUndefined();
+    expect(resolveAxisLine({ enabled: true }, { ...theme, axis: { ...theme.axis, lineDash: [6, 2] } }).lineDash).toEqual([6, 2]);
   });
 
   it('take the axis colour of the theme over the plain one', () => {
