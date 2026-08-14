@@ -218,6 +218,27 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
   /** Tick positions in pixels and their values. */
   protected abstract tickInfo(): Array<{ value: unknown; coord: number }>;
 
+  /**
+   * The ticks the layout measures itself against. Usually the ones on screen —
+   * but partway through an update those are only the ones the frame has reached,
+   * and a layout following them would give the plot back the room of a label
+   * that has not arrived yet, then take it away the moment it does. So an axis
+   * that walks between scales answers here with the ticks it is settling on,
+   * at the places they will settle in.
+   */
+  protected measurementTicks(): Array<{ value: unknown; coord: number; index: number }> {
+    return this.displayTicks();
+  }
+
+  /**
+   * How much of its band a tick's category holds, 0..1 — whole for everything
+   * an axis without bands carries, and less for a category on its way in or out
+   * of an update.
+   */
+  protected tickWeight(_value: unknown): number {
+    return 1;
+  }
+
   protected formatTick(value: unknown, index: number): string {
     const formatter = this.options.label?.formatter;
     if (formatter) return formatter({ value, index });
@@ -326,7 +347,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       } else {
         const font = this.labelFont();
         const cap = this.labelMaxWidth;
-        const widths = this.displayTicks().map(({ value, index }) => measureText(this.tickLabel(value, index, cap, measureText), font));
+        const widths = this.measurementTicks().map(({ value, index }) => measureText(this.tickLabel(value, index, cap, measureText), font));
         thickness += widths.length > 0 ? Math.max(...widths) : 0;
       }
     }
@@ -348,7 +369,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     const font = this.labelFont();
     const fontSize = this.labelSize;
     let overflow = NO_OVERFLOW;
-    const ticks = this.displayTicks();
+    const ticks = this.measurementTicks();
     const room = this.labelRoom(ticks);
     for (const { value, coord, index } of ticks) {
       const half = this.isHorizontal ? measureText(this.tickLabel(value, index, room, measureText), font) / 2 : fontSize / 2;
@@ -387,7 +408,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
 
     const gridOptions = this.options.gridLine;
     if (gridOptions?.enabled ?? theme.axis.gridLine) {
-      for (const { coord } of ticks) {
+      for (const { value, coord } of ticks) {
         const grid = new Line();
         if (this.isHorizontal) {
           grid.x1 = grid.x2 = coord;
@@ -398,6 +419,8 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
           grid.x1 = plot.x;
           grid.x2 = plot.x + plot.width;
         }
+        // a grid line fades with the tick it belongs to, on its way in or out
+        grid.opacity = this.tickWeight(value);
         grid.stroke = gridOptions?.stroke ?? theme.axis.gridColor ?? theme.axisColor;
         grid.strokeWidth = gridOptions?.width ?? theme.axis.strokeWidth;
         grid.lineDash = gridOptions?.lineDash ?? theme.axis.gridDash;
@@ -411,7 +434,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     const tickSize = tickOptions?.size ?? theme.axis.tickSize ?? TICK_SIZE;
     const direction = this.outwardSign();
     if (this.ticksVisible) {
-      for (const { coord } of ticks) {
+      for (const { value, coord } of ticks) {
         const tick = new Line();
         if (this.isHorizontal) {
           tick.x1 = tick.x2 = coord;
@@ -422,6 +445,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
           tick.x1 = edge;
           tick.x2 = edge + tickSize * direction;
         }
+        tick.opacity = this.tickWeight(value);
         tick.stroke = tickOptions?.stroke ?? tickOptions?.color ?? theme.axis.tickColor ?? theme.axisColor;
         tick.strokeWidth = tickOptions?.width ?? theme.axis.strokeWidth;
         if (tickOptions?.lineDash?.length) tick.lineDash = tickOptions.lineDash;
@@ -442,6 +466,10 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       let maxLabelSize = 0;
       for (const { value, coord, index } of ticks) {
         const text = this.labelNode(this.tickLabel(value, index, labelRoom, this.ownMeasureText));
+        // a category arriving or leaving during an update owns part of a band,
+        // and its name fades with it — two names at full strength over a band
+        // that is closing would sit on top of each other on the way out
+        text.opacity = this.tickWeight(value);
         if (this.isHorizontal) {
           text.x = coord;
           text.y = edge + labelExtent * direction;

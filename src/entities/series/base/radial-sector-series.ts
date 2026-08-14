@@ -58,6 +58,10 @@ export abstract class RadialSectorSeries<O extends RadialSectorSeriesBaseOptions
     return data.map((datum) => datum[this.options.angleField]);
   }
 
+  override valueFields(): string[] {
+    return [this.options.radiusField];
+  }
+
   override radiusDomain(data: Datum[]): [number, number] | undefined {
     const domain = extent(numericValues(data, this.options.radiusField));
     if (!domain) return undefined;

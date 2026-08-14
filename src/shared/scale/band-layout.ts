@@ -70,7 +70,8 @@ class CategoryBands implements BandLayout {
   bandOf(value: unknown): Band | undefined {
     const start = this.scale.convert(value);
     if (Number.isNaN(start)) return undefined;
-    return { start, size: this.scale.bandwidth, step: this.scale.stepSize };
+    // a category on its way in or out has a band of its own width
+    return { start, size: this.scale.bandwidthOf(value), step: this.scale.stepSize };
   }
 }
 

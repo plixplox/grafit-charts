@@ -100,6 +100,10 @@ const LABEL_SPREAD_GAP = 5;
 export class PyramidSeries extends StandaloneSeries<PyramidSeriesOptions> {
   readonly type = 'pyramid';
 
+  override valueFields(): string[] {
+    return [this.options.valueField];
+  }
+
   update(ctx: StandaloneRenderContext): void {
     this.lastCtx = ctx;
     this.hits = [];

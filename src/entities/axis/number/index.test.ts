@@ -127,3 +127,55 @@ describe('ticks against the axis length', () => {
     expect(gridLabels(40).length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('domain of a frame partway through an update', () => {
+  it('the bounds walk from where the axis stood to where the data arrives', () => {
+    const instance = axis({}, 'left', [0, 80]);
+    instance.setTransitionDomain([0, 40], 0.5);
+    expect(instance.scale.domain).toEqual([0, 60]);
+    instance.setTransitionDomain([0, 40], 1);
+    expect(instance.scale.domain).toEqual([0, 80]);
+  });
+
+  it('both scales are on the axis while it walks: the old ticks fade out as the new fade in', () => {
+    const instance = axis({}, 'left', [0, 80]);
+    // 0/20/40 belong to both scales, 10/30 only to the one being left, 60/80 only to the settled one
+    instance.setTransitionDomain([0, 40], 0.9);
+    const drawn = new Map(tickNodes(instance).map((tick) => [tick.value, tick.opacity]));
+    expect(drawn.get(20)).toBe(1);
+    expect(drawn.get(30)).toBeCloseTo(0.1);
+    expect(drawn.get(60)).toBeCloseTo(0.9);
+    // 80 is past the bounds of this frame; it arrives once the walk brings it in
+    expect(drawn.has(80)).toBe(false);
+  });
+
+  it('the room a frame asks for is the room the settled scale needs, from the first frame on', () => {
+    // 0..800 walking to 0..1000: the label of the top tick is wider, and the
+    // tick itself is only reached at the very end
+    const partway = axis({}, 'left', [0, 1000]);
+    partway.setTransitionDomain([0, 800], 0.05);
+    const settled = axis({}, 'left', [0, 1000]);
+    expect(partway.measure(measureText)).toBe(settled.measure(measureText));
+    expect(partway.labelOverflow?.(measureText, plot)).toEqual(settled.labelOverflow?.(measureText, plot));
+  });
+
+  it('round numbers throughout — a frame never prints a value nobody chose', () => {
+    const instance = axis({}, 'left', [0, 80]);
+    instance.setTransitionDomain([0, 40], 0.37);
+    for (const { value } of tickNodes(instance)) expect(value % 10).toBe(0);
+  });
+});
+
+/** Tick labels the axis prints, with how present each of them is. */
+function tickNodes(instance: NumberAxis): Array<{ value: number; opacity: number }> {
+  const layer = new Group();
+  const nodes: Array<{ value: number; opacity: number }> = [];
+  layer.append = ((...appended) => {
+    for (const node of appended) {
+      if (node instanceof Text && Number.isFinite(Number(node.text))) nodes.push({ value: Number(node.text), opacity: node.opacity });
+    }
+    return layer;
+  }) as typeof layer.append;
+  instance.render(layer, new Group(), plot);
+  return nodes;
+}

@@ -90,6 +90,11 @@ export class HtmlTooltip {
     this.element.style.top = `${Math.max(2, Math.min(top, maxY))}px`;
   }
 
+  /** Whether it is on screen — a tooltip already shown is one worth re-reading when the data moves. */
+  get visible(): boolean {
+    return this.element.style.display !== 'none';
+  }
+
   hide(): void {
     this.element.style.display = 'none';
   }

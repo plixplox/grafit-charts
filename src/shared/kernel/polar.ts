@@ -70,6 +70,12 @@ export interface PolarSeriesInstance {
    * so without this a legend filter would last only until the next one.
    */
   setHiddenItems?(hidden: ReadonlySet<number>): void;
+  /**
+   * The numeric fields of the series — a sector reads its share from these,
+   * and a row entering an update grows out of their base rather than blinking
+   * into place. The angle field of a pie is a value; of a radar, a category.
+   */
+  valueFields?(): string[];
   /** Angle categories (for the angle scale and grid labels). */
   angleValues(data: Datum[]): unknown[];
   /** Radius value domain. */

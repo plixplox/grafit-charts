@@ -5,7 +5,7 @@ import type { ChartState } from '@/features/chart-state';
 import type { ContextMenuApi, ContextMenuItem } from '@/features/context-menu';
 import { canvasDataUrl, downloadCanvas, type DownloadOptions } from '@/features/export';
 import { localize } from '@/features/locale';
-import { Animator } from '@/shared/animation';
+import { Animator, planDataTransition, type AnimationOptions } from '@/shared/animation';
 import { InteractionManager } from '@/shared/interaction';
 import { warnMissingFeature, type ChartKind } from '@/shared/kernel';
 import type { DomainAnchor, ImperativeOptions, NodeRef, SelectedNode, ZoomWindow } from '@/shared/kernel';
@@ -149,6 +149,7 @@ export function createChart(options: ChartOptions): ChartInstance {
   let destroyed = false;
   let fontGeneration = 0;
   let fontsSettled: Promise<void> = Promise.resolve();
+  let transitionSettled: Promise<void> = Promise.resolve();
   let fontsAutoReload = true;
   const fontWatcher = new FontWatcher();
   const dataTransition = new Animator();
@@ -163,28 +164,39 @@ export function createChart(options: ChartOptions): ChartInstance {
     syncFonts(effective, theme);
     const oldData = previousData;
     previousData = effective.data;
+    // a transition in flight is left where it stands: the frames it drew are
+    // where the next one starts from, so a chart updated twice in a row moves
+    // on from what is on screen instead of jumping back
+    dataTransition.stop();
 
-    // update transition: same data length → interpolate numeric fields
-    if (
-      oldData &&
-      effective.data &&
-      oldData !== effective.data &&
-      oldData.length === effective.data.length &&
-      oldData.length > 0 &&
-      effective.animation?.enabled !== false
-    ) {
+    // the options are applied once, at the values the update arrives at: the
+    // series, the axes and the legend are built here, and the data alone moves
+    // from frame to frame after that
+    widget.setOptions(effective as never, theme);
+
+    const setData = widget.setData?.bind(widget);
+    const transition =
+      oldData && effective.data && oldData !== effective.data && setData && transitionsEnabled(effective.animation)
+        ? planDataTransition(oldData, effective.data, {
+            key: effective.animation?.key,
+            valueFields: widget.valueFields?.(),
+          })
+        : undefined;
+
+    if (transition && setData) {
       const target = effective.data;
-      dataTransition.play(effective.animation?.duration ?? 450, (t) => {
-        const frame = target.map((datum, index) => lerpDatum(oldData[index] ?? datum, datum, t));
-        widget.setOptions({ ...effective, data: frame, animation: { enabled: false } } as never, theme);
+      transitionSettled = dataTransition.play(updateDuration(effective.animation), (t) => {
+        const frame = transition(t);
+        // where an update arriving mid-flight would pick the chart up from
+        previousData = frame.data;
+        setData(frame.data, { settled: target, weights: frame.weights, t });
         widget.layoutAndRender();
         requestRender();
       });
-      return scheduler.settled;
+      return transitionSettled.then(() => scheduler.settled);
     }
 
-    dataTransition.stop();
-    widget.setOptions(effective as never, theme);
+    transitionSettled = Promise.resolve();
     widget.layoutAndRender();
     return scheduler.schedule();
   }
@@ -292,6 +304,8 @@ export function createChart(options: ChartOptions): ChartInstance {
     },
     async waitForUpdate() {
       await scheduler.settled;
+      // data on its way to new values is an update still running
+      await transitionSettled;
       // the web fonts may still be in flight; their redraw is part of the update
       await fontsSettled;
       await scheduler.settled;
@@ -388,17 +402,21 @@ function validateSeriesOptions(options: ChartOptions): void {
   }
 }
 
-/** Linear interpolation of numeric fields between datums (update transition). */
-function lerpDatum(from: Record<string, unknown>, to: Record<string, unknown>, t: number): Record<string, unknown> {
-  const result: Record<string, unknown> = { ...to };
-  for (const key of Object.keys(to)) {
-    const a = from[key];
-    const b = to[key];
-    if (typeof a === 'number' && typeof b === 'number' && Number.isFinite(a) && Number.isFinite(b)) {
-      result[key] = a + (b - a) * t;
-    }
-  }
-  return result;
+/** Default length of an update transition, ms — shorter than an entrance, which has further to travel. */
+const DEFAULT_UPDATE_MS = 450;
+
+/**
+ * Whether new data flows into place. `enabled` speaks for both animations;
+ * `updateEnabled` speaks for this one, and wins wherever it was set — a chart
+ * that should appear at once and move afterwards asks for exactly that.
+ */
+function transitionsEnabled(animation: AnimationOptions | undefined): boolean {
+  return animation?.updateEnabled ?? animation?.enabled !== false;
+}
+
+/** `duration` stands in when nothing was said about updates in particular. */
+function updateDuration(animation: AnimationOptions | undefined): number {
+  return animation?.updateDuration ?? animation?.duration ?? DEFAULT_UPDATE_MS;
 }
 
 function measure(container: HTMLElement, options: ChartOptions): [number, number] {

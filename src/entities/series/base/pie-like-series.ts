@@ -179,6 +179,11 @@ export abstract class PieLikeSeries<O extends PieLikeSeriesOptions = PieLikeSeri
     return false;
   }
 
+  /** The angle of a sector is its value — a pie has no other measure. */
+  override valueFields(): string[] {
+    return [this.options.angleField];
+  }
+
   protected colorFor(index: number): ColorValue {
     const fills = this.options.fills ?? this.env.theme.palette.fills;
     return fills[index % fills.length] ?? this.env.colors.fill;

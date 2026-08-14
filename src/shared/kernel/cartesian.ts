@@ -86,9 +86,38 @@ export interface PointerModifiersLike {
   meta: boolean;
 }
 
+/** What a widget is told about a frame of an update transition beyond its rows. */
+export interface DataFrame {
+  /** The rows the update arrives at — what the value axis is scaled by meanwhile. */
+  settled?: Datum[];
+  /** How much of a band each row takes, 0..1, row by row. */
+  weights?: number[];
+  /** How far the update has travelled, 0..1 — what the value axis walks its bounds by. */
+  t?: number;
+}
+
 /** Chart widget contract — shared by the cartesian/polar families. */
 export interface ChartWidget {
   layoutAndRender(): void;
+  /**
+   * New rows and nothing else, for a frame of an update transition. setOptions
+   * builds the series, the axes and the legend again, which is the right price
+   * for new options and far too much to pay sixty times a second while the data
+   * flows into place.
+   *
+   * `settled` is where the data is going. The value axis is scaled by that
+   * rather than by rows still on their way: a domain read off a moving frame is
+   * rounded to a new set of ticks every so often, and each of those steps moves
+   * every mark on the chart at once — the jerk being far larger than the motion
+   * it interrupts. `weights` is how much of a band each row takes, for the rows
+   * arriving and leaving.
+   */
+  setData?(data: Datum[], frame?: DataFrame): void;
+  /**
+   * Fields the series of the chart read as values — the base a row entering an
+   * update grows from, and the one a row leaving sinks back to.
+   */
+  valueFields?(): string[];
   handlePointerMove(x: number, y: number): void;
   handlePointerLeave(): void;
   handleClick(x: number, y: number): void;
@@ -299,6 +328,12 @@ export interface CartesianSeriesInstance {
    * over one field can still be told apart.
    */
   axisKeys?(): string[];
+  /**
+   * The numeric fields of a row, for the base an update transition grows a new
+   * row out of. Usually the axis keys — a series drawn without an axis of its
+   * own (a funnel) names its value here and nowhere else.
+   */
+  valueFields?(): string[];
   /** Values along the category/X axis — used to build the domain. */
   xValues(data: Datum[]): unknown[];
   /** Numeric value domain (accounting for the stack, if provided). */
@@ -374,7 +409,21 @@ export interface CartesianAxisInstance {
    * without being wrong anywhere. Set during setDomain, read by the chart.
    */
   readonly domainError?: string;
-  setDomain(domain: unknown[]): void;
+  /**
+   * `weights` says how much of a band each value of the domain takes, 0..1,
+   * where they are not all the same — a category arriving or leaving during an
+   * update transition. An axis without bands has nothing to do with them.
+   */
+  setDomain(domain: unknown[], weights?: number[]): void;
+  /**
+   * The bounds of a frame partway through an update: they walk from the ones
+   * the axis stood at to the ones the data arrives at, so the scale never
+   * changes gear under the marks drawn on it. The ticks stay those of the
+   * settled domain — labels recomputed frame by frame would print numbers
+   * nobody chose. A factor of 1 ends the walk. Only a numeric axis has bounds
+   * to walk between.
+   */
+  setTransitionDomain?(from: [number, number], t: number): void;
   /** Binds the scale range to the plot rect (orientation per position/type). */
   layout(plot: LayoutRect): void;
   /** Thickness of the axis zone (labels + ticks + title); call after layout. */

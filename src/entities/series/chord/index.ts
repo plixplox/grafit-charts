@@ -36,6 +36,10 @@ export class ChordSeries extends FlowSeries<ChordSeriesOptions> {
     return { x: this.center.x + Math.sin(angle) * radius, y: this.center.y - Math.cos(angle) * radius };
   }
 
+  override valueFields(): string[] {
+    return [this.options.sizeField];
+  }
+
   update(ctx: StandaloneRenderContext): void {
     this.lastCtx = ctx;
     this.nodeList = [];

@@ -38,6 +38,10 @@ export class SankeySeries extends FlowSeries<SankeySeriesOptions> {
   private nodes = new Map<string, SankeyNode>();
   private nodeList: SankeyNode[] = [];
 
+  override valueFields(): string[] {
+    return [this.options.sizeField];
+  }
+
   update(ctx: StandaloneRenderContext): void {
     this.lastCtx = ctx;
     this.hits = [];

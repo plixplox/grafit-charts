@@ -85,8 +85,9 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
   readonly type = 'grouped-category';
   readonly scale = new BandScale<unknown>();
 
-  setDomain(domain: unknown[]): void {
+  setDomain(domain: unknown[], weights?: number[]): void {
     this.scale.domain = domain;
+    this.scale.weights = weights;
     this.scale.paddingInner = this.options.paddingInner ?? DEFAULT_PADDING_INNER;
     this.scale.paddingOuter = this.options.paddingOuter ?? DEFAULT_PADDING_OUTER;
   }
@@ -104,6 +105,10 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
 
   protected tickInfo(): Array<{ value: unknown; coord: number }> {
     return this.scale.domain.map((value) => ({ value, coord: this.scale.center(value) }));
+  }
+
+  protected override tickWeight(value: unknown): number {
+    return this.scale.weightOf(value);
   }
 
   override measure(measureText: MeasureText): number {

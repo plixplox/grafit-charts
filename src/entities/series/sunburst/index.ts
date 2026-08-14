@@ -81,6 +81,10 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
     return max;
   }
 
+  override valueFields(): string[] {
+    return [this.options.sizeField ?? 'size'];
+  }
+
   update(ctx: StandaloneRenderContext): void {
     this.lastCtx = ctx;
     this.nodes = [];

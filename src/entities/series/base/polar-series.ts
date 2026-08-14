@@ -49,6 +49,14 @@ export abstract class PolarSeries<O extends PolarSeriesBaseOptions = PolarSeries
     this.data = data;
   }
 
+  /**
+   * The numeric fields of a row, for the base an update grows a new row out of.
+   * Empty by default: a series whose value is not in the data has none to name.
+   */
+  valueFields(): string[] {
+    return [];
+  }
+
   needsPolarAxes(): boolean {
     return true;
   }

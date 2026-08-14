@@ -166,6 +166,11 @@ export abstract class FunnelSeriesBase<O extends FunnelSeriesBaseOptions> extend
     return undefined;
   }
 
+  /** A funnel binds no axis, so its value is named here and nowhere else. */
+  override valueFields(): string[] {
+    return [this.options.valueField];
+  }
+
   override legendItems(): LegendItemDescriptor[] {
     if (this.options.showInLegend === false) return [];
     const data = this.lastCtx?.data ?? [];

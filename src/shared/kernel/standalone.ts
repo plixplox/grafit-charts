@@ -35,6 +35,11 @@ export interface StandaloneSeriesInstance {
   readonly type: string;
   visible: boolean;
   setData(data: Datum[]): void;
+  /**
+   * The numeric fields the series sizes its nodes by — a row entering an update
+   * grows out of their base instead of appearing at full size.
+   */
+  valueFields?(): string[];
   update(ctx: StandaloneRenderContext): void;
   pick(x: number, y: number): SeriesPick | undefined;
   /** Nodes inside a rubber band, for selection.boxSelect. */

@@ -53,6 +53,8 @@ export class StandaloneChart implements ChartWidget {
   private series: StandaloneSeriesInstance[] = [];
   private legend: Legend | undefined;
   private highlight: HighlightState | undefined;
+  /** The data under an open tooltip has changed — it is re-read once the layout has run. */
+  private tooltipStale = false;
   /** Selected datum indices per series id (Data Selection). */
   private readonly selectedMap = new Map<string, Set<number>>();
   private readonly animator = new Animator();
@@ -72,9 +74,9 @@ export class StandaloneChart implements ChartWidget {
   }
 
   setOptions(inputs: StandaloneChartInputs, theme: ThemeContext): void {
+    const previousHighlight = this.highlight;
     this.inputs = inputs;
     this.theme = theme;
-    this.highlight = undefined;
     const list = inputs.series ?? [];
     this.series = list.map((seriesOptions, index) => {
       const module = this.registry.getSeries(seriesOptions.type);
@@ -99,6 +101,10 @@ export class StandaloneChart implements ChartWidget {
     const legendApi = this.registry.getFeature<LegendApi>('legend');
     if (!legendApi && inputs.legend !== undefined) warnMissingFeature('legend');
     this.legend = legendApi?.create(inputs.legend, theme);
+    // the pointer did not move because the data did: a highlight still pointing
+    // at a node is kept, tooltip and all — with the numbers of the new data in it
+    this.highlight = this.stillPointsAtSomething(previousHighlight);
+    this.tooltipStale = true;
     if (this.hasAnimated || inputs.animation?.enabled === false) {
       this.hasAnimated = true;
       return;
@@ -108,6 +114,35 @@ export class StandaloneChart implements ChartWidget {
       this.layoutAndRender();
       this.requestRender();
     });
+  }
+
+  /** The rows of a single frame while an update flows into place. */
+  setData(data: Datum[]): void {
+    this.inputs = { ...this.inputs, data };
+    this.tooltipStale = true;
+  }
+
+  valueFields(): string[] {
+    return [...new Set(this.series.flatMap((series) => series.valueFields?.() ?? []))];
+  }
+
+  /**
+   * A highlight the new configuration can still answer for. A hierarchy numbers
+   * the nodes it draws rather than the rows it was given, so the series is asked
+   * whether the node is still there instead of the data being counted.
+   */
+  private stillPointsAtSomething(highlight: HighlightState | undefined): HighlightState | undefined {
+    if (!highlight) return undefined;
+    const series = this.series.find((instance) => instance.id === highlight.seriesId && instance.visible);
+    return series ? highlight : undefined;
+  }
+
+  /** The tooltip on screen, read off the data of the frame while it moves. */
+  private refreshTooltip(): void {
+    if (!this.tooltip?.visible || !this.highlight || this.inputs.tooltip?.enabled === false) return;
+    const found = this.resolveNode(this.highlight);
+    if (!found) return;
+    this.tooltip.show(found.series.tooltipFor(found.pick.datumIndex), found.pick.x, found.pick.y, this.theme, this.inputs.tooltip);
   }
 
   layoutAndRender(): void {
@@ -199,6 +234,12 @@ export class StandaloneChart implements ChartWidget {
     }
 
     this.renderSelectBox(overlayLayer);
+
+    // the nodes have just been laid out, so a tooltip re-read here finds them
+    if (this.tooltipStale) {
+      this.tooltipStale = false;
+      this.refreshTooltip();
+    }
   }
 
   handlePointerMove(x: number, y: number): void {

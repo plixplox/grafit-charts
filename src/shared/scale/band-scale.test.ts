@@ -15,6 +15,32 @@ describe('BandScale', () => {
     expect(scale.center('a')).toBeCloseTo((100 / 3) * 0.1 + ((100 / 3) * 0.8) / 2);
   });
 
+  it('a band of half weight takes half the room, and its neighbours take the rest', () => {
+    const scale = make();
+    scale.weights = [1, 0.5, 1];
+    // total weight 2.5 instead of 3, so a whole band is wider than it was
+    const unit = 100 / (2.5 - 0.2 + 0.2);
+    expect(scale.bandwidthOf('a')).toBeCloseTo(unit * 0.8);
+    expect(scale.bandwidthOf('b')).toBeCloseTo(unit * 0.5 * 0.8);
+    // 'c' starts after a whole band and half of one
+    expect(scale.convert('c')).toBeCloseTo(unit * (0.1 + 1.5));
+    expect(scale.weightOf('b')).toBe(0.5);
+  });
+
+  it('a band closing to nothing leaves the rest sharing the axis', () => {
+    const scale = make();
+    scale.weights = [1, 0, 1];
+    expect(scale.bandwidthOf('b')).toBe(0);
+    expect(scale.convert('c')).toBeCloseTo(scale.convert('b'));
+  });
+
+  it('weights nobody set are whole ones', () => {
+    const scale = make();
+    scale.weights = [1];
+    expect(scale.weightOf('c')).toBe(1);
+    expect(scale.bandwidthOf('c')).toBeCloseTo(scale.bandwidth);
+  });
+
   it('empty domain yields zero bandwidth', () => {
     expect(new BandScale([], [0, 100]).bandwidth).toBe(0);
   });

@@ -93,6 +93,11 @@ export abstract class CartesianSeries<O extends SeriesBaseOptions<never> = Serie
     return this.options.yField ? [this.options.yField] : [];
   }
 
+  /** The value fields of a series are the ones it binds an axis by, unless it says otherwise. */
+  valueFields(): string[] {
+    return this.axisKeys();
+  }
+
   yDomain(data: Datum[], stack?: StackSegment): [number, number] | undefined {
     if (stack) return extent([...stack.y0, ...stack.y1]);
     return extent(numericValues(data, this.options.yField));

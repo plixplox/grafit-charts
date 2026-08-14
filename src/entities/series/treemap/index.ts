@@ -378,6 +378,10 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
     };
   }
 
+  override valueFields(): string[] {
+    return [this.sizeField];
+  }
+
   update(ctx: StandaloneRenderContext): void {
     this.lastCtx = ctx;
     this.hits = [];

@@ -54,16 +54,44 @@ const dataUrl = chart.getImageDataURL();
 ## Animation
 
 Series entrance is animated by default (600 ms, ease-out). On `update`/`updateDelta`
-with data of the same length, numeric fields are smoothly interpolated to the new values.
-`animation: { enabled: false }` disables it, `duration` changes the duration.
+the new data flows into place instead of replacing what is drawn: rows are matched,
+their numeric fields walk to the new values, and the axes travel along with them.
+A tooltip open while this happens keeps its node and its numbers keep up.
+
+Rows are matched by position, so a change in how many there are is drawn at once.
+Name a `key` — the field a row is the same row by — and the rows that stayed keep
+flowing however many arrived or left: an entering row grows out of the base of its
+value fields and opens a band of its own, a leaving one sinks back and closes its
+band behind it, so the categories beside it spread rather than snap into the room.
+
+The value axis walks to its new bounds along with the data instead of being read
+off rows still in motion — its ticks stay the round numbers of the settled scale,
+and nothing on the chart jumps when the scale changes gear.
+
+```ts
+chart.update({ ...options, data: next, animation: { key: 'month', updateDuration: 300 } });
+```
+
+Press for a new reading — the bars walk to their new heights, and a service that
+drops out sinks away while the one taking its place grows in:
+
+::: chart-example bar-live
+
+`animation: { enabled: false }` switches both animations off. `updateEnabled` speaks
+for the update alone and wins wherever it is set, so a chart can appear at once and
+move afterwards. `update()` resolves when the transition has arrived, and so does
+`waitForUpdate()`.
 
 ## Options
 
-| Option                   | Type                         | Default     | Description                          |
-| ------------------------ | ---------------------------- | ----------- | ------------------------------------ |
-| `animation.enabled`      | `boolean`                    | `true`      | entrance and update animation        |
-| `animation.duration`     | `number`                     | `600`       | entrance duration, ms                |
-| `contextMenu.enabled`    | `boolean`                    | `true`      | right-click menu                     |
-| `contextMenu.extraItems` | `{ label, action }[]`        | —           | custom items after the standard ones |
-| `download(options)`      | `{ fileName?, fileFormat? }` | `chart.png` | PNG/JPEG export                      |
-| `initialState`           | `ChartState`                 | —           | initial zoom and hidden series       |
+| Option                     | Type                                  | Default              | Description                          |
+| -------------------------- | ------------------------------------- | -------------------- | ------------------------------------ |
+| `animation.enabled`        | `boolean`                             | `true`               | entrance and update animation        |
+| `animation.duration`       | `number`                              | `600`                | entrance duration, ms                |
+| `animation.updateEnabled`  | `boolean`                             | `animation.enabled`  | the update transition on its own     |
+| `animation.updateDuration` | `number`                              | `duration`, else 450 | update transition duration, ms       |
+| `animation.key`            | `string \| (datum, index) => unknown` | —                    | what a row is the same row by        |
+| `contextMenu.enabled`      | `boolean`                             | `true`               | right-click menu                     |
+| `contextMenu.extraItems`   | `{ label, action }[]`                 | —                    | custom items after the standard ones |
+| `download(options)`        | `{ fileName?, fileFormat? }`          | `chart.png`          | PNG/JPEG export                      |
+| `initialState`             | `ChartState`                          | —                    | initial zoom and hidden series       |

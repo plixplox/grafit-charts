@@ -24,6 +24,7 @@ import { DEFAULT_DIM_OPACITY, FONT_STEP, themeFont, warnMissingFeature, type Cha
 import type {
   ChartState,
   ChartWidget,
+  DataFrame,
   HighlightState,
   ImperativeOptions,
   LayoutRect,
@@ -111,6 +112,10 @@ export class PolarChart implements ChartWidget {
   private legend: Legend | undefined;
   private readonly hiddenSeries = new Set<string>();
   private highlight: HighlightState | undefined;
+  /** The data under an open tooltip has changed — it is re-read once the layout has run. */
+  private tooltipStale = false;
+  /** Where a running update is going; the rings are scaled by it while the frames arrive. */
+  private settledData: Datum[] | undefined;
   private readonly animator = new Animator();
   private hasAnimated = false;
   private readonly hoverAnimator = new Animator();
@@ -139,16 +144,44 @@ export class PolarChart implements ChartWidget {
   }
 
   setOptions(inputs: PolarChartInputs, theme: ThemeContext): void {
+    const previousHighlight = this.highlight;
     this.inputs = inputs;
     this.theme = theme;
-    this.highlight = undefined;
+    // whatever update was in flight is over; these rows are the ones to scale by
+    this.settledData = undefined;
     this.buildSeries();
+    // the pointer did not move because the data did: a highlight still pointing
+    // at a sector is kept, tooltip and all — with the numbers of the new data in it
+    this.highlight = this.stillPointsAtSomething(previousHighlight);
+    this.tooltipStale = true;
     if (inputs.tooltip && inputs.tooltip.enabled !== false && !this.tooltip) warnMissingFeature('tooltip');
     const legendApi = this.registry.getFeature<LegendApi>('legend');
     if (!legendApi && inputs.legend !== undefined) warnMissingFeature('legend');
     this.legend = legendApi?.create(inputs.legend, theme);
     if (inputs.initialState) this.setState(inputs.initialState);
     this.maybeAnimateEntrance();
+  }
+
+  /**
+   * The rows of a single frame while an update flows into place — the sectors
+   * keep the state the options gave them, hidden items included.
+   */
+  setData(data: Datum[], frame?: DataFrame): void {
+    this.inputs = { ...this.inputs, data };
+    this.settledData = frame?.settled;
+    this.tooltipStale = true;
+  }
+
+  valueFields(): string[] {
+    return [...new Set(this.series.flatMap((series) => series.valueFields?.() ?? []))];
+  }
+
+  /** A highlight the new configuration can still answer for; nothing otherwise. */
+  private stillPointsAtSomething(highlight: HighlightState | undefined): HighlightState | undefined {
+    if (!highlight) return undefined;
+    const series = this.series.find((instance) => instance.id === highlight.seriesId && instance.visible);
+    if (!series) return undefined;
+    return highlight.datumIndex < (this.inputs.data?.length ?? 0) ? highlight : undefined;
   }
 
   private buildSeries(): void {
@@ -289,13 +322,17 @@ export class PolarChart implements ChartWidget {
     const inverseLayout = visibleSeries.some((series) => series.polarLayout?.() === 'radius-category');
     const needsAxes = !inverseLayout && visibleSeries.some((series) => series.needsPolarAxes());
 
+    // scaled by where the data is going, not by rows still on their way: rings
+    // requantised mid-flight would jerk every sector on the chart
+    const scaleData = this.settledData ?? data;
+
     let radiusBandScale: BandScale<unknown> | undefined;
     let angleValueScale: LinearScale | undefined;
     if (inverseLayout) {
       const categories = this.collectAngleCategories(visibleSeries, data);
       let max = 0;
       for (const series of visibleSeries) {
-        const domain = series.radiusDomain(data);
+        const domain = series.radiusDomain(scaleData);
         if (domain) max = Math.max(max, domain[1]);
       }
       angleValueScale = new LinearScale([0, max || 1], [0, Math.PI * 1.5]);
@@ -323,7 +360,7 @@ export class PolarChart implements ChartWidget {
       let min = Infinity;
       let max = -Infinity;
       for (const series of visibleSeries) {
-        const domain = series.radiusDomain(data);
+        const domain = series.radiusDomain(scaleData);
         if (!domain) continue;
         min = Math.min(min, domain[0]);
         max = Math.max(max, domain[1]);
@@ -412,6 +449,26 @@ export class PolarChart implements ChartWidget {
       note.fill = this.theme.mutedColor;
       seriesLayer.append(note);
     }
+
+    // the sectors have just been laid out, so a tooltip re-read here finds them
+    if (this.tooltipStale) {
+      this.tooltipStale = false;
+      this.refreshTooltip();
+    }
+  }
+
+  /**
+   * The tooltip on screen, read off the data of the frame — a share printed
+   * beside a sector still growing is the share that sector has right now.
+   */
+  private refreshTooltip(): void {
+    if (!this.tooltip?.visible || !this.highlight || this.inputs.tooltip?.enabled === false) return;
+    const found = this.resolveNode(this.highlight);
+    if (!found) return;
+    const content = this.tooltipContent(found.pick);
+    if (!content) return;
+    // no pointer is kept here; the node's own anchor is where the tooltip sits
+    this.tooltip.show(content, ...this.tooltipAnchor(found.pick, found.pick.x, found.pick.y), this.theme, this.inputs.tooltip);
   }
 
   /** Category names around the rim. */

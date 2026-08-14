@@ -81,6 +81,14 @@ export abstract class StandaloneSeries<
     this.data = data;
   }
 
+  /**
+   * The numeric fields of a row, for the base an update grows a new row out of.
+   * Empty by default: a gauge reads its value from the options, not the data.
+   */
+  valueFields(): string[] {
+    return [];
+  }
+
   protected colorFor(index: number): ColorValue {
     const fills = this.options.fills ?? this.env.theme.palette.fills;
     return fills[index % fills.length] ?? this.env.colors.fill;

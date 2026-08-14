@@ -32,6 +32,7 @@ import type {
   CartesianAxisInstance,
   ColorScaleInfo,
   CartesianSeriesInstance,
+  DataFrame,
   DomainAnchor,
   HighlightState,
   ImperativeOptions,
@@ -122,6 +123,19 @@ export class CartesianChart implements SyncMember {
   /** zoom.visibleCount already turned into a window; guards against reapplying it. */
   private appliedVisibleCount: number | undefined;
   private pointer: { x: number; y: number } | undefined;
+  /** The data under an open tooltip has changed — it is re-read once the layout has run. */
+  private tooltipStale = false;
+  /** Where a running update is going; the value axis is scaled by it while the frames arrive. */
+  private settledData: Datum[] | undefined;
+  /** Share of a band each row of the frame takes — the rows arriving and leaving take less. */
+  private bandWeights: number[] | undefined;
+  /** How far a running update has travelled; the value axes walk their bounds by it. */
+  private transitionT: number | undefined;
+  /** The bounds each value axis set off from — the other end of that walk. */
+  private readonly startDomains = new Map<CartesianAxisInstance, [number, number]>();
+  /** Room each axis took when it was last laid out at rest, and the room it set off from. */
+  private readonly axisZones = new Map<string, number>();
+  private readonly startZones = new Map<string, number>();
   private dragMode: DragMode | undefined;
   private selectRect: { x0: number; y0: number; x1: number; y1: number } | undefined;
   private draggedAnnotation: number | undefined;
@@ -188,15 +202,32 @@ export class CartesianChart implements SyncMember {
   }
 
   setOptions(inputs: CartesianChartInputs, theme: ThemeContext): void {
+    const previousHighlight = this.highlight;
+    // where the axes stand right now — read before they are built again, which
+    // is the last moment they still describe the chart on screen, and where an
+    // update transition walks its bounds from
+    const previousDomains = this.numericDomains();
     this.inputs = inputs;
     this.theme = theme;
-    this.highlight = undefined;
+    // whatever update was in flight is over; these rows are the ones to scale by
+    this.settledData = undefined;
+    this.bandWeights = undefined;
+    this.transitionT = undefined;
     // a new configuration is a new chance: what failed before may be fixed now,
     // and its reason is worth stating again if it is not
     this.reportedIssues.clear();
     this.failedSeries.clear();
     this.buildSeries();
     this.buildAxes();
+    this.carryDomainsOver(previousDomains);
+    // the room the axes took is where their zones walk from, for the same reason
+    this.startZones.clear();
+    for (const [slot, size] of this.axisZones) this.startZones.set(slot, size);
+    // the pointer did not move because the data did: a highlight still pointing
+    // at something is kept, so a chart updating under the cursor keeps its
+    // tooltip instead of blinking it away — with the numbers of the new data in it
+    this.highlight = this.stillPointsAtSomething(previousHighlight);
+    this.tooltipStale = true;
     if (inputs.tooltip && inputs.tooltip.enabled !== false && !this.tooltip) warnMissingFeature('tooltip');
     this.legend = this.feature<LegendApi>('legend', inputs.legend !== undefined)?.create(inputs.legend, theme);
     this.navigator = this.feature<NavigatorApi>('navigator', inputs.navigator?.enabled === true)?.create(inputs.navigator);
@@ -208,6 +239,91 @@ export class CartesianChart implements SyncMember {
     if (inputs.initialState) this.setState(inputs.initialState);
     this.joinSync();
     this.maybeAnimateEntrance();
+  }
+
+  /**
+   * The rows of a single frame while an update flows into place. Everything the
+   * options built stays as it is — the series keep their state, and the pointer
+   * keeps whatever it was on. `settled` is where the data is going, and what the
+   * value axis is scaled by for as long as the frames keep coming.
+   */
+  setData(data: Datum[], frame?: DataFrame): void {
+    this.transitionT = frame?.t;
+    this.inputs = { ...this.inputs, data };
+    this.settledData = frame?.settled;
+    this.bandWeights = frame?.weights;
+    this.tooltipStale = true;
+  }
+
+  /**
+   * Room an axis takes beside the plot. Its labels change with the data, and a
+   * zone that changed with them would step the plot rect sideways under
+   * everything drawn in it — so partway through an update it walks from the room
+   * the axis took before to the room it takes now.
+   */
+  private axisZone(axis: CartesianAxisInstance, index: number, measureText: MeasureText): number {
+    const measured = axis.measure(measureText);
+    const t = this.transitionT;
+    if (t === undefined || t >= 1) {
+      this.axisZones.set(axisSlot(axis, index), measured);
+      return measured;
+    }
+    const from = this.startZones.get(axisSlot(axis, index));
+    return from === undefined ? measured : from + (measured - from) * t;
+  }
+
+  /** Numeric bounds of the axes as they stand, keyed by which axis of the chart they are. */
+  private numericDomains(): Map<string, [number, number]> {
+    const domains = new Map<string, [number, number]>();
+    this.axes.forEach((axis, index) => {
+      const [d0, d1] = axis.scale.domain as unknown[];
+      if (typeof d0 === 'number' && typeof d1 === 'number') domains.set(axisSlot(axis, index), [d0, d1]);
+    });
+    return domains;
+  }
+
+  /**
+   * Hands the bounds of the axes that were to the ones just built. The axes are
+   * new objects on every update, and an axis that walks from where its
+   * predecessor stood is the only one that does not jump.
+   */
+  private carryDomainsOver(previous: Map<string, [number, number]>): void {
+    this.startDomains.clear();
+    this.axes.forEach((axis, index) => {
+      const domain = previous.get(axisSlot(axis, index));
+      if (domain) this.startDomains.set(axis, domain);
+    });
+  }
+
+  /** A highlight the new configuration can still answer for; nothing otherwise. */
+  private stillPointsAtSomething(highlight: HighlightState | undefined): HighlightState | undefined {
+    if (!highlight) return undefined;
+    const series = this.series.find((instance) => instance.id === highlight.seriesId && instance.visible);
+    if (!series) return undefined;
+    return highlight.datumIndex < (this.inputs.data?.length ?? 0) ? highlight : undefined;
+  }
+
+  /**
+   * The tooltip on screen, read off the data of the frame. Numbers on their way
+   * to new values are the numbers it prints too — a tooltip left saying what a
+   * bar used to be while the bar moves under it is worse than none.
+   */
+  private refreshTooltip(): void {
+    if (!this.tooltip?.visible || !this.highlight || this.inputs.tooltip?.enabled === false) return;
+    const found = this.resolveNode(this.highlight);
+    if (!found) return;
+    const { series, pick } = found;
+    const shared = this.inputs.tooltip?.mode === 'shared';
+    const content = shared ? this.sharedTooltipContent(pick) : series.tooltipFor(pick.datumIndex);
+    // the pointer keeps the tooltip where it put it; without one the node answers
+    const anchorX = this.pointer?.x ?? pick.x;
+    const anchorY = this.pointer?.y ?? pick.y;
+    this.tooltip.show(content, ...this.tooltipAnchor(pick, anchorX, anchorY), this.theme, this.inputs.tooltip);
+  }
+
+  /** Value fields of the series: what an axis binds by is what a row grows from. */
+  valueFields(): string[] {
+    return [...new Set(this.series.flatMap((series) => series.axisKeys?.() ?? []))];
   }
 
   // ------------------------------------------------------------- state
@@ -598,6 +714,7 @@ export class CartesianChart implements SyncMember {
     const data = this.inputs.data ?? [];
     const visibleSeries = this.series.filter((series) => series.visible);
     const categories = this.collectCategories(visibleSeries, data);
+    const categoryWeights = this.collectCategoryWeights(visibleSeries, data);
     const stacks = this.computeSeriesStacks(visibleSeries, data);
     const yCategories = this.collectYCategories(visibleSeries, data);
     const swapped = this.swapped;
@@ -617,13 +734,26 @@ export class CartesianChart implements SyncMember {
       const window = horizontalAxis ? this.zoomX : this.zoomY;
       if (isCategoryDirection) {
         const visible = sliceDomain(categories, window);
-        axis.setDomain(bandRoom ? padForBands(axis, visible, bandSpan) : visible);
+        // a category arriving or leaving takes part of a band, so the ones
+        // beside it spread into the room instead of the axis snapping over
+        const weights = categoryWeights ? visible.map((value) => categoryWeights.get(value) ?? 1) : undefined;
+        axis.setDomain(bandRoom ? padForBands(axis, visible, bandSpan) : visible, weights);
       } else if (axis.type === 'category') {
         // categorical value axis (heatmap)
         axis.setDomain(sliceDomain(yCategories, window));
       } else {
         const own = visibleSeries.filter((series) => valueAxisOf.get(series.id) === axis);
-        axis.setDomain(windowExtent(this.collectValueDomain(own, data, stacks), window));
+        // scaled by where the data is going, not by rows still on their way: a
+        // domain read off a moving frame is rounded to a new set of ticks every
+        // so often, and each of those steps jerks every mark on the chart
+        const settled = this.settledData;
+        const domain = settled
+          ? this.collectValueDomain(own, settled, this.computeSeriesStacks(visibleSeries, settled))
+          : this.collectValueDomain(own, data, stacks);
+        axis.setDomain(windowExtent(domain, window));
+        // and it walks there from wherever it stood when the update set off
+        const from = this.startDomains.get(axis);
+        if (from && this.transitionT !== undefined) axis.setTransitionDomain?.(from, this.transitionT);
       }
     }
     // an axis that could make nothing of its domain draws a chart that is empty
@@ -700,9 +830,9 @@ export class CartesianChart implements SyncMember {
       const inset = { top: 0, right: 0, bottom: 0, left: 0 };
       // an axis-less chart reserves no axis zones, but its labels still need room
       if (!barePlot) {
-        for (const axis of this.axes) {
-          inset[axis.position] = Math.max(inset[axis.position], axis.measure(measureText));
-        }
+        this.axes.forEach((axis, index) => {
+          inset[axis.position] = Math.max(inset[axis.position], this.axisZone(axis, index, measureText));
+        });
       }
       // tick labels hang over the ends of their axis: that room comes out of the chart area
       for (const side of SIDES) inset[side] = Math.max(inset[side], Math.ceil(overflow.axes[side]));
@@ -741,6 +871,11 @@ export class CartesianChart implements SyncMember {
     };
     this.scene.markDirty();
     this.renderDynamicLayers();
+    // the nodes have just been laid out, so a tooltip re-read here finds them
+    if (this.tooltipStale) {
+      this.tooltipStale = false;
+      this.refreshTooltip();
+    }
   }
 
   /**
@@ -1025,6 +1160,24 @@ export class CartesianChart implements SyncMember {
       }
     }
     return categories;
+  }
+
+  /**
+   * How much of a band each category of the frame takes. The weight belongs to
+   * a row of the update; a category is what a row is drawn over, and where two
+   * rows share one the widest of them speaks for the band.
+   */
+  private collectCategoryWeights(series: CartesianSeriesInstance[], data: Datum[]): Map<unknown, number> | undefined {
+    const weights = this.bandWeights;
+    if (!weights || weights.length !== data.length) return undefined;
+    const byCategory = new Map<unknown, number>();
+    for (const instance of series) {
+      instance.xValues(data).forEach((value, index) => {
+        const weight = weights[index] ?? 1;
+        byCategory.set(value, Math.max(byCategory.get(value) ?? 0, weight));
+      });
+    }
+    return byCategory;
   }
 
   private computeSeriesStacks(series: CartesianSeriesInstance[], data: Datum[]): Map<string, StackSegment> {
@@ -1664,6 +1817,11 @@ function padForBands(axis: CartesianAxisInstance, domain: unknown[], span: numbe
   const numbers = domain.map(axisValueOf(axis)).filter((value) => Number.isFinite(value));
   if (numbers.length === 0) return domain;
   return [...domain, Math.min(...numbers) - span / 2, Math.max(...numbers) + span / 2];
+}
+
+/** Which axis of the chart this one is, across a rebuild: its place, its side and its kind. */
+function axisSlot(axis: CartesianAxisInstance, index: number): string {
+  return `${index}\u00a6${axis.position}\u00a6${axis.type}`;
 }
 
 /** How the axis itself reads a value: a time axis parses dates, the rest take numbers. */
