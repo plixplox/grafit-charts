@@ -156,6 +156,23 @@ export interface ChartOptions {
   /** Without width/height the chart follows its container (ResizeObserver). */
   width?: number;
   height?: number;
+  /**
+   * Floor under the size measured off the container, px — default `300` and
+   * `200`. `0` removes the floor: the chart is then exactly as small as the
+   * container is, which is what a dense dashboard tile or a KPI sparkline
+   * wants. Ignored on the axis a numeric `width`/`height` fixes.
+   */
+  minWidth?: number;
+  minHeight?: number;
+  /**
+   * Whether the chart follows its container through a `ResizeObserver`. By
+   * default it does unless both `width` and `height` are numbers. Set it and
+   * the two stop deciding it: `responsive: true` alongside `width`/`height`
+   * leaves them as the size to start from — the size a container with no box
+   * yet is drawn at — and the container decides every size after that;
+   * `responsive: false` measures once and never again.
+   */
+  responsive?: boolean;
 }
 
 export type {

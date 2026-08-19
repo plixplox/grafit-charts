@@ -12,8 +12,13 @@ import type { DomainAnchor, ImperativeOptions, NodeRef, SelectedNode, ZoomWindow
 import { deepMerge, type DeepPartial } from '@/shared/options';
 import { DomCanvas, FontWatcher, RenderScheduler, Scene, watchDocumentFonts, type CanvasFactory } from '@/shared/scene';
 
-const MIN_WIDTH = 300;
-const MIN_HEIGHT = 200;
+/**
+ * Floor under a size measured off the container, and the only size a chart in a
+ * container with no box at all would have had. `minWidth`/`minHeight` move it —
+ * `0` takes it away, and a chart is then as small as the tile it was given.
+ */
+const DEFAULT_MIN_WIDTH = 300;
+const DEFAULT_MIN_HEIGHT = 200;
 
 export interface ChartInstance {
   update(options: ChartOptions): Promise<void>;
@@ -67,7 +72,14 @@ export function createChart(options: ChartOptions): ChartInstance {
     container.appendChild(sceneCanvas.element);
     return sceneCanvas;
   };
-  const scene = new Scene(canvasFactory, ...measure(container, options));
+  // `width`/`height` say what the size is, `responsive` says who measures it —
+  // two questions one option used to answer at once. Unset, it still reads the
+  // numbers: a chart told both of them has nothing left to follow.
+  const isResponsive = options.responsive ?? (options.width === undefined || options.height === undefined);
+  // asked for outright, the observer has the say and the numbers are demoted to
+  // the size the chart starts at
+  const sizeIsStartOnly = options.responsive === true;
+  const scene = new Scene(canvasFactory, ...measure(container, options, sizeIsStartOnly));
   const scheduler = new RenderScheduler(() => scene.render());
   const requestRender = () => void scheduler.schedule();
 
@@ -156,6 +168,25 @@ export function createChart(options: ChartOptions): ChartInstance {
   // the DOM chrome (context menu) is drawn outside applyOptions and needs the live theme
   let currentTheme: ResolvedTheme = resolveTheme(options.theme);
 
+  let warnedEmptySize = false;
+  function warnEmptySize(): void {
+    if (warnedEmptySize) return;
+    warnedEmptySize = true;
+    console.warn(
+      'grafit: the container has no size — nothing was drawn. ' +
+        'The chart draws itself as soon as the container has a box; give it one, or a width/height, or a minWidth/minHeight.',
+    );
+  }
+
+  /** Takes the size the options ask for now — they carry minWidth/minHeight too. */
+  const syncSceneSize = (): void => {
+    const [width, height] = measure(container, currentOptions, sizeIsStartOnly);
+    if (width === scene.width && height === scene.height) return;
+    // the box went away; the layout on screen is the one it comes back to
+    if (isEmptySize(width, height) && !isEmptySize(scene.width, scene.height)) return;
+    scene.resize(width, height);
+  };
+
   function applyOptions(): Promise<void> {
     const effective = applyThemeOverrides(currentOptions);
     validateSeriesOptions(effective);
@@ -173,6 +204,16 @@ export function createChart(options: ChartOptions): ChartInstance {
     // series, the axes and the legend are built here, and the data alone moves
     // from frame to frame after that
     widget.setOptions(effective as never, theme);
+
+    // nothing to lay out on: a container with no box — a hidden tab, a parent
+    // at display:none — only reachable once the floor was taken away. Laying
+    // out at 0 would build a layout thrown away the moment the box appears, so
+    // the chart waits for the ResizeObserver to bring it a size instead
+    if (isEmptySize(scene.width, scene.height)) {
+      warnEmptySize();
+      transitionSettled = Promise.resolve();
+      return Promise.resolve();
+    }
 
     const setData = widget.setData?.bind(widget);
     const transition =
@@ -237,11 +278,13 @@ export function createChart(options: ChartOptions): ChartInstance {
   });
 
   let resizeObserver: ResizeObserver | undefined;
-  const isResponsive = options.width === undefined || options.height === undefined;
   if (isResponsive && typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => {
-      const [width, height] = measure(container, currentOptions);
+      const [width, height] = measure(container, currentOptions, sizeIsStartOnly);
       if (width === scene.width && height === scene.height) return;
+      // the container lost its box — hidden tab, display:none. The layout it has
+      // is the one it will come back to, so it is kept rather than redone at 0
+      if (isEmptySize(width, height)) return;
       scene.resize(width, height);
       widget.layoutAndRender();
       // RO callbacks fire after rAF but before paint, and scene.resize() has just
@@ -284,11 +327,12 @@ export function createChart(options: ChartOptions): ChartInstance {
   return {
     update(next) {
       currentOptions = { ...next, container };
-      scene.resize(...measure(container, currentOptions));
+      syncSceneSize();
       return applyOptions();
     },
     updateDelta(patch) {
       currentOptions = deepMerge(currentOptions, patch);
+      syncSceneSize();
       return applyOptions();
     },
     getOptions() {
@@ -419,10 +463,24 @@ function updateDuration(animation: AnimationOptions | undefined): number {
   return animation?.updateDuration ?? animation?.duration ?? DEFAULT_UPDATE_MS;
 }
 
-function measure(container: HTMLElement, options: ChartOptions): [number, number] {
-  const width = options.width ?? Math.max(container.clientWidth, MIN_WIDTH);
-  const height = options.height ?? Math.max(container.clientHeight, MIN_HEIGHT);
+/**
+ * The size of the scene, per axis: what the container measures, held at the
+ * floor `minWidth`/`minHeight` set, and replaced outright by a numeric
+ * `width`/`height`. With `startOnly` — `responsive: true` — those numbers are
+ * no longer the answer but the fallback, taken only while the container has no
+ * box of its own to measure.
+ */
+function measure(container: HTMLElement, options: ChartOptions, startOnly: boolean): [number, number] {
+  let width = Math.max(container.clientWidth, options.minWidth ?? DEFAULT_MIN_WIDTH);
+  let height = Math.max(container.clientHeight, options.minHeight ?? DEFAULT_MIN_HEIGHT);
+  if (options.width !== undefined && (!startOnly || width <= 0)) width = options.width;
+  if (options.height !== undefined && (!startOnly || height <= 0)) height = options.height;
   return [width, height];
+}
+
+/** No box to draw in: a hidden container, or one whose floor was set to 0. */
+function isEmptySize(width: number, height: number): boolean {
+  return width <= 0 || height <= 0;
 }
 
 /** Exported widget module name for the error message. */
