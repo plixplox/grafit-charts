@@ -128,6 +128,65 @@ describe('ticks against the axis length', () => {
   });
 });
 
+describe('a format too coarse for the step', () => {
+  /** What an application hands the axis: a compact format that keeps no fraction at all. */
+  const compact = ({ value }: { value: unknown }) => {
+    const number = Number(value);
+    if (Math.abs(number) >= 1e6) return `${Math.round(number / 1e6)}M`;
+    if (Math.abs(number) >= 1e3) return `${Math.round(number / 1e3)}k`;
+    return String(number);
+  };
+
+  /** Labels the axis draws down a tall left edge, where ticks come thick. */
+  function labels(options: Partial<NumberAxisOptions>, height = 1300, domain = [0, 3_600_000]): string[] {
+    const instance = new NumberAxis({ type: 'number', ...options }, { position: 'left', theme });
+    instance.setDomain(domain);
+    const rect: LayoutRect = { x: 0, y: 0, width: 600, height };
+    instance.layout(rect);
+    const layer = new Group();
+    const drawn: string[] = [];
+    layer.append = ((...appended) => {
+      for (const node of appended) if (node instanceof Text) drawn.push(node.text);
+      return layer;
+    }) as typeof layer.append;
+    instance.render(layer, new Group(), rect);
+    return drawn;
+  }
+
+  it('steps up to the scale its own labels can carry', () => {
+    // 200 000 apart, the format prints «1M» five times over; a million apart it reads
+    const printed = labels({ label: { formatter: compact } });
+    expect(printed).toEqual(['0', '1M', '2M', '3M']);
+  });
+
+  it('keeps every tick once the format can tell them apart', () => {
+    const oneDecimal = ({ value }: { value: unknown }) => `${(Number(value) / 1e6).toFixed(1)}M`;
+    const printed = labels({ label: { formatter: oneDecimal } });
+    expect(printed.length).toBe(19);
+    expect(new Set(printed).size).toBe(printed.length);
+  });
+
+  it('leaves the values the caller listed alone, repeats and all', () => {
+    const printed = labels({ label: { formatter: compact }, interval: { values: [1_000_000, 1_200_000, 1_400_000] } });
+    expect(printed).toEqual(['1M', '1M', '1M']);
+  });
+
+  it('walks between two scales without either of them repeating itself', () => {
+    const instance = new NumberAxis({ type: 'number', label: { formatter: compact } }, { position: 'left', theme });
+    instance.setDomain([0, 3_600_000]);
+    instance.layout({ x: 0, y: 0, width: 600, height: 1300 });
+    instance.setTransitionDomain([0, 2_000_000], 0.5);
+    const layer = new Group();
+    const drawn: string[] = [];
+    layer.append = ((...appended) => {
+      for (const node of appended) if (node instanceof Text) drawn.push(node.text);
+      return layer;
+    }) as typeof layer.append;
+    instance.render(layer, new Group(), { x: 0, y: 0, width: 600, height: 1300 });
+    expect(new Set(drawn).size).toBe(drawn.length);
+  });
+});
+
 describe('domain of a frame partway through an update', () => {
   it('the bounds walk from where the axis stood to where the data arrives', () => {
     const instance = axis({}, 'left', [0, 80]);

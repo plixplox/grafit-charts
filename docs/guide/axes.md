@@ -104,7 +104,7 @@ axes: [
   // hourly readings with the odd gap: a bar is an hour wide whatever the gaps say
   { type: 'time', position: 'bottom', bandSpan: 60 * 60 * 1000 },
   { type: 'number', position: 'left' },
-]
+];
 ```
 
 The same option is on the `number` axis, in its own units. A single point says
@@ -120,6 +120,39 @@ labels above them, so the gaps close and nothing is placed by distance.
 (10 by default).
 
 ::: chart-example axis-log
+
+## A step the format can carry
+
+How many ticks a value axis takes is decided by its length — one per 70 px or so
+— and the step is then rounded to 1, 2 or 5 × 10ⁿ. A tall chart therefore comes
+out finely divided: 200 000 apart over four million, which is fine until the
+format is coarser than the step. A compact format without a fraction prints «1M»
+for everything from a million to 1.9, so five ticks in a row read the same and
+the scale stops saying where a value sits.
+
+So a `number` or `log` axis reads its own labels back before drawing them. Where
+neighbours come out identical it keeps every n-th tick instead, for the smallest
+n that leaves them different — the step grows to the one the format can carry
+(200 000 → a million), and the grid follows the labels rather than outrunning
+them:
+
+```ts
+axes: [
+  { type: 'category', position: 'bottom' },
+  {
+    type: 'number',
+    position: 'left',
+    // «1M» from 1.0 to 1.9: the axis settles on whole millions by itself
+    label: { formatter: ({ value }) => Intl.NumberFormat('en', { notation: 'compact' }).format(Number(value)) },
+  },
+];
+```
+
+Values listed in `interval.values` are left as they are — those are the ticks
+you asked for — and so is an axis with `label.avoidCollisions: false`. To keep
+the fine step instead, give the format the precision to match it
+(`maximumFractionDigits: 1`); the axis only steps back when the labels leave it
+no choice. Category axes are untouched: two rows may honestly share a name.
 
 ## Hierarchical categories
 

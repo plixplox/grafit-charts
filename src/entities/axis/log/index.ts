@@ -31,6 +31,11 @@ export class LogAxis extends BaseAxis<LogAxisOptions> {
   protected tickInfo(): Array<{ value: unknown; coord: number }> {
     return this.scale.ticks().map((value) => ({ value, coord: this.scale.convert(value) }));
   }
+
+  /** Decades stand for different amounts; two of them reading the same is a format too coarse. */
+  protected override get labelsMustDiffer(): boolean {
+    return true;
+  }
 }
 
 export const logAxisModule: AxisModule<LogAxisOptions> = {

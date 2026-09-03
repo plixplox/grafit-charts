@@ -301,8 +301,10 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     const raw = explicit
       ? explicit.map((value) => ({ value, coord: this.coordOf(value) })).filter(({ coord }) => !Number.isNaN(coord))
       : this.tickInfo();
-    const ticks = raw.map((tick, index) => ({ ...tick, index }));
-    if (this.options.label?.avoidCollisions === false) return ticks;
+    const all = raw.map((tick, index) => ({ ...tick, index }));
+    if (this.options.label?.avoidCollisions === false) return all;
+    // values the caller listed are the ones it wants to see, repeats and all
+    const ticks = explicit ? all : this.thinRepeats(all);
     // a vertical axis only crowds when its labels sit inside, in a row per band
     if (!this.isHorizontal) return this.labelsInside ? this.thinTicks(ticks, this.insideLabelSlot()) : ticks;
     // cut labels take the room they are given, so none of them has to go
@@ -315,6 +317,45 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       maxWidth = Math.max(maxWidth, this.measureWithCanvasFallback(this.tickLabel(tick.value, tick.index, cap, this.ownMeasureText), font));
     }
     return this.thinTicks(ticks, maxWidth + this.minLabelSpacing);
+  }
+
+  /**
+   * Whether two ticks are allowed to read the same. A scale of numbers is a
+   * ruler: every mark on it stands for a different amount, and a label that
+   * repeats is a format too coarse for the step rather than a fact about the
+   * data. Categories are not like that — two of them may honestly share a name.
+   */
+  protected get labelsMustDiffer(): boolean {
+    return false;
+  }
+
+  /**
+   * Ticks the reader can tell apart. A step finer than the format prints the
+   * same text several times over — «1M» once per 200 000, five in a row — and a
+   * scale that repeats itself says nothing about where a value sits. So the
+   * axis keeps every n-th tick instead, for the smallest n that leaves
+   * neighbouring labels different: the step of the scale grows to the one its
+   * own labels can carry, and the grid follows it.
+   */
+  protected thinRepeats<T extends { value: unknown; coord: number; index: number }>(ticks: T[]): T[] {
+    if (!this.labelsMustDiffer || ticks.length < 2) return ticks;
+    return this.keepDistinct(ticks, ({ value, index }) => this.tickLabel(value, index, this.labelMaxWidth, this.ownMeasureText));
+  }
+
+  /**
+   * Every n-th item, for the smallest n whose neighbours carry different text.
+   * Nothing is dropped when even the widest stride keeps repeating: a format
+   * that says one thing for the whole scale is answered elsewhere, not by
+   * thinning the axis down to a single mark.
+   */
+  protected keepDistinct<T>(items: T[], label: (item: T, index: number) => string): T[] {
+    const labels = items.map(label);
+    for (let stride = 1; stride < labels.length; stride++) {
+      let repeats = false;
+      for (let i = stride; i < labels.length && !repeats; i += stride) repeats = labels[i] === labels[i - stride];
+      if (!repeats) return stride === 1 ? items : items.filter((_, index) => index % stride === 0);
+    }
+    return items;
   }
 
   /**

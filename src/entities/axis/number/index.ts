@@ -37,6 +37,8 @@ export class NumberAxis extends BaseAxis<NumberAxisOptions> {
   private tickDomain: [number, number] | undefined;
   /** How present each tick of a frame is: whole where both scales carry it, fading either way. */
   private tickWeights: Map<number, number> | undefined;
+  /** Which of a frame's ticks belong to the scale being arrived at: they win a tie over a label. */
+  private settledTicks: Set<number> | undefined;
 
   setDomain(domain: unknown[]): void {
     const values = domain.filter((value): value is number => typeof value === 'number');
@@ -79,6 +81,7 @@ export class NumberAxis extends BaseAxis<NumberAxisOptions> {
     if (!transition) {
       this.tickDomain = undefined;
       this.tickWeights = undefined;
+      this.settledTicks = undefined;
       return;
     }
     const settled = this.scale.domain;
@@ -89,17 +92,63 @@ export class NumberAxis extends BaseAxis<NumberAxisOptions> {
     ];
     const count = this.tickCount();
     const weights = new Map<number, number>();
-    // arriving with the settled scale, and leaving with the one being left
-    for (const value of ticks(settled[0], settled[1], count)) weights.set(value, transition.t);
-    for (const value of ticks(transition.from[0], transition.from[1], count)) {
+    // arriving with the settled scale, and leaving with the one being left —
+    // each set thinned to distinct labels on its own, before the two are put
+    // together, so a tick the settled scale will not print does not flash by
+    const arriving = this.distinctTicks(ticks(settled[0], settled[1], count));
+    for (const value of arriving) weights.set(value, transition.t);
+    for (const value of this.distinctTicks(ticks(transition.from[0], transition.from[1], count))) {
       weights.set(value, weights.has(value) ? 1 : 1 - transition.t);
     }
     this.tickWeights = weights;
+    this.settledTicks = new Set(arriving);
+  }
+
+  /** The ticks of one scale whose labels differ, as the axis would print them. */
+  private distinctTicks(values: number[]): number[] {
+    return this.keepDistinct(values, (value, index) => this.formatTick(value, index));
+  }
+
+  /**
+   * The two scales of a frame put together, cleared of labels that read alike.
+   * Each set is distinct on its own, but the steps they walk between need not
+   * agree, and a frame printing both would show back the repeat the axis just
+   * stepped out of. Where two ticks read the same the one the axis is settling
+   * on stays, so the walk ends on the scale it was headed for.
+   */
+  private withoutRepeats(values: number[]): number[] {
+    const settled = this.settledTicks;
+    const kept: number[] = [];
+    let last: string | undefined;
+    for (const value of values) {
+      const label = this.formatTick(value, kept.length);
+      if (label !== last) {
+        kept.push(value);
+        last = label;
+        continue;
+      }
+      const previous = kept[kept.length - 1];
+      if (previous !== undefined && settled?.has(value) && !settled.has(previous)) kept[kept.length - 1] = value;
+    }
+    return kept;
+  }
+
+  /**
+   * A number line has one label per amount, so two ticks reading the same is a
+   * format too coarse for the step. Partway through an update the frame carries
+   * the ticks of both scales, each already thinned on its own; the union of two
+   * steps is not evenly spaced, and thinning it by position again would drop
+   * ticks the walk needs.
+   */
+  protected override get labelsMustDiffer(): boolean {
+    return this.tickWeights === undefined;
   }
 
   protected tickInfo(): Array<{ value: unknown; coord: number }> {
     const [low, high] = this.scale.domain[0] <= this.scale.domain[1] ? this.scale.domain : [this.scale.domain[1], this.scale.domain[0]];
-    const values = this.tickWeights ? [...this.tickWeights.keys()].sort((a, b) => a - b) : this.scale.ticks(this.tickCount());
+    const values = this.tickWeights
+      ? this.withoutRepeats([...this.tickWeights.keys()].sort((a, b) => a - b))
+      : this.scale.ticks(this.tickCount());
     return (
       values
         // a tick of either scale may sit outside the bounds of the frame; it
@@ -125,7 +174,7 @@ export class NumberAxis extends BaseAxis<NumberAxisOptions> {
     const settled = this.tickDomain;
     if (!settled) return this.displayTicks();
     const scale = new LinearScale([settled[0], settled[1]], this.scale.range);
-    return ticks(settled[0], settled[1], this.tickCount()).map((value, index) => ({
+    return this.distinctTicks(ticks(settled[0], settled[1], this.tickCount())).map((value, index) => ({
       value,
       coord: scale.convert(value),
       index,
