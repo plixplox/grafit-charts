@@ -265,10 +265,16 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
    * Labels are thinned run by run, not across the axis as a whole: a run keeps
    * as many labels as fit between its own separators, taken from its middle
    * outwards. A label that would overhang its run reads as the neighbour's.
+   *
+   * A tilted label does not: it ends at its own tick and points back at it, so
+   * it cannot be taken for the run next door however far it leans. The reason
+   * to thin run by run goes with the tilt, and with it the runs too narrow to
+   * hold a level name — which is every one of them, once the groups are days
+   * of a month rather than the months themselves.
    */
   protected override thinTicks<T extends { value: unknown; coord: number; index: number }>(ticks: T[], labelExtent: number): T[] {
     const rows = this.groupRows;
-    if (rows === 0 || ticks.length === 0 || labelExtent <= 0) return super.thinTicks(ticks, labelExtent);
+    if (rows === 0 || ticks.length === 0 || labelExtent <= 0 || this.labelsRotated) return super.thinTicks(ticks, labelExtent);
 
     const kept: T[] = [];
     for (const run of this.groupRuns(rows - 1)) {
@@ -297,6 +303,50 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
     return this.measureWithCanvasFallback(text, this.labelFont());
   }
 
+  /**
+   * How far a separator leans to stay beside the tilted labels rather than
+   * through them: along the axis and across it, for the depth the labels take.
+   * Nothing while the labels stand level, or are not drawn at all.
+   */
+  private tiltedLabelBand(depth: number): { from: number; dx: number; dy: number } | undefined {
+    if (!this.labelsRotated || this.options.label?.enabled === false) return undefined;
+    // the labels start where they are hung, not at the axis line: a separator
+    // that started higher would come out level with the row of names beside it
+    // — parallel, a hair away — and run along the very text it keeps apart
+    const from = this.labelAnchorDepth();
+    if (depth - from <= 0) return undefined;
+    const { align, rotation } = this.labelAnchoring();
+    const radians = (rotation * Math.PI) / 180;
+    // the way the text runs from its tick: the labels of a run lie on this side of the line
+    const sign = align === 'left' ? 1 : -1;
+    const along = sign * Math.cos(radians);
+    const across = sign * Math.sin(radians);
+    const outward = this.isHorizontal ? across : along;
+    if (outward === 0) return undefined;
+    const length = (depth - from) / Math.abs(outward);
+    return this.isHorizontal
+      ? { from, dx: along * length, dy: across * length }
+      : { from, dx: across * length, dy: along * length };
+  }
+
+  /** One stroke of a separator: `dx` along the axis, `dy` across it. */
+  private separatorLine(coord: number, from: number, dx: number, dy: number): Line {
+    const line = new Line();
+    if (this.isHorizontal) {
+      line.x1 = coord;
+      line.x2 = coord + dx;
+      line.y1 = from;
+      line.y2 = from + dy;
+    } else {
+      line.y1 = coord;
+      line.y2 = coord + dx;
+      line.x1 = from;
+      line.x2 = from + dy;
+    }
+    line.stroke = this.env.theme.axisColor;
+    return line;
+  }
+
   override render(axisLayer: Group, gridLayer: Group, plot: LayoutRect, foregroundLayer?: Group): void {
     super.render(axisLayer, gridLayer, plot, foregroundLayer);
     const rows = this.groupRows;
@@ -316,6 +366,13 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
     // a boundary belongs to the outermost level that has it: one separator, as long as that row
     const separated = new Set<number>();
 
+    // where the labels lean, the whole band below them leans with it: a group
+    // name belongs over the names it heads, and its separators are the same
+    // boundary carried down — the leaning stroke ends exactly where the
+    // upright one starts, and the row reads as one lane per group
+    const band = this.tiltedLabelBand(baseThickness);
+    const shift = band?.dx ?? 0;
+
     for (let level = 0; level < rows; level++) {
       const rowCoord = edge + (baseThickness + this.rowOffset(level)) * direction;
       for (const { text, center } of this.drawnGroups(level, this.ownMeasureText)) {
@@ -323,12 +380,12 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
         label.text = text;
         label.textAlign = 'center';
         if (horizontal) {
-          label.x = center;
+          label.x = center + shift;
           label.y = rowCoord;
           label.textBaseline = this.position === 'bottom' ? 'top' : 'bottom';
         } else {
           label.x = rowCoord;
-          label.y = center;
+          label.y = center + shift;
           label.textBaseline = this.position === 'left' ? 'bottom' : 'top';
           label.rotation = -90;
         }
@@ -343,20 +400,16 @@ export class GroupedCategoryAxis extends BaseAxis<GroupedCategoryAxisOptions> {
       for (const run of this.groupRuns(level)) {
         if (run.previousEnd === undefined || separated.has(run.first)) continue;
         separated.add(run.first);
-        const separator = new Line();
         // halfway into the gap between the runs — with inside labels the gap is the next group's, so this lands above them
         const sepCoord = (run.previousEnd + run.start) / 2;
-        if (horizontal) {
-          separator.x1 = separator.x2 = sepCoord;
-          separator.y1 = edge;
-          separator.y2 = rowCoord + SEPARATOR_OVERSHOOT * direction;
-        } else {
-          separator.y1 = separator.y2 = sepCoord;
-          separator.x1 = edge;
-          separator.x2 = rowCoord + SEPARATOR_OVERSHOOT * direction;
-        }
-        separator.stroke = this.env.theme.axisColor;
-        axisLayer.append(separator);
+        // a separator leans with the labels where they lean: a line standing
+        // upright through tilted names cuts the very names it is drawn to keep
+        // apart. It straightens again for the rows of group names, which read
+        // level — the two are one boundary told twice, once in each band
+        if (band) axisLayer.append(this.separatorLine(sepCoord, edge + band.from * direction, band.dx, band.dy));
+        const from = edge + (band ? baseThickness : 0) * direction;
+        const span = rowCoord + SEPARATOR_OVERSHOOT * direction - from;
+        axisLayer.append(this.separatorLine(sepCoord + shift, from, 0, span));
       }
     }
   }

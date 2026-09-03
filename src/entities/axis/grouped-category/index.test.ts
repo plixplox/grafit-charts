@@ -419,3 +419,86 @@ describe('a group covers the label rows of its own categories', () => {
     expect(sideways(instance)[1]?.y).toBeCloseTo((separator!.y1 + bottom) / 2, 6);
   });
 });
+
+describe('tilted labels and the runs they belong to', () => {
+  /** Names too wide for two to share a run of three: level, only the middle one is drawn. */
+  const wide = [
+    ['H1', 'Strawberry jam'],
+    ['H1', 'Blueberry pie'],
+    ['H1', 'Raspberry tart'],
+    ['H2', 'Blackcurrant'],
+    ['H2', 'Gooseberry fool'],
+    ['H2', 'Elderflower'],
+  ];
+
+  /** Every line reaching below the axis line — the separators, and nothing else here. */
+  function strokes(instance: GroupedCategoryAxis): Line[] {
+    const axisLayer = capture();
+    instance.render(axisLayer.layer, new Group(), plot);
+    const edge = plot.y + plot.height;
+    return axisLayer.lines.filter((line) => line.y1 >= edge && line.y2 > edge);
+  }
+
+  it('keeps every name a run would have dropped', () => {
+    // a tilted label ends at its own tick, so it is never read as the run next door's
+    expect(tickLabels(axis({ label: { rotation: -45 } }, wide)).map((node) => node.text)).toEqual(wide.map(([, item]) => item));
+  });
+
+  it('still thins by the room the tilt needs where the ticks crowd', () => {
+    const many = Array.from({ length: 40 }, (_, index) => ['H1', `Item ${index}`]);
+    const drawn = tickLabels(axis({ label: { rotation: -45 } }, many));
+
+    // a 10 px step and 23.5 px of room per tilted label: every third one, evenly
+    // along the axis rather than gathered in the middle of the run
+    expect(drawn.map((node) => node.text)).toEqual(many.filter((_, index) => index % 3 === 0).map(([, item]) => item));
+  });
+
+  it('leans the separator with the labels and stands it up again for the group names', () => {
+    const instance = axis({ label: { rotation: -45 } }, wide);
+    const tilted = strokes(instance);
+    const upright = tilted.filter((line) => line.x1 === line.x2);
+    const leaning = tilted.filter((line) => line.x1 !== line.x2);
+    const edge = plot.y + plot.height;
+
+    // one boundary: leaning where the names lean, upright where the group names read
+    expect(upright).toHaveLength(1);
+    expect(leaning).toHaveLength(1);
+    // it starts where the labels are hung, not at the axis line — a stroke
+    // level with the row of names would run along the very text it separates
+    expect(leaning[0]!.y1).toBeGreaterThan(edge);
+    // parallel to the labels: as far along the axis as it goes across, at 45°
+    expect(leaning[0]!.x2 - leaning[0]!.x1).toBeCloseTo(-(leaning[0]!.y2 - leaning[0]!.y1), 6);
+    // and the upright one carries on from where the leaning one ends
+    expect(upright[0]!.x1).toBeCloseTo(leaning[0]!.x2, 6);
+    expect(upright[0]!.y1).toBeCloseTo(leaning[0]!.y2, 6);
+  });
+
+  it('never lets the separator run along the labels it keeps apart', () => {
+    const instance = axis({ label: { rotation: -45 } }, wide);
+    const leaning = strokes(instance).filter((line) => line.x1 !== line.x2)[0]!;
+    const drawn = tickLabels(instance);
+    // the strips are parallel, so what keeps them clear of each other is the
+    // distance across: at least half a glyph row, or the line crosses the text
+    for (const label of drawn) {
+      const across = Math.abs((leaning.x1 - label.x) * Math.SQRT1_2 + (leaning.y1 - label.y) * Math.SQRT1_2);
+      expect(across).toBeGreaterThan(11 / 2);
+    }
+  });
+
+  it('carries the group names along with the lean, each over the names it heads', () => {
+    const level = groupLabels(axis({}, wide));
+    const tilted = groupLabels(axis({ label: { rotation: -45 } }, wide));
+    const leaning = strokes(axis({ label: { rotation: -45 } }, wide)).filter((line) => line.x1 !== line.x2)[0]!;
+    const drift = leaning.x2 - leaning.x1;
+
+    expect(tilted.map((node) => node.text)).toEqual(level.map((node) => node.text));
+    for (const [index, node] of tilted.entries()) expect(node.x).toBeCloseTo(level[index]!.x + drift, 6);
+  });
+
+  it('keeps the separator upright all the way while the labels are level', () => {
+    const level = strokes(axis({}, wide));
+
+    expect(level.filter((line) => line.x1 !== line.x2)).toHaveLength(0);
+    expect(level.filter((line) => line.x1 === line.x2)[0]?.y1).toBe(plot.y + plot.height);
+  });
+});

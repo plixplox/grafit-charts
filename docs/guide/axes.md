@@ -252,6 +252,8 @@ A `grouped-category` axis thins run by run instead of across the axis as a
 whole: each run of categories keeps as many labels as fit between its own
 separators, taken from its middle outwards, so a name never sits under the group
 next door. A run too narrow for a label of its own is left to its group name.
+Tilted labels are thinned across the axis as a whole instead — see
+[Grouped categories](#grouped-categories).
 
 `label.overflow: 'ellipsis'` chooses the other trade: every label stays on the
 axis and is cut to the room between two ticks, with `label.ellipsis` — `'..'` by
@@ -310,6 +312,27 @@ axes: [
   { type: 'number', position: 'left' },
 ];
 ```
+
+### Grouped categories
+
+A `grouped-category` axis thins its labels run by run: a level name is centred
+on its tick and sprawls both ways, so one that overhangs its run would read as
+the run next door's. A tilted name never does — it ends at its own tick and
+points back at it — so the runs stop deciding and the axis thins the way any
+other does. Every name a narrow run had no room for comes back, and groups a
+day or two wide, where a level axis could label none of their categories, get
+their names.
+
+The separator leans with them, and the rows of group names travel with it. A
+line standing upright through tilted names cuts the very names it is drawn to
+keep apart; one drawn from the axis line would come out level with the row
+beside it — parallel, a hair away — and run along that name lengthwise. So it
+starts where the labels are hung, halfway between the two strips it separates,
+and carries on upright once the names are behind it. The group row goes with
+it: a name sits over the names it heads rather than beside them, its brackets
+are the same boundary carried down, and every group reads as one lane.
+
+::: chart-example axis-labels-rotated-grouped
 
 ### Letting the axis pick the angle
 

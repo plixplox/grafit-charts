@@ -384,6 +384,17 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     return { align: this.outwardSign() * along >= 0 ? 'left' : 'right', baseline: 'middle', rotation };
   }
 
+  /**
+   * How far from the axis line the labels hang: past the ticks, past the gap
+   * they keep, and past the lean a tilted label takes back over that gap.
+   * Where the label rows begin, and where anything drawn among them belongs.
+   */
+  protected labelAnchorDepth(): number {
+    const tick = this.ticksVisible ? (this.options.tick?.size ?? this.env.theme.axis.tickSize ?? TICK_SIZE) : 0;
+    const spacing = this.options.label?.spacing ?? this.env.theme.axis.labelSpacing ?? LABEL_SPACING;
+    return tick + spacing + this.labelReach(this.labelBox(0)).near;
+  }
+
   /** Box a label of that width covers around its anchor, tilt and all. */
   protected labelBox(width: number): Bounds {
     const { align, baseline, rotation } = this.labelAnchoring();
@@ -675,7 +686,7 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       const { align, baseline, rotation } = this.labelAnchoring();
       // a tilted label leans back over the gap it was given: the anchor moves
       // out by as much, and the clearance from the axis reads as it was asked for
-      const anchor = edge + (labelExtent + this.labelReach(this.labelBox(0)).near) * direction;
+      const anchor = edge + this.labelAnchorDepth() * direction;
       for (const { value, coord, index } of ticks) {
         const text = this.labelNode(this.tickLabel(value, index, labelRoom, this.ownMeasureText));
         // a category arriving or leaving during an update owns part of a band,
