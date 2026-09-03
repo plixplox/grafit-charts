@@ -96,7 +96,7 @@ chart.destroy(); // when done
 ## Features
 
 - **Series**: line, bar, area, scatter, bubble, histogram, heatmap, range-bar/area, box-plot, waterfall, funnel, cone-funnel, candlestick, ohlc, pie, donut, radar, nightingale, radial-column, radial-bar, treemap, sunburst, pyramid, sankey, chord, gauges
-- **Axes**: number, category, time, log, ordinal-time, grouped-category; crossLines, interval, label thinning
+- **Axes**: number, category, time, log, ordinal-time, grouped-category; crossLines, interval, label thinning and tilt (fixed or auto)
 - **Interactivity**: tooltips, highlighting, legend with series toggling, zoom + navigator, crosshair, chart synchronization, context menu, declarative annotations
 - **More**: themes (default/dark/custom), entrance animation, state (getState/setState), PNG export, keyboard navigation, localization
 - **Presets**: `createFinancialChart`, `createGauge`, `createSparkline`

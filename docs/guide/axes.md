@@ -280,6 +280,64 @@ axes: [
 ];
 ```
 
+## Labels at an angle
+
+The third trade is to turn the labels. `label.rotation` is the tilt in degrees,
+clockwise: `-45` on a bottom axis slants the names up to the right, each one
+ending at its own tick; `45` slants them the other way; `-90` stands them on
+end. Every name stays whole, and none of them is dropped. `'auto'` leaves the
+angle to the axis — see [Letting the axis pick the angle](#letting-the-axis-pick-the-angle).
+
+::: chart-example axis-labels-rotated
+
+Tilted labels lie in parallel strips, so what decides whether two of them
+collide is not how long they are but how far apart the ticks stand: they clear
+each other as soon as a line of text fits between the strips — about 15 px at
+45°, 11 px on end — whatever the names say. That is why a tilt keeps labels a
+level axis would have to thin out.
+
+The room the turned text asks for is reserved: the axis grows by the depth of
+the tilted row, and where the first or last name leans past the end of the plot
+the layout finds that room too, the same way it does for a level label. A tilt
+therefore costs height rather than names — `-90` costs the most, the full length
+of the longest label, and shallow angles the least. Cap it with `label.maxWidth`
+where a single long name would take more than it is worth.
+
+```ts
+axes: [
+  // eight city names on one axis, none of them dropped and none of them cut
+  { type: 'category', position: 'bottom', label: { rotation: -45 } },
+  { type: 'number', position: 'left' },
+];
+```
+
+### Letting the axis pick the angle
+
+`label.rotation: 'auto'` leaves the decision to the axis. The labels stand level
+while they all fit that way, and the moment one of them would have to be dropped
+they tilt — as gently as the step allows: 30° where a name has 30 px of step to
+clear, then 45°, 60°, and on end where the ticks stand closer than that. A chart
+whose data grows through the day therefore keeps its labels level until it no
+longer can, and turns them only as far as it must.
+
+::: chart-example axis-labels-rotated-auto
+
+The angle is settled once per render and holds for that render: the room a tilt
+asks for at the ends of the axis is what moves the plot, and an axis answering
+its own new step with a gentler angle again would settle on neither. New data,
+or a new size, is decided afresh.
+
+`'auto'` steps aside where the axis has already been given an answer to
+crowding: `label.overflow: 'ellipsis'` cuts the labels instead, and
+`label.avoidCollisions: false` says to leave them where they are. Both keep the
+labels level. A vertical axis reads its labels across itself, one line each, so
+they never crowd and `'auto'` leaves them alone as well.
+
+The tilt is for labels beside the axis: `label.placement: 'inside'` draws them
+level, in the plot, as it always does. `label.overflow: 'ellipsis'` has nothing
+to cut a tilted label to either — a tilted label has no neighbour to run into —
+so `maxWidth` is what bounds it.
+
 ## Labels inside the plot
 
 `label.placement: 'inside'` moves the tick labels into the plot area, and the
@@ -419,6 +477,7 @@ format string wherever both are given.
 | `label.placement`                                         | `'outside' \| 'inside'`                                                             | `'outside'`                 | labels beside the axis or inside the plot                   |
 | `label.format`                                            | `string`                                                                            | —                           | format string (`',.2f'`, `'.0%'`, `'%d %b'`)                |
 | `label.formatter`                                         | `({ value, index }) => string`                                                      | —                           | programmatic formatting                                     |
+| `label.rotation`                                          | `Degrees \| 'auto'`                                                                 | `0`                         | tilt of the labels, clockwise (`-45`, `-90`); outside only  |
 | `label.avoidCollisions`                                   | `boolean`                                                                           | `true`                      | skip overlapping labels                                     |
 | `label.overflow`                                          | `'thin' \| 'ellipsis'`                                                              | `'thin'`                    | crowded labels: drop them, or keep and cut them             |
 | `label.maxWidth`                                          | `Pixels`                                                                            | —                           | widest a label may be; longer text is cut                   |
@@ -459,8 +518,9 @@ format string wherever both are given.
 | `groupLabel.maxWidth` (grouped-category)                  | `Pixels`                                                                            | the run the group covers    | widest a group name may be                                  |
 
 Horizontal axis labels are automatically thinned out when crowded
-(`label.avoidCollisions: false` disables this), or cut instead — see
-[Labels that do not fit](#labels-that-do-not-fit).
+(`label.avoidCollisions: false` disables this), or cut instead, or turned to an
+angle — see [Labels that do not fit](#labels-that-do-not-fit) and
+[Labels at an angle](#labels-at-an-angle).
 
 ## Overlays
 

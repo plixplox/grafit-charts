@@ -19,6 +19,22 @@ describe('text bounds', () => {
     expect(textBounds(0, 50, 40, 12, 'left', 'bottom')).toMatchObject({ top: 38, bottom: 50 });
     expect(textBounds(0, 50, 40, 12, 'left', 'alphabetic')).toMatchObject({ top: 38, bottom: 50 });
   });
+
+  it('turns the row about its anchor and takes the box it then fills', () => {
+    // a quarter turn swaps the two sides of the box, and leaves nothing over
+    expect(textBounds(0, 0, 40, 12, 'left', 'top', 90)).toEqual({ left: -12, right: 0, top: 0, bottom: 40 });
+    const tilted = textBounds(0, 0, 40, 12, 'right', 'middle', -45);
+    // 40 px of text and 12 px of row, laid across the diagonal
+    expect(tilted.bottom - tilted.top).toBeCloseTo((40 + 12) * Math.SQRT1_2, 6);
+    expect(tilted.right - tilted.left).toBeCloseTo((40 + 12) * Math.SQRT1_2, 6);
+    // the text runs up to the left of the anchor, so it hangs below and behind it
+    expect(tilted.right).toBeCloseTo(6 * Math.SQRT1_2, 6);
+    expect(tilted.top).toBeCloseTo(-6 * Math.SQRT1_2, 6);
+  });
+
+  it('leaves a whole turn alone', () => {
+    expect(textBounds(100, 0, 40, 10, 'center', 'top', 360)).toEqual(textBounds(100, 0, 40, 10, 'center', 'top'));
+  });
 });
 
 describe('overflow outside a rect', () => {

@@ -171,8 +171,22 @@ export class NumberAxis extends BaseAxis<NumberAxisOptions> {
    * walk ends, dropping every bar on the chart a few pixels at the very end.
    */
   protected override measurementTicks(): Array<{ value: unknown; coord: number; index: number }> {
+    return this.arrivingTicks() ?? this.displayTicks();
+  }
+
+  /**
+   * A tilt is settled on the scale being arrived at too: the frame of a walk
+   * carries the ticks of both scales at once, and an angle taken from that
+   * crowd would come and go with the animation.
+   */
+  protected override tiltTicks(): Array<{ value: unknown; coord: number; index: number }> {
+    return this.arrivingTicks() ?? super.tiltTicks();
+  }
+
+  /** Ticks of the scale being arrived at; undefined while nothing is walking. */
+  private arrivingTicks(): Array<{ value: unknown; coord: number; index: number }> | undefined {
     const settled = this.tickDomain;
-    if (!settled) return this.displayTicks();
+    if (!settled) return undefined;
     const scale = new LinearScale([settled[0], settled[1]], this.scale.range);
     return this.distinctTicks(ticks(settled[0], settled[1], this.tickCount())).map((value, index) => ({
       value,

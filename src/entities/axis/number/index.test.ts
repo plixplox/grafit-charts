@@ -238,3 +238,34 @@ function tickNodes(instance: NumberAxis): Array<{ value: number; opacity: number
   instance.render(layer, new Group(), plot);
   return nodes;
 }
+
+describe('an angle the axis picks while the scale is walking', () => {
+  /** Rotation of the labels as they are drawn. */
+  function tilt(instance: NumberAxis): number {
+    const layer = new Group();
+    const angles = new Set<number>();
+    layer.append = ((...appended) => {
+      for (const node of appended) if (node instanceof Text) angles.add(node.rotation);
+      return layer;
+    }) as typeof layer.append;
+    instance.render(layer, new Group(), plot);
+    expect(angles.size).toBe(1);
+    return [...angles][0]!;
+  }
+
+  /** Long enough that the names crowd a 400 px axis and the tilt has to come out. */
+  const wordy = { rotation: 'auto' as const, formatter: ({ value }: { value: unknown }) => `${value} thousand units` };
+
+  it('takes the angle from the scale it is settling on, not from the frame it is in', () => {
+    const settled = axis({ label: wordy }, 'bottom', [0, 100]);
+    const angle = tilt(settled);
+    expect(angle).toBeLessThan(0);
+
+    // partway through an update the frame carries the ticks of both scales at
+    // once, and a scale walking down from ten times the bounds crowds them: an
+    // angle read off that crowd would come and go with the animation
+    const walking = axis({ label: wordy }, 'bottom', [0, 100]);
+    walking.setTransitionDomain([0, 1000], 0.5);
+    expect(tilt(walking)).toBe(angle);
+  });
+});

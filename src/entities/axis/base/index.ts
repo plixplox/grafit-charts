@@ -1,9 +1,9 @@
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { AxisEnv, AxisPosition, CartesianAxisInstance, Insets, LayoutRect, MeasureText } from '@/shared/kernel';
-import type { ColorValue, FontOptions, Pixels, Switchable } from '@/shared/options';
+import type { ColorValue, Degrees, FontOptions, Pixels, Switchable } from '@/shared/options';
 import { BandScale, type AnyScale } from '@/shared/scale';
 import { Group, Line, Rect, Text } from '@/shared/scene';
-import { ellipsize, formatValue, maxOverflow, overflowOutside, NO_OVERFLOW } from '@/shared/util';
+import { ellipsize, formatValue, maxOverflow, overflowOutside, textBounds, type Bounds, NO_OVERFLOW } from '@/shared/util';
 
 export interface AxisLabelFormatterParams {
   value: unknown;
@@ -82,6 +82,20 @@ export interface AxisBaseOptions {
       /** Serializable format string (',.2f', '.0%', '%d %b'). */
       format?: string;
       formatter?: (params: AxisLabelFormatterParams) => string;
+      /**
+       * Tilt of the labels, degrees clockwise. `-45` on a bottom axis slants
+       * them up to the right, each name ending at its own tick — the classic
+       * way of fitting long category names without dropping any of them; `45`
+       * slants them the other way, `-90` stands them on end. The axis reserves
+       * the room the tilted text asks for, and tilted labels clear each other
+       * once a line of text fits between them, whatever their length, so far
+       * fewer of them have to go. Outside labels only.
+       *
+       * `'auto'` leaves the angle to the axis: the labels stand level while
+       * they all fit that way, and tilt — as gently as the step allows — the
+       * moment one of them would otherwise have to go.
+       */
+      rotation?: Degrees | 'auto';
       /** Skip overlapping labels (true by default). */
       avoidCollisions?: boolean;
       /**
@@ -119,6 +133,8 @@ const INSIDE_LABEL_SPACING = 4;
 const INSIDE_LABEL_GAP = 4;
 const TITLE_SPACING = 6;
 const MIN_LABEL_SPACING = 8;
+/** The angles `label.rotation: 'auto'` works through, gentlest first. */
+const AUTO_TILTS: Degrees[] = [30, 45, 60, 90];
 /** Bands never give up more than this share of the step to the gap between them. */
 const MAX_PADDING_INNER = 0.8;
 /** Band padding shared by the categorical axes. */
@@ -268,6 +284,164 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     return maxWidth !== undefined && maxWidth > 0 ? maxWidth : Infinity;
   }
 
+  /** Tilt of the tick labels, degrees clockwise; 0 leaves them level. */
+  protected get labelRotation(): Degrees {
+    const rotation = this.options.label?.rotation;
+    if (rotation === 'auto') return this.autoTilt;
+    return rotation !== undefined && Number.isFinite(rotation) ? rotation % 360 : 0;
+  }
+
+  /**
+   * The tilt `'auto'` worked out, and what it was worked out against. The
+   * answer feeds back into the question — tilted labels ask for room at the
+   * ends of the axis, which moves the plot, which moves the step the tilt was
+   * chosen for — so within one set of bounds a tilt only ever steepens, and the
+   * passes of a layout settle instead of chasing each other. The domain the
+   * chart hands the axis is new on every render, so a resize, or data of its
+   * own, is decided from scratch.
+   */
+  private settledTilt: { domain: unknown; from: number; to: number; angle: Degrees } | undefined;
+
+  /**
+   * The angle `'auto'` settles on: none while every label fits standing level,
+   * and otherwise the gentlest tilt the step leaves room for — the steepest one
+   * where even that is not enough, with the ordinary thinning taking over from
+   * there. Nothing along this path may go through the tilted-label helpers:
+   * they are the ones asking for the angle.
+   */
+  private get autoTilt(): Degrees {
+    // a vertical axis reads its labels across itself, a line each, and they do
+    // not crowd; labels inside the plot are level by their own rules; and an
+    // axis told to cut its labels, or to leave them be, has already answered
+    if (!this.isHorizontal || this.labelsInside || this.labelCuts || this.options.label?.avoidCollisions === false) return 0;
+    const domain: unknown = this.scale.domain;
+    const [from, to] = this.scale.range;
+    const settled = this.settledTilt !== undefined && this.settledTilt.domain === domain ? this.settledTilt : undefined;
+    if (settled && settled.from === from && settled.to === to) return settled.angle;
+    // steeper than the tilt this data already settled on, or as steep — never less
+    const angle = Math.min(settled?.angle ?? 0, this.tiltForRoom());
+    this.settledTilt = { domain, from, to, angle };
+    return angle;
+  }
+
+  /**
+   * The gentlest tilt the room between two ticks leaves for a label — none,
+   * where the labels fit level. A tilted label needs a line of text between
+   * the strips rather than the length of its own name, which is why an axis
+   * that cannot fit two names side by side still fits every one of them at 30°.
+   */
+  private tiltForRoom(): Degrees {
+    const ticks = this.tiltTicks();
+    let step = Infinity;
+    for (let i = 1; i < ticks.length; i++) step = Math.min(step, Math.abs(ticks[i]!.coord - ticks[i - 1]!.coord));
+    // one tick, or none: nothing to crowd against
+    if (!Number.isFinite(step)) return 0;
+    const font = this.labelFont();
+    let widest = 0;
+    for (const { value, index } of ticks) {
+      const text = this.tickLabel(value, index, this.labelMaxWidth, this.ownMeasureText);
+      widest = Math.max(widest, this.measureWithCanvasFallback(text, font));
+    }
+    if (widest + this.minLabelSpacing <= step) return 0;
+    for (const tilt of AUTO_TILTS) {
+      if (this.labelSize / Math.sin((tilt * Math.PI) / 180) + this.minLabelSpacing <= step) return -tilt;
+    }
+    return -AUTO_TILTS[AUTO_TILTS.length - 1]!;
+  }
+
+  /**
+   * The ticks a tilt is worked out against: every one the axis carries, before
+   * any of them are thinned out, since what is being asked is whether they all
+   * fit. An axis walking between two scales answers with the one it is settling
+   * on — a tilt taken from the crowd of a frame partway through would come and
+   * go with the animation.
+   */
+  protected tiltTicks(): Array<{ value: unknown; coord: number; index: number }> {
+    return this.allTicks();
+  }
+
+  /** Whether the labels are drawn at an angle. Inside labels are always level. */
+  protected get labelsRotated(): boolean {
+    return this.labelRotation !== 0 && !this.labelsInside;
+  }
+
+  /**
+   * How a label hangs off its anchor. A level label reads along the axis and is
+   * centred on its tick; a tilted one ends at its tick — or starts there, where
+   * the tilt runs the other way — and is centred across the text, so the same
+   * anchor serves at every angle. Of the two ways to hang a tilted label off a
+   * tick, the axis takes the one leaning away from the plot.
+   */
+  protected labelAnchoring(): { align: CanvasTextAlign; baseline: CanvasTextBaseline; rotation: Degrees } {
+    const rotation = this.labelsRotated ? this.labelRotation : 0;
+    if (rotation === 0) {
+      return this.isHorizontal
+        ? { align: 'center', baseline: this.position === 'bottom' ? 'top' : 'bottom', rotation }
+        : { align: this.position === 'left' ? 'right' : 'left', baseline: 'middle', rotation };
+    }
+    const radians = (rotation * Math.PI) / 180;
+    const along = this.isHorizontal ? Math.sin(radians) : Math.cos(radians);
+    return { align: this.outwardSign() * along >= 0 ? 'left' : 'right', baseline: 'middle', rotation };
+  }
+
+  /** Box a label of that width covers around its anchor, tilt and all. */
+  protected labelBox(width: number): Bounds {
+    const { align, baseline, rotation } = this.labelAnchoring();
+    return textBounds(0, 0, width, this.labelSize, align, baseline, rotation);
+  }
+
+  /**
+   * How far a label reaches from its anchor across the axis: `near` back
+   * towards the axis line, `far` away from it. A tilted label is centred across
+   * its text, so it leans back over the gap it was given — the anchor moves out
+   * by `near` and the gap reads as the one that was asked for.
+   */
+  protected labelReach(box: Bounds): { near: number; far: number } {
+    switch (this.position) {
+      case 'bottom':
+        return { near: -box.top, far: box.bottom };
+      case 'top':
+        return { near: box.bottom, far: -box.top };
+      case 'left':
+        return { near: box.right, far: -box.left };
+      case 'right':
+        return { near: -box.left, far: box.right };
+    }
+  }
+
+  /** Room the labels take across the axis, the deepest of them deciding. */
+  protected labelSpan(ticks: Array<{ value: unknown; index: number }>, room: number, measureText: MeasureText): number {
+    const font = this.labelFont();
+    let span = 0;
+    for (const { value, index } of ticks) {
+      const { near, far } = this.labelReach(this.labelBox(measureText(this.tickLabel(value, index, room, measureText), font)));
+      span = Math.max(span, near + far);
+    }
+    return span;
+  }
+
+  /**
+   * Room one label needs along the axis before the next may follow it. A level
+   * label is as long as its own text; tilted labels lie in parallel strips, and
+   * two strips clear each other as soon as the axis has stepped far enough for a
+   * line of text to fit between them — whatever the names are, and which is why
+   * a tilt keeps labels a level axis would have to drop. Neither ever needs more
+   * than the width of the box the label covers.
+   */
+  protected labelStride(ticks: Array<{ value: unknown; index: number }>): number {
+    const font = this.labelFont();
+    const cap = this.labelMaxWidth;
+    let box = 0;
+    for (const { value, index } of ticks) {
+      const bounds = this.labelBox(this.measureWithCanvasFallback(this.tickLabel(value, index, cap, this.ownMeasureText), font));
+      box = Math.max(box, this.isHorizontal ? bounds.right - bounds.left : bounds.bottom - bounds.top);
+    }
+    if (!this.labelsRotated) return box + this.minLabelSpacing;
+    const radians = (this.labelRotation * Math.PI) / 180;
+    const across = Math.abs(this.isHorizontal ? Math.sin(radians) : Math.cos(radians));
+    return Math.min(across > 0 ? this.labelSize / across : Infinity, box) + this.minLabelSpacing;
+  }
+
   /**
    * Room one label has along a horizontal axis: the step between neighbouring
    * ticks, less the spacing labels keep from each other — the same distance
@@ -276,7 +450,9 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
    */
   protected labelRoom(ticks: Array<{ coord: number }>): number {
     const cap = this.labelMaxWidth;
-    if (!this.isHorizontal || !this.labelCuts) return cap;
+    // a tilted label does not run into its neighbour, so the step is not its
+    // budget: what bounds it is `maxWidth`, if anything
+    if (!this.isHorizontal || !this.labelCuts || this.labelsRotated) return cap;
     let step = Infinity;
     for (let i = 1; i < ticks.length; i++) step = Math.min(step, Math.abs(ticks[i]!.coord - ticks[i - 1]!.coord));
     if (!Number.isFinite(step)) return cap;
@@ -298,25 +474,16 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
   /** Ticks accounting for interval.values and skipping of overlapping labels. */
   protected displayTicks(): Array<{ value: unknown; coord: number; index: number }> {
     const explicit = this.options.interval?.values;
-    const raw = explicit
-      ? explicit.map((value) => ({ value, coord: this.coordOf(value) })).filter(({ coord }) => !Number.isNaN(coord))
-      : this.tickInfo();
-    const all = raw.map((tick, index) => ({ ...tick, index }));
+    const all = this.allTicks();
     if (this.options.label?.avoidCollisions === false) return all;
     // values the caller listed are the ones it wants to see, repeats and all
     const ticks = explicit ? all : this.thinRepeats(all);
-    // a vertical axis only crowds when its labels sit inside, in a row per band
-    if (!this.isHorizontal) return this.labelsInside ? this.thinTicks(ticks, this.insideLabelSlot()) : ticks;
+    // a vertical axis only crowds when its labels sit inside, in a row per band —
+    // or when they are tilted, and reach along the axis instead of across it
+    if (!this.isHorizontal && !this.labelsRotated) return this.labelsInside ? this.thinTicks(ticks, this.insideLabelSlot()) : ticks;
     // cut labels take the room they are given, so none of them has to go
-    if (this.labelCuts) return ticks;
-
-    const font = this.labelFont();
-    const cap = this.labelMaxWidth;
-    let maxWidth = 0;
-    for (const tick of ticks) {
-      maxWidth = Math.max(maxWidth, this.measureWithCanvasFallback(this.tickLabel(tick.value, tick.index, cap, this.ownMeasureText), font));
-    }
-    return this.thinTicks(ticks, maxWidth + this.minLabelSpacing);
+    if (this.labelCuts && !this.labelsRotated) return ticks;
+    return this.thinTicks(ticks, this.labelStride(ticks));
   }
 
   /**
@@ -367,6 +534,15 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
     return thin(ticks, labelExtent);
   }
 
+  /** Every tick the axis carries, in order, before any of them are thinned out. */
+  protected allTicks(): Array<{ value: unknown; coord: number; index: number }> {
+    const explicit = this.options.interval?.values;
+    const raw = explicit
+      ? explicit.map((value) => ({ value, coord: this.coordOf(value) })).filter(({ coord }) => !Number.isNaN(coord))
+      : this.tickInfo();
+    return raw.map((tick, index) => ({ ...tick, index }));
+  }
+
   /** Coordinate of a value on the scale (for interval.values and crossLines). */
   protected coordOf(value: unknown): number {
     const scale = this.scale as { center?: (v: unknown) => number; convert: (v: never) => number };
@@ -381,16 +557,10 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
 
     const label = this.options.label;
     if (label?.enabled !== false && !this.labelsInside) {
-      const fontSize = this.labelSize;
       thickness += label?.spacing ?? this.env.theme.axis.labelSpacing ?? LABEL_SPACING;
-      if (this.isHorizontal) {
-        thickness += fontSize;
-      } else {
-        const font = this.labelFont();
-        const cap = this.labelMaxWidth;
-        const widths = this.measurementTicks().map(({ value, index }) => measureText(this.tickLabel(value, index, cap, measureText), font));
-        thickness += widths.length > 0 ? Math.max(...widths) : 0;
-      }
+      // a level horizontal axis knows its own depth without measuring: one glyph row
+      if (this.isHorizontal && !this.labelsRotated) thickness += this.labelSize;
+      else thickness += this.labelSpan(this.measurementTicks(), this.labelMaxWidth, measureText);
     }
 
     const title = this.options.title;
@@ -408,16 +578,15 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
   labelOverflow(measureText: MeasureText, plot: LayoutRect): Insets {
     if (this.options.label?.enabled === false || this.labelsInside) return NO_OVERFLOW;
     const font = this.labelFont();
-    const fontSize = this.labelSize;
     let overflow = NO_OVERFLOW;
     const ticks = this.measurementTicks();
     const room = this.labelRoom(ticks);
     for (const { value, coord, index } of ticks) {
-      const half = this.isHorizontal ? measureText(this.tickLabel(value, index, room, measureText), font) / 2 : fontSize / 2;
+      const box = this.labelBox(measureText(this.tickLabel(value, index, room, measureText), font));
       // across the axis the labels stay in the zone measure() reserved — only the ends matter here
       const bounds = this.isHorizontal
-        ? { left: coord - half, right: coord + half, top: plot.y, bottom: plot.y + plot.height }
-        : { left: plot.x, right: plot.x + plot.width, top: coord - half, bottom: coord + half };
+        ? { left: coord + box.left, right: coord + box.right, top: plot.y, bottom: plot.y + plot.height }
+        : { left: plot.x, right: plot.x + plot.width, top: coord + box.top, bottom: coord + box.bottom };
       overflow = maxOverflow(overflow, overflowOutside(bounds, plot));
     }
     return overflow;
@@ -503,41 +672,30 @@ export abstract class BaseAxis<O extends AxisBaseOptions = AxisBaseOptions> impl
       this.renderInsideLabels(foregroundLayer ?? axisLayer, plot, ticks, labelRoom);
     } else if (labelOptions?.enabled !== false) {
       labelExtent += labelOptions?.spacing ?? theme.axis.labelSpacing ?? LABEL_SPACING;
-      const fontSize = this.labelSize;
-      let maxLabelSize = 0;
+      const { align, baseline, rotation } = this.labelAnchoring();
+      // a tilted label leans back over the gap it was given: the anchor moves
+      // out by as much, and the clearance from the axis reads as it was asked for
+      const anchor = edge + (labelExtent + this.labelReach(this.labelBox(0)).near) * direction;
       for (const { value, coord, index } of ticks) {
         const text = this.labelNode(this.tickLabel(value, index, labelRoom, this.ownMeasureText));
         // a category arriving or leaving during an update owns part of a band,
         // and its name fades with it — two names at full strength over a band
         // that is closing would sit on top of each other on the way out
         text.opacity = this.tickWeight(value);
-        if (this.isHorizontal) {
-          text.x = coord;
-          text.y = edge + labelExtent * direction;
-          text.textAlign = 'center';
-          text.textBaseline = this.position === 'bottom' ? 'top' : 'bottom';
-          maxLabelSize = Math.max(maxLabelSize, fontSize);
-        } else {
-          text.x = edge + labelExtent * direction;
-          text.y = coord;
-          text.textAlign = this.position === 'left' ? 'right' : 'left';
-          text.textBaseline = 'middle';
-        }
+        text.x = this.isHorizontal ? coord : anchor;
+        text.y = this.isHorizontal ? anchor : coord;
+        text.textAlign = align;
+        text.textBaseline = baseline;
+        text.rotation = rotation;
         axisLayer.append(text);
-      }
-      if (this.isHorizontal) {
-        labelExtent += maxLabelSize;
       }
     }
 
     const title = this.options.title;
     if (title?.text && title.enabled !== false) {
-      if (!this.isHorizontal && !insideLabels) {
-        const font = this.labelFont();
-        const widths = ticks.map(({ value, index }) =>
-          this.measureWithCanvasFallback(this.tickLabel(value, index, labelRoom, this.ownMeasureText), font),
-        );
-        labelExtent += widths.length > 0 ? Math.max(...widths) : 0;
+      // the title stands past the labels, however deep they turned out to be
+      if (!insideLabels && labelOptions?.enabled !== false) {
+        labelExtent += this.labelSpan(ticks, labelRoom, this.ownMeasureText);
       }
       const node = new Text();
       node.text = title.text;

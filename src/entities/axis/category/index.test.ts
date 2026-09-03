@@ -405,3 +405,159 @@ describe('gap between categories in px', () => {
     expect(bandGap(inside)).toBeCloseTo(slot + 10, 6);
   });
 });
+
+describe('labels at an angle', () => {
+  /** Four names on a 400 px axis: a 100 px step, and 92 px of room for a level label. */
+  const long = ['Strawberry jam', 'Blueberry pie', 'Raspberry tart', 'Blackcurrant'];
+  const diagonal = Math.SQRT1_2;
+  /** Half a glyph row turned by 45°: how far a tilted label leans back over its gap. */
+  const lean = (11 / 2) * diagonal;
+
+  /** Label nodes as they are drawn. */
+  function drawn(instance: CategoryAxis): Text[] {
+    const { layer, nodes } = capture();
+    instance.render(layer, new Group(), plot);
+    return nodes;
+  }
+
+  it('ends every name at its own tick, turned by the angle asked for', () => {
+    const nodes = drawn(axis({ label: { rotation: -45 } }, 'bottom', long));
+
+    expect(nodes).toHaveLength(long.length);
+    for (const [index, node] of nodes.entries()) {
+      expect(node.rotation).toBe(-45);
+      // the text runs up to the right and stops at the tick, centred across its row
+      expect(node.textAlign).toBe('right');
+      expect(node.textBaseline).toBe('middle');
+      expect(node.x).toBeCloseTo(axis({}, 'bottom', long).scale.center(long[index]), 6);
+      // the gap from the axis reads as the 8 px asked for, lean and all
+      expect(node.y).toBeCloseTo(plot.y + plot.height + 8 + lean, 6);
+    }
+  });
+
+  it('runs the names the other way when the tilt does', () => {
+    expect(drawn(axis({ label: { rotation: 45 } }, 'bottom', long))[0]?.textAlign).toBe('left');
+    // above the plot the same tilt leans the other way to keep clear of it
+    expect(drawn(axis({ label: { rotation: 45 } }, 'top', long))[0]?.textAlign).toBe('right');
+    expect(drawn(axis({ label: { rotation: -45 } }, 'left', long))[0]?.textAlign).toBe('right');
+  });
+
+  it('keeps the names a level axis would have had to drop', () => {
+    // 92 px of name in a 100 px step: level, every other one goes
+    expect(drawn(axis({}, 'bottom', long)).map((node) => node.text)).toHaveLength(2);
+    // tilted, the names lie in parallel strips and clear each other by a line of text
+    expect(drawn(axis({ label: { rotation: -45 } }, 'bottom', long)).map((node) => node.text)).toEqual(long);
+  });
+
+  it('thins by the room a line of text needs across the tilt', () => {
+    const many = Array.from({ length: 40 }, (_, index) => `Item ${index}`);
+    const tilted = axis({ label: { rotation: -45 } }, 'left', many);
+    // 11 px of glyph row measured across a 45° strip, plus the 8 px labels keep apart
+    const stride = Math.ceil((11 / diagonal + 8) / tilted.scale.stepSize);
+    expect(stride).toBeGreaterThan(1);
+    expect(drawn(tilted).map((node) => node.text)).toEqual(many.filter((_, index) => index % stride === 0));
+  });
+
+  it('reserves the room the tilted text takes from the plot', () => {
+    // the turned row of the longest name: 140 px of text and 11 px of height, at 45°
+    const tilted = axis({ label: { rotation: -45 } }, 'bottom', long).measure(measureText);
+    expect(tilted).toBe(Math.ceil(8 + (140 + 11) * diagonal));
+    // standing on end it is the length of the name that the axis has to find room for
+    expect(axis({ label: { rotation: -90 } }, 'bottom', long).measure(measureText)).toBe(8 + 140);
+    // and a vertical axis gives most of that room back
+    expect(axis({ label: { rotation: -90 } }, 'left', long).measure(measureText)).toBe(8 + 11);
+  });
+
+  it('asks for the room the leaning end of the axis needs', () => {
+    const tilted = axis({ label: { rotation: -45 } }, 'bottom', long);
+    const overflow = tilted.labelOverflow(measureText, plot);
+    // the first name trails down and to the left of its tick, past the start of the plot
+    const first = tilted.scale.center(long[0]);
+    expect(overflow.left).toBeCloseTo(plot.x - (first - (measureText(long[0]!) + 11 / 2) * diagonal), 6);
+    expect(overflow.right).toBe(0);
+  });
+
+  it('leaves labels drawn inside the plot level', () => {
+    const inside = drawn(axis({ label: { placement: 'inside', rotation: -45 } }, 'bottom', long));
+    for (const node of inside) expect(node.rotation).toBe(0);
+  });
+});
+
+describe('a tilt the axis picks for itself', () => {
+  const long = ['Strawberry jam', 'Blueberry pie', 'Raspberry tart', 'Blackcurrant'];
+
+  /** Label texts as they are drawn. */
+  function drawnText(instance: CategoryAxis): Array<string | undefined> {
+    const { layer, nodes } = capture();
+    instance.render(layer, new Group(), plot);
+    return nodes.map((node) => node.text);
+  }
+
+  /** Rotation of the labels as they are drawn; every one of them agrees. */
+  function tilt(instance: CategoryAxis): number {
+    const { layer, nodes } = capture();
+    instance.render(layer, new Group(), plot);
+    const angles = new Set(nodes.map((node) => node.rotation));
+    expect(angles.size).toBe(1);
+    return [...angles][0]!;
+  }
+
+  it('leaves the labels level while they all fit that way', () => {
+    // four short names in a 100 px step: nothing to answer for
+    expect(tilt(axis({ label: { rotation: 'auto' } }, 'bottom'))).toBe(0);
+  });
+
+  it('tilts as soon as a name would otherwise have to go', () => {
+    // 92 px of name in a 100 px step: level, the axis would drop every other one
+    expect(tilt(axis({ label: { rotation: 'auto' } }, 'bottom', long))).toBe(-30);
+    expect(drawnText(axis({ label: { rotation: 'auto' } }, 'bottom', long))).toEqual(long);
+  });
+
+  it('takes the gentlest angle the step leaves room for', () => {
+    // a label needs a line of text across the strips: 30 px of step at 30°, 19 on end
+    for (const [count, angle] of [
+      [13, -30],
+      [16, -45],
+      [18, -60],
+      [20, -90],
+    ] as const) {
+      const many = Array.from({ length: count }, (_, index) => `Category ${index}`);
+      expect([count, tilt(axis({ label: { rotation: 'auto' } }, 'bottom', many))]).toEqual([count, angle]);
+    }
+  });
+
+  it('reserves the room for the angle it picked', () => {
+    const auto = axis({ label: { rotation: 'auto' } }, 'bottom', long);
+    // 140 px of the longest name laid across 30°, plus the glyph row across the rest
+    expect(auto.measure(measureText)).toBe(Math.ceil(8 + 140 * Math.sin(Math.PI / 6) + 11 * Math.cos(Math.PI / 6)));
+  });
+
+  it('holds the tilt it settled on while the plot moves under it', () => {
+    // the room a tilt takes at the ends of the axis is what moves the plot: were
+    // the axis to answer the wider plot with a gentler angle again, the two would
+    // chase each other from one layout pass to the next and settle on neither
+    const many = Array.from({ length: 13 }, (_, index) => `Category ${index}`);
+    const auto = axis({ label: { rotation: 'auto' } }, 'bottom', many);
+    expect(tilt(auto)).toBe(-30);
+    auto.layout({ ...plot, width: 320 });
+    expect(tilt(auto)).toBe(-45);
+    auto.layout(plot);
+    expect(tilt(auto)).toBe(-45);
+  });
+
+  it('decides afresh for the next lot of data', () => {
+    const auto = axis({ label: { rotation: 'auto' } }, 'bottom', long);
+    expect(tilt(auto)).toBe(-30);
+    auto.setDomain([...domain]);
+    auto.layout(plot);
+    expect(tilt(auto)).toBe(0);
+  });
+
+  it('stays level where the axis has been given its own answer to crowding', () => {
+    // cut labels, or labels left alone on purpose: neither is asking for a tilt
+    expect(tilt(axis({ label: { rotation: 'auto', overflow: 'ellipsis' } }, 'bottom', long))).toBe(0);
+    expect(tilt(axis({ label: { rotation: 'auto', avoidCollisions: false } }, 'bottom', long))).toBe(0);
+    // and a vertical axis reads its labels across itself, a line each
+    expect(tilt(axis({ label: { rotation: 'auto' } }, 'left', long))).toBe(0);
+  });
+});
