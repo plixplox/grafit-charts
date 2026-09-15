@@ -19,6 +19,8 @@ export interface LineSeriesOptions extends SeriesBaseOptions {
   strokeWidth?: Pixels;
   lineDash?: Pixels[];
   marker?: Switchable & {
+    /** 'always' (by default) — a marker on every point; 'hover' — only on the highlighted one. */
+    showOn?: 'always' | 'hover';
     shape?: MarkerShape;
     size?: Pixels;
     fill?: ColorValue;
@@ -122,14 +124,17 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
     if (markerOptions?.enabled !== false) {
       const highlighted =
         ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
+      const hoverOnly = markerOptions?.showOn === 'hover';
       for (const point of this.points) {
+        const isSelected = ctx.selected?.has(point.index) === true;
+        // hover-only markers still show the selection, or it would vanish with the pointer
+        if (hoverOnly && !isSelected && point.index !== highlighted) continue;
         const marker = new Marker();
         marker.x = point.x;
         marker.y = point.y;
         marker.shape = markerOptions?.shape ?? 'circle';
         const baseSize = markerOptions?.size ?? DEFAULT_MARKER_SIZE;
         const style = ctx.selectionStyle;
-        const isSelected = ctx.selected?.has(point.index) === true;
         marker.size = isSelected ? baseSize * (style?.sizeRatio ?? 1.5) : point.index === highlighted ? baseSize * 1.5 : baseSize;
         marker.fill = markerOptions?.fill ?? this.mainColor();
         marker.stroke = isSelected

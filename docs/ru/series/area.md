@@ -22,32 +22,41 @@
 
 ::: chart-example area-overlap
 
+## Маркер при наведении
+
+`marker.showOn: 'hover'` оставляет область без маркеров и рисует кружок только
+у подсвеченной точки — курсором, с клавиатуры или общим тултипом. Удобно на
+маленьких графиках, где маркеры на каждой точке — шум. У линии работает так же:
+
+::: chart-example area-hover-marker
+
 ## Опции
 
 Общие опции всех серий (`name`, `showInLegend`, `tooltip.renderer`, …) — в разделе [Общие опции серий](/ru/guide/series-options).
 
-| Опция                | Тип                                      | По умолчанию                      | Описание                                         |
-| -------------------- | ---------------------------------------- | --------------------------------- | ------------------------------------------------ |
-| `xField`             | `string`                                 | —                                 | ключи данных                                     |
-| `yField`             | `string`                                 | —                                 | ключи данных                                     |
-| `fill`               | `ColorValue`                             | палитра                           | заливка области                                  |
-| `fillOpacity`        | `Fraction`                               | `0.35`                            | заливка области                                  |
-| `stroke`             | `ColorValue`                             | цвет заливки                      | верхняя линия                                    |
-| `strokeWidth`        | `Pixels`                                 | `2`                               | верхняя линия                                    |
-| `lineDash`           | `Pixels[]`                               | —                                 | пунктир линии                                    |
-| `normalizedTo`       | `number`                                 | —                                 | нормализация итога стека (100 — процентный стек) |
-| `stacked`            | `boolean`                                | `false`                           | стекинг                                          |
-| `stackGroup`         | `string`                                 | `false`                           | стекинг                                          |
-| `label.enabled`      | `boolean`                                | `false`                           | показать подписи значений                        |
-| `label.placement`    | `'top' \| 'bottom' \| 'left' \| 'right'` | `'top'`                           | позиция подписи                                  |
-| `label.formatter`    | `({ value, datum }) => string`           | значение                          | содержимое подписи                               |
-| `label.fontSize`     | `Pixels`                                 | `11`                              | размер шрифта подписи                            |
-| `label.fontWeight`   | `string \| number`                       | `normal`                          | насыщенность                                     |
-| `label.fontFamily`   | `string`                                 | шрифт темы                        | гарнитура                                        |
-| `label.color`        | `ColorValue`                             | foreground; внутри — автоконтраст | цвет текста                                      |
-| `marker.enabled`     | `boolean`                                | `false`                           | показать маркеры                                 |
-| `marker.shape`       | `MarkerShape`                            | `circle`                          | форма маркера                                    |
-| `marker.size`        | `Pixels`                                 | `7`                               | размер маркера                                   |
-| `marker.fill`        | `ColorValue`                             | цвет серии                        | заливка маркера                                  |
-| `marker.stroke`      | `ColorValue`                             | фон чарта                         | обводка маркера                                  |
-| `marker.strokeWidth` | `Pixels`                                 | `1.5`                             | толщина обводки                                  |
+| Опция                | Тип                                      | По умолчанию                      | Описание                                                      |
+| -------------------- | ---------------------------------------- | --------------------------------- | ------------------------------------------------------------- |
+| `xField`             | `string`                                 | —                                 | ключи данных                                                  |
+| `yField`             | `string`                                 | —                                 | ключи данных                                                  |
+| `fill`               | `ColorValue`                             | палитра                           | заливка области                                               |
+| `fillOpacity`        | `Fraction`                               | `0.35`                            | заливка области                                               |
+| `stroke`             | `ColorValue`                             | цвет заливки                      | верхняя линия                                                 |
+| `strokeWidth`        | `Pixels`                                 | `2`                               | верхняя линия                                                 |
+| `lineDash`           | `Pixels[]`                               | —                                 | пунктир линии                                                 |
+| `normalizedTo`       | `number`                                 | —                                 | нормализация итога стека (100 — процентный стек)              |
+| `stacked`            | `boolean`                                | `false`                           | стекинг                                                       |
+| `stackGroup`         | `string`                                 | `false`                           | стекинг                                                       |
+| `label.enabled`      | `boolean`                                | `false`                           | показать подписи значений                                     |
+| `label.placement`    | `'top' \| 'bottom' \| 'left' \| 'right'` | `'top'`                           | позиция подписи                                               |
+| `label.formatter`    | `({ value, datum }) => string`           | значение                          | содержимое подписи                                            |
+| `label.fontSize`     | `Pixels`                                 | `11`                              | размер шрифта подписи                                         |
+| `label.fontWeight`   | `string \| number`                       | `normal`                          | насыщенность                                                  |
+| `label.fontFamily`   | `string`                                 | шрифт темы                        | гарнитура                                                     |
+| `label.color`        | `ColorValue`                             | foreground; внутри — автоконтраст | цвет текста                                                   |
+| `marker.enabled`     | `boolean`                                | `false`                           | показать маркеры                                              |
+| `marker.showOn`      | `'always' \| 'hover'`                    | `'always'`                        | `'hover'` — только у подсвеченной точки; сам включает маркеры |
+| `marker.shape`       | `MarkerShape`                            | `circle`                          | форма маркера                                                 |
+| `marker.size`        | `Pixels`                                 | `7`                               | размер маркера                                                |
+| `marker.fill`        | `ColorValue`                             | цвет серии                        | заливка маркера                                               |
+| `marker.stroke`      | `ColorValue`                             | фон чарта                         | обводка маркера                                               |
+| `marker.strokeWidth` | `Pixels`                                 | `1.5`                             | толщина обводки                                               |

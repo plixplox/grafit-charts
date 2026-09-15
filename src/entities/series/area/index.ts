@@ -33,7 +33,10 @@ export interface AreaSeriesOptions extends SeriesBaseOptions {
   stackGroup?: string;
   /** Normalize the stack to a total (100 — percentage stack); only with stacked. */
   normalizedTo?: number;
+  /** Off by default; showOn: 'hover' turns them on for the highlighted point alone. */
   marker?: Switchable & {
+    /** 'always' — a marker on every point; 'hover' — only on the highlighted one. */
+    showOn?: 'always' | 'hover';
     shape?: MarkerShape;
     size?: Pixels;
     fill?: ColorValue;
@@ -169,10 +172,12 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
         group.append(marker);
       }
     }
-    if (markerOptions?.enabled === true) {
+    const hoverOnly = markerOptions?.showOn === 'hover';
+    if (markerOptions && (markerOptions.enabled === true || (hoverOnly && markerOptions.enabled !== false))) {
       const highlighted =
         ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
       for (const point of this.points) {
+        if (hoverOnly && point.index !== highlighted) continue;
         const marker = new Marker();
         marker.x = point.x;
         marker.y = point.y;

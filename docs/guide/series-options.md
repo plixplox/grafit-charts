@@ -44,11 +44,12 @@ drawing order and overlap handling are covered on the
 
 Available on line, area and radar series:
 
-| Sub-option    | Type          | Default                           | Description  |
-| ------------- | ------------- | --------------------------------- | ------------ |
-| `enabled`     | `boolean`     | line — on, area — off, radar — on | show markers |
-| `shape`       | `MarkerShape` | `circle`                          | shape        |
-| `size`        | `Pixels`      | `7` (radar — `6`)                 | size         |
-| `fill`        | `ColorValue`  | series color                      | fill         |
-| `stroke`      | styles        | background                        | stroke       |
-| `strokeWidth` | styles        | `1.5`                             | stroke       |
+| Sub-option    | Type                  | Default                           | Description                                         |
+| ------------- | --------------------- | --------------------------------- | --------------------------------------------------- |
+| `enabled`     | `boolean`             | line — on, area — off, radar — on | show markers                                        |
+| `showOn`      | `'always' \| 'hover'` | `'always'`                        | `'hover'` — only the highlighted point (line, area) |
+| `shape`       | `MarkerShape`         | `circle`                          | shape                                               |
+| `size`        | `Pixels`              | `7` (radar — `6`)                 | size                                                |
+| `fill`        | `ColorValue`          | series color                      | fill                                                |
+| `stroke`      | styles                | background                        | stroke                                              |
+| `strokeWidth` | styles                | `1.5`                             | stroke                                              |
