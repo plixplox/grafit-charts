@@ -20,7 +20,7 @@ Charts.create({ container, data, series: [{ type: 'line', yField: 'y' }] });
 ```
 
 The price of convenience: the entire library ends up in your bundle, including
-series you never use (~43 KB gzip).
+series you never use (~72 KB gzip).
 
 ## Minimal bundle: `grafit-charts/core` + `grafit-charts/modules`
 
@@ -44,7 +44,7 @@ register(cartesianChartModule, lineSeriesModule, categoryAxisModule, numberAxisM
 Charts.create({ container, data, series: [{ type: 'line', yField: 'y' }] });
 ```
 
-This bundle is ~20 KB gzip versus ~43 KB for the full entry point (~18 KB
+This bundle is ~32 KB gzip versus ~72 KB for the full entry point (~28 KB
 without the tooltip and legend).
 
 There are three kinds of modules to register:

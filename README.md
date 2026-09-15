@@ -16,7 +16,7 @@ runtime dependencies. Written in TypeScript, types ship with the package.
   synchronization, annotations, context menu, PNG export.
 - **Modular architecture**: chart widgets, series, axes and features are
   registerable modules; your bundle contains only what you use (a line
-  chart is ~18 KB gzip instead of ~43 KB for the whole library).
+  chart is ~28 KB gzip instead of ~72 KB for the whole library).
 - Themes (light/dark/custom), animations, localization, accessibility
   (keyboard navigation, ARIA), serializable state.
 
@@ -29,12 +29,12 @@ npm install grafit-charts
 The package is ESM-only, with three entry points:
 
 ```ts
-// 1. Batteries included — least code, the whole library in your bundle (~43 KB gzip)
+// 1. Batteries included — least code, the whole library in your bundle (~72 KB gzip)
 import { Charts } from 'grafit-charts';
 ```
 
 ```ts
-// 2. Minimal bundle — register only the modules you need (~18–20 KB gzip)
+// 2. Minimal bundle — register only the modules you need (~28–32 KB gzip)
 import { Charts, register } from 'grafit-charts/core';
 import {
   cartesianChartModule, // chart widget (polar/standalone are separate modules)

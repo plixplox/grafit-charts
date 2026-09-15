@@ -20,7 +20,7 @@ Charts.create({ container, data, series: [{ type: 'line', yField: 'y' }] });
 ```
 
 Цена удобства: в бандл попадает вся библиотека, включая серии, которые вы
-не используете (~43 КБ gzip).
+не используете (~72 КБ gzip).
 
 ## Минимальный бандл: `grafit-charts/core` + `grafit-charts/modules`
 
@@ -44,8 +44,8 @@ register(cartesianChartModule, lineSeriesModule, categoryAxisModule, numberAxisM
 Charts.create({ container, data, series: [{ type: 'line', yField: 'y' }] });
 ```
 
-Такой бандл — ~20 КБ gzip против ~43 КБ у полного входа (а без
-тултипа и легенды — ~18 КБ).
+Такой бандл — ~32 КБ gzip против ~72 КБ у полного входа (а без
+тултипа и легенды — ~28 КБ).
 
 Регистрируются три вида модулей:
 
