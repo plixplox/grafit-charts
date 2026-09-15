@@ -26,14 +26,46 @@ angle axis too.
 
 ## Options (chart-level)
 
-| Option              | Type                              | Default    | Description                                                                                                              |
-| ------------------- | --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `enabled`           | `boolean`                         | `true`     | show the tooltip                                                                                                         |
-| `mode`              | `'single' \| 'shared'`            | `'single'` | one node or the whole category                                                                                           |
-| `position.anchorTo` | `'node' \| 'center' \| 'pointer'` | `'node'`   | node edge, node center, or the cursor                                                                                    |
-| `position.xOffset`  | `Pixels`                          | `0`        | tooltip offset                                                                                                           |
-| `yOffset`           | `Pixels`                          | `0`        | tooltip offset                                                                                                           |
-| `range`             | `Pixels \| 'exact' \| 'nearest'`  | `30`       | number — radius in px; `'exact'` — only direct hits on a node; `'nearest'` — nearest node from anywhere in the plot area |
+| Option              | Type                               | Default                          | Description                                                                                                              |
+| ------------------- | ---------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`           | `boolean`                          | `true`                           | show the tooltip                                                                                                         |
+| `mode`              | `'single' \| 'shared'`             | `'single'`                       | one node or the whole category                                                                                           |
+| `position.anchorTo` | `'node' \| 'center' \| 'pointer'`  | `'node'`                         | node edge, node center, or the cursor                                                                                    |
+| `position.xOffset`  | `Pixels`                           | `0`                              | tooltip offset                                                                                                           |
+| `yOffset`           | `Pixels`                           | `0`                              | tooltip offset                                                                                                           |
+| `range`             | `Pixels \| 'exact' \| 'nearest'`   | `30`                             | number — radius in px; `'exact'` — only direct hits on a node; `'nearest'` — nearest node from anywhere in the plot area |
+| `container`         | `'chart' \| 'body' \| HTMLElement` | `'chart'`                        | where the tooltip element lives — see [Outside the chart](#outside-the-chart)                                            |
+| `zIndex`            | `number`                           | `10`; outside the chart — `1000` | CSS z-index of the tooltip element                                                                                       |
+
+## Outside the chart
+
+The tooltip is a DOM element inside the chart container, kept within its
+bounds. In a dashboard tile with `overflow: hidden`, or on a chart a few dozen
+pixels tall, that is not enough room: the tooltip is clipped or covers the
+chart itself. `container: 'body'` moves it to `document.body` with
+`position: fixed` — it is placed next to the node in viewport coordinates and
+kept within the viewport, so clipping ancestors no longer cut it:
+
+```ts
+Charts.create({
+  container,
+  tooltip: { container: 'body' },
+  series: [{ type: 'area', xField: 'day', yField: 'visits', marker: { showOn: 'hover' } }],
+});
+```
+
+An element instead of `'body'` puts the tooltip into that element — for apps
+that keep overlays in a layer of their own; it is positioned the same way.
+Outside the chart:
+
+- scrolling the page or any scrollable ancestor, and resizing the window, hide
+  the tooltip — the next pointer move shows it again in the right place;
+- `destroy()` removes the element along with the chart;
+- the theme font, size, weight and colors are set on the element itself, since it
+  inherits nothing from the chart container;
+- `position: fixed` is relative to the viewport unless an ancestor of the
+  element has `transform`, `filter` or `contain` — keep such styles off the layer
+  you pass.
 
 ## Appearance
 

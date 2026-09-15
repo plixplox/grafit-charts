@@ -16,6 +16,16 @@ export interface TooltipOptions extends Switchable, FontOptions {
     xOffset?: Pixels;
     yOffset?: Pixels;
   };
+  /**
+   * Where the tooltip element lives. 'chart' (by default) — inside the chart
+   * container, positioned in its coordinates and kept within its bounds.
+   * 'body' — in document.body with position: fixed, kept within the viewport,
+   * so ancestors with overflow: hidden don't clip it. An element — appended
+   * there and positioned like 'body' (an app's own overlay layer).
+   */
+  container?: 'chart' | 'body' | HTMLElement;
+  /** CSS z-index of the tooltip element: 10 inside the chart, 1000 outside it. */
+  zIndex?: number;
   /** Container background (theme background by default). */
   background?: ColorValue;
   /** Border color (theme muted color by default). */
@@ -35,11 +45,16 @@ export interface TooltipOptions extends Switchable, FontOptions {
 const OFFSET = 12;
 
 /**
- * HTML tooltip (DOM, not canvas): an absolutely positioned element
- * inside the chart container.
+ * HTML tooltip (DOM, not canvas): an absolutely positioned element inside the
+ * chart container — or, with `container: 'body'` or an element, a fixed one
+ * outside it that the chart's clipping ancestors can't cut.
  */
 export class HtmlTooltip {
   private readonly element: HTMLDivElement;
+  /** Lives outside the chart container, positioned against the viewport. */
+  private detached = false;
+  /** A fixed tooltip would stay put while the page slides under it, so scrolling hides it. */
+  private readonly onViewportChange = (): void => this.hide();
 
   constructor(private readonly container: HTMLElement) {
     this.element = document.createElement('div');
@@ -62,6 +77,8 @@ export class HtmlTooltip {
   }
 
   show(content: TooltipContentData, x: number, y: number, theme: ThemeContext, options?: TooltipOptions): void {
+    this.attach(options?.container === 'body' ? document.body : options?.container instanceof HTMLElement ? options.container : undefined);
+    this.element.style.zIndex = String(options?.zIndex ?? (this.detached ? 1000 : 10));
     this.element.style.background = options?.background ?? theme.backgroundColor;
     this.element.style.color = options?.color ?? theme.foregroundColor;
     const borderWidth = options?.borderWidth ?? 1;
@@ -73,19 +90,34 @@ export class HtmlTooltip {
     }
     this.element.style.fontSize = `${options?.fontSize ?? themeFont(theme, FONT_STEP.heading)}px`;
     this.element.style.fontFamily = options?.fontFamily ?? theme.fontFamily;
-    if (options?.fontWeight !== undefined) this.element.style.fontWeight = String(options.fontWeight);
-    if (options?.fontStyle !== undefined) this.element.style.fontStyle = options.fontStyle;
+    // out of the container nothing is inherited from it, so the defaults are spelled out
+    if (options?.fontWeight !== undefined || this.detached) this.element.style.fontWeight = String(options?.fontWeight ?? 'normal');
+    if (options?.fontStyle !== undefined || this.detached) this.element.style.fontStyle = options?.fontStyle ?? 'normal';
     this.element.replaceChildren(...this.buildContent(content, theme));
     this.element.style.display = 'block';
 
-    // position after rendering the content, clamping to the container bounds
+    // position after rendering the content, clamping to the container bounds —
+    // or, outside it, to the viewport, with the node carried over into viewport coordinates
+    let originX = 0;
+    let originY = 0;
+    let width = this.container.clientWidth;
+    let height = this.container.clientHeight;
+    if (this.detached) {
+      const rect = this.container.getBoundingClientRect();
+      originX = rect.left + this.container.clientLeft;
+      originY = rect.top + this.container.clientTop;
+      width = document.documentElement.clientWidth;
+      height = document.documentElement.clientHeight;
+    }
+    const nodeX = originX + x;
+    const nodeY = originY + y;
     const { offsetWidth, offsetHeight } = this.element;
-    const maxX = this.container.clientWidth - offsetWidth - 2;
-    const maxY = this.container.clientHeight - offsetHeight - 2;
-    let left = x + OFFSET;
-    if (left > maxX) left = x - offsetWidth - OFFSET;
-    let top = y - offsetHeight - OFFSET;
-    if (top < 0) top = y + OFFSET;
+    const maxX = width - offsetWidth - 2;
+    const maxY = height - offsetHeight - 2;
+    let left = nodeX + OFFSET;
+    if (left > maxX) left = nodeX - offsetWidth - OFFSET;
+    let top = nodeY - offsetHeight - OFFSET;
+    if (top < 0) top = nodeY + OFFSET;
     this.element.style.left = `${Math.max(2, Math.min(left, maxX))}px`;
     this.element.style.top = `${Math.max(2, Math.min(top, maxY))}px`;
   }
@@ -100,7 +132,24 @@ export class HtmlTooltip {
   }
 
   destroy(): void {
+    this.attach(undefined);
     this.element.remove();
+  }
+
+  /** Moves the element to its host: the chart container (undefined) or an element outside it. */
+  private attach(host: HTMLElement | undefined): void {
+    const parent = host ?? this.container;
+    if (this.element.parentElement === parent) return;
+    parent.appendChild(this.element);
+    this.element.style.position = host ? 'fixed' : 'absolute';
+    if (host && !this.detached) {
+      window.addEventListener('scroll', this.onViewportChange, { capture: true, passive: true });
+      window.addEventListener('resize', this.onViewportChange);
+    } else if (!host && this.detached) {
+      window.removeEventListener('scroll', this.onViewportChange, { capture: true });
+      window.removeEventListener('resize', this.onViewportChange);
+    }
+    this.detached = host !== undefined;
   }
 
   private buildContent(content: TooltipContentData, theme: ThemeContext): Node[] {
