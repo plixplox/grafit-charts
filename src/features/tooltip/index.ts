@@ -43,8 +43,6 @@ export interface TooltipOptions extends Switchable, FontOptions {
 }
 
 const OFFSET = 12;
-/** Space between the chart's edge and a tooltip set past it. */
-const GAP = 6;
 
 /**
  * HTML tooltip (DOM, not canvas): an absolutely positioned element inside the
@@ -105,32 +103,20 @@ export class HtmlTooltip {
     let nodeY = y;
     let boundsWidth = this.container.clientWidth;
     let boundsHeight = this.container.clientHeight;
-    let chart: DOMRect | undefined;
     if (this.detached) {
-      chart = this.container.getBoundingClientRect();
-      nodeX += chart.left + this.container.clientLeft;
-      nodeY += chart.top + this.container.clientTop;
+      const rect = this.container.getBoundingClientRect();
+      nodeX += rect.left + this.container.clientLeft;
+      nodeY += rect.top + this.container.clientTop;
       boundsWidth = document.documentElement.clientWidth;
       boundsHeight = document.documentElement.clientHeight;
     }
+    // by the node either way — right of it and above, flipping where the bounds run out
     const maxX = boundsWidth - width - 2;
     const maxY = boundsHeight - height - 2;
     let left = nodeX + OFFSET;
     if (left > maxX) left = nodeX - width - OFFSET;
-
-    // over the node, or under it where the bounds run out
-    const overNode = nodeY - height - OFFSET;
-    const underNode = nodeY + OFFSET;
-    let over = overNode;
-    let under = underNode;
-    // outside the chart, a node nearer an edge of it than the tooltip is tall gets the
-    // tooltip past that edge: a few pixels further from the node rather than across the chart
-    if (chart) {
-      if (nodeY - chart.top < height) over = Math.min(over, chart.top - height - GAP);
-      if (chart.bottom - nodeY < height) under = Math.max(under, chart.bottom + GAP);
-    }
-    const fits = (top: number): boolean => top >= 0 && top <= maxY;
-    const top = fits(over) ? over : fits(under) ? under : overNode >= 0 ? overNode : underNode;
+    let top = nodeY - height - OFFSET;
+    if (top < 0) top = nodeY + OFFSET;
     this.element.style.left = `${Math.max(2, Math.min(left, maxX))}px`;
     this.element.style.top = `${Math.max(2, Math.min(top, maxY))}px`;
   }

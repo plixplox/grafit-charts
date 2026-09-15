@@ -5,7 +5,7 @@ const bareAxis = { label: { enabled: false }, line: { enabled: false }, tick: { 
 
 // A KPI strip in a tile that clips its content, as a dashboard card does. Inside
 // the chart the tooltip is held within a strip shorter than itself and cut by the
-// tile; in the body it clears the strip — over it, or under it with no room above.
+// tile; in the body it sits by the node whole, reaching past the tile's edges.
 export function createOptions(): ChartOptions {
   return {
     data: getData(),
