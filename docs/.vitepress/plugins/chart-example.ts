@@ -16,9 +16,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const EXAMPLES_DIR = fileURLToPath(new URL('../../../examples', import.meta.url));
-const DIRECTIVE = /^:::\s*chart-example\s+([\w-]+)\s*$/gm;
+const DIRECTIVE = /^:::\s*chart-example\s+([\w-]+)(?:\s+(\d+))?\s*$/gm;
 
-function expand(name: string): string {
+/** height — необязательная высота демки в px (`::: chart-example <name> 48`), по умолчанию её задаёт ChartExample. */
+function expand(name: string, height?: string): string {
   const dir = path.join(EXAMPLES_DIR, name);
   if (!fs.existsSync(dir)) {
     throw new Error(`chart-example: директория examples/${name} не найдена`);
@@ -30,11 +31,12 @@ function expand(name: string): string {
     ...files.filter((file) => file === 'data.ts'),
   ];
   const snippets = ordered.map((file) => `<<< @/../examples/${name}/${file} [${file}]`).join('\n');
-  return `<ChartExample name="${name}" />\n\n::: code-group\n${snippets}\n:::`;
+  const heightProp = height ? ` :height="${height}"` : '';
+  return `<ChartExample name="${name}"${heightProp} />\n\n::: code-group\n${snippets}\n:::`;
 }
 
 export function chartExamplePlugin(md: MarkdownIt): void {
   md.core.ruler.before('normalize', 'chart-example', (state) => {
-    state.src = state.src.replace(DIRECTIVE, (_match, name: string) => expand(name));
+    state.src = state.src.replace(DIRECTIVE, (_match, name: string, height?: string) => expand(name, height));
   });
 }

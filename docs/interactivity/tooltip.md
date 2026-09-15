@@ -54,10 +54,21 @@ Charts.create({
 });
 ```
 
+A 48-pixel KPI strip in a frame that clips its content, like a dashboard card.
+Hover it, then switch the tooltip inside the chart with the button below to see
+the difference:
+
+::: chart-example tooltip-outside 48
+
 An element instead of `'body'` puts the tooltip into that element — for apps
 that keep overlays in a layer of their own; it is positioned the same way.
 Outside the chart:
 
+- a node nearer the chart's top or bottom edge than the tooltip is tall gets the
+  tooltip just past that edge — over the chart, or under it when there is no
+  room above — instead of across the chart; further from the edges the tooltip
+  stays by the node. On a KPI strip or a sparkline every node is near an edge, so
+  the tooltip never covers the chart;
 - scrolling the page or any scrollable ancestor, and resizing the window, hide
   the tooltip — the next pointer move shows it again in the right place;
 - `destroy()` removes the element along with the chart;
