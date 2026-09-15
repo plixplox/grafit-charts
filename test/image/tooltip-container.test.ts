@@ -100,6 +100,64 @@ test("container: 'body' lets the tooltip out of a clipping tile and takes it awa
   expect(element?.isConnected).toBe(false);
 });
 
+/** Whether two boxes share any area. */
+function overlaps(a: DOMRect, b: DOMRect): boolean {
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
+test('on a tall chart a node near its top gets the tooltip over the chart, one in the middle keeps it beside', async () => {
+  await withTile(
+    { container: 'body' },
+    async (chart, container) => {
+      const chartRect = container.getBoundingClientRect();
+
+      // Apr is the top of the data, a few pixels under the chart's edge
+      chart.showTooltip({ datumIndex: 3 });
+      await chart.waitForUpdate();
+      const nearTop = tooltipIn(document.body)!.getBoundingClientRect();
+      expect(nearTop.bottom).toBeLessThanOrEqual(chartRect.top);
+      expect(chartRect.top - nearTop.bottom).toBeLessThan(nearTop.height);
+
+      // Mar sits well inside: the tooltip stays by the node, over the chart as ever
+      chart.showTooltip({ datumIndex: 2 });
+      await chart.waitForUpdate();
+      const inside = tooltipIn(document.body)!.getBoundingClientRect();
+      expect(inside.top).toBeGreaterThan(chartRect.top);
+      expect(inside.bottom).toBeLessThan(chartRect.bottom);
+    },
+    { left: '100px', top: '150px', width: 480, height: 300 },
+  );
+});
+
+test('a chart too short for the tooltip gets it over the chart, never on it', async () => {
+  await withTile({ container: 'body' }, async (chart, container) => {
+    // the lowest point: just above it is still the strip itself
+    chart.showTooltip({ datumIndex: 0 });
+    await chart.waitForUpdate();
+    const tooltipRect = tooltipIn(document.body)!.getBoundingClientRect();
+    const chartRect = container.getBoundingClientRect();
+    expect(overlaps(tooltipRect, chartRect)).toBe(false);
+    expect(tooltipRect.bottom).toBeLessThanOrEqual(chartRect.top);
+  });
+});
+
+test('with no room over a short chart the tooltip goes under it, not across it', async () => {
+  // a KPI card in the top-right corner of the page — where the tooltip beside a node flipped onto the chart
+  const viewport = document.documentElement.clientWidth;
+  await withTile(
+    { container: 'body' },
+    async (chart, container) => {
+      chart.showTooltip({ datumIndex: 3 });
+      await chart.waitForUpdate();
+      const tooltipRect = tooltipIn(document.body)!.getBoundingClientRect();
+      const chartRect = container.getBoundingClientRect();
+      expect(overlaps(tooltipRect, chartRect)).toBe(false);
+      expect(tooltipRect.top).toBeGreaterThanOrEqual(chartRect.bottom);
+    },
+    { left: `${viewport - 160}px`, top: '4px', width: 160, height: 40 },
+  );
+});
+
 test('scrolling hides a tooltip placed against the viewport', async () => {
   await withTile({ container: 'body' }, async (chart) => {
     chart.showTooltip({ datumIndex: 1 });

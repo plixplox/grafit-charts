@@ -43,6 +43,8 @@ export interface TooltipOptions extends Switchable, FontOptions {
 }
 
 const OFFSET = 12;
+/** Space between the chart's edge and a tooltip set past it. */
+const GAP = 6;
 
 /**
  * HTML tooltip (DOM, not canvas): an absolutely positioned element inside the
@@ -98,26 +100,37 @@ export class HtmlTooltip {
 
     // position after rendering the content, clamping to the container bounds —
     // or, outside it, to the viewport, with the node carried over into viewport coordinates
-    let originX = 0;
-    let originY = 0;
-    let width = this.container.clientWidth;
-    let height = this.container.clientHeight;
+    const { offsetWidth: width, offsetHeight: height } = this.element;
+    let nodeX = x;
+    let nodeY = y;
+    let boundsWidth = this.container.clientWidth;
+    let boundsHeight = this.container.clientHeight;
+    let chart: DOMRect | undefined;
     if (this.detached) {
-      const rect = this.container.getBoundingClientRect();
-      originX = rect.left + this.container.clientLeft;
-      originY = rect.top + this.container.clientTop;
-      width = document.documentElement.clientWidth;
-      height = document.documentElement.clientHeight;
+      chart = this.container.getBoundingClientRect();
+      nodeX += chart.left + this.container.clientLeft;
+      nodeY += chart.top + this.container.clientTop;
+      boundsWidth = document.documentElement.clientWidth;
+      boundsHeight = document.documentElement.clientHeight;
     }
-    const nodeX = originX + x;
-    const nodeY = originY + y;
-    const { offsetWidth, offsetHeight } = this.element;
-    const maxX = width - offsetWidth - 2;
-    const maxY = height - offsetHeight - 2;
+    const maxX = boundsWidth - width - 2;
+    const maxY = boundsHeight - height - 2;
     let left = nodeX + OFFSET;
-    if (left > maxX) left = nodeX - offsetWidth - OFFSET;
-    let top = nodeY - offsetHeight - OFFSET;
-    if (top < 0) top = nodeY + OFFSET;
+    if (left > maxX) left = nodeX - width - OFFSET;
+
+    // over the node, or under it where the bounds run out
+    const overNode = nodeY - height - OFFSET;
+    const underNode = nodeY + OFFSET;
+    let over = overNode;
+    let under = underNode;
+    // outside the chart, a node nearer an edge of it than the tooltip is tall gets the
+    // tooltip past that edge: a few pixels further from the node rather than across the chart
+    if (chart) {
+      if (nodeY - chart.top < height) over = Math.min(over, chart.top - height - GAP);
+      if (chart.bottom - nodeY < height) under = Math.max(under, chart.bottom + GAP);
+    }
+    const fits = (top: number): boolean => top >= 0 && top <= maxY;
+    const top = fits(over) ? over : fits(under) ? under : overNode >= 0 ? overNode : underNode;
     this.element.style.left = `${Math.max(2, Math.min(left, maxX))}px`;
     this.element.style.top = `${Math.max(2, Math.min(top, maxY))}px`;
   }
