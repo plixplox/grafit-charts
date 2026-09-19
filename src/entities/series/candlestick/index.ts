@@ -9,8 +9,8 @@ export interface CandlestickSeriesOptions extends OhlcSeriesBaseOptions {
 export class CandlestickSeries extends OhlcSeriesBase<CandlestickSeriesOptions> {
   readonly type = 'candlestick';
 
-  protected renderCandle(geometry: CandleGeometry, _highlighted: boolean, selected: boolean): SceneNode[] {
-    const style = geometry.up ? this.upStyle() : this.downStyle();
+  protected renderCandle(geometry: CandleGeometry, highlighted: boolean, selected: boolean): SceneNode[] {
+    const style = this.candleStyle(geometry, highlighted);
     const wick = new Line();
     wick.x1 = wick.x2 = geometry.centerX;
     wick.y1 = geometry.high;

@@ -1,9 +1,10 @@
 import { plotBands } from './band-geometry';
 import { CartesianSeries } from './cartesian-series';
+import { styleRectItem, type RectItemStylerParams } from './item-styler';
 import { numericValues } from '@/shared/data';
 import type { CartesianRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
 import { localize } from '@/shared/locale';
-import type { ColorValue, Datum, Pixels, Showable, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, Showable, Styler, Switchable } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
 import { Group, type SceneNode } from '@/shared/scene';
 import { extent, tooltipContentOf } from '@/shared/util';
@@ -12,6 +13,19 @@ export interface OhlcItemStyle {
   fill?: ColorValue;
   stroke?: ColorValue;
   strokeWidth?: Pixels;
+}
+
+/**
+ * What the item styler of a candle is handed: the four prices of the session
+ * and which way it went; `fill` and `stroke` are what `item.up`/`item.down`
+ * give it.
+ */
+export interface OhlcItemStylerParams extends RectItemStylerParams {
+  up: boolean;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
 }
 
 /** What a candle tooltip is handed: the four prices of a session, already read. */
@@ -42,6 +56,12 @@ export interface OhlcSeriesBaseOptions extends Showable {
     up?: OhlcItemStyle;
     down?: OhlcItemStyle;
   };
+  /**
+   * Style of one candle by its datum, laid over `item.up`/`item.down`.
+   * Undefined leaves the candle as it is; a partial style is laid over it.
+   * Without a stroke of its own the stroke follows the fill, as in `item`.
+   */
+  itemStyler?: Styler<OhlcItemStylerParams, OhlcItemStyle>;
   tooltip?: Switchable & {
     renderer?: (params: OhlcTooltipRendererParams) => TooltipContentData | string;
   };
@@ -100,6 +120,32 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
       stroke: down?.stroke ?? down?.fill ?? color,
       strokeWidth: down?.strokeWidth ?? 1.4,
     };
+  }
+
+  /**
+   * How a candle is painted, in the state it is in: the style of its
+   * direction with the item styler over it. The stroke follows the fill
+   * unless something names a stroke of its own.
+   */
+  protected candleStyle(geometry: CandleGeometry, highlighted: boolean): Required<OhlcItemStyle> {
+    const own = geometry.up ? this.options.item?.up : this.options.item?.down;
+    const base = geometry.up ? this.upStyle() : this.downStyle();
+    const datum = this.lastCtx?.data[geometry.index];
+    if (!datum || !this.options.itemStyler) return base;
+    const style = styleRectItem(this.options.itemStyler, {
+      datum,
+      index: geometry.index,
+      highlighted,
+      fill: base.fill,
+      stroke: base.stroke,
+      up: geometry.up,
+      open: Number(datum[this.options.openField]),
+      high: Number(datum[this.options.highField]),
+      low: Number(datum[this.options.lowField]),
+      close: Number(datum[this.options.closeField]),
+    });
+    const fill = style.fill ?? base.fill;
+    return { fill, stroke: style.stroke ?? own?.stroke ?? fill, strokeWidth: style.strokeWidth ?? base.strokeWidth };
   }
 
   override yDomain(data: Datum[]): [number, number] | undefined {
@@ -191,7 +237,7 @@ export abstract class OhlcSeriesBase<O extends OhlcSeriesBaseOptions> extends Ca
     const datum = this.lastCtx?.data[datumIndex];
     const candle = this.candles.find((c) => c.index === datumIndex);
     if (!datum) return { rows: [] };
-    const color = candle?.up ? this.upStyle().fill : this.downStyle().fill;
+    const color = candle ? this.candleStyle(candle, false).fill : this.upStyle().fill;
     const heading = this.formatHeading(datum[this.options.xField]);
     const renderer = this.options.tooltip?.renderer;
     if (renderer) {

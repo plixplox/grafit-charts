@@ -71,9 +71,9 @@ export function styleRectItem<P extends RectItemStylerParams>(styler: Styler<P, 
  * rest. A highlighted marker grows by `grow` from the size the styler gave it
  * at rest, and is styled over its rest look like a rectangle is.
  */
-export function styleMarkerItem(
-  styler: Styler<MarkerItemStylerParams, MarkerItemStyle> | undefined,
-  params: MarkerItemStylerParams,
+export function styleMarkerItem<P extends MarkerItemStylerParams>(
+  styler: Styler<P, MarkerItemStyle> | undefined,
+  params: P,
   grow: number,
 ): MarkerItemStyle & { size: Pixels } {
   const rest = styler?.({ ...params, highlighted: false }) ?? {};

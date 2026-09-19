@@ -26,10 +26,12 @@ import type {
   MarkerItemStyle,
   ItemLabelStyle,
   MarkerItemStylerParams,
+  OhlcItemStyle,
+  OhlcItemStylerParams,
   RectItemStyle,
   RectItemStylerParams,
 } from '@/entities/series/base';
-import type { BoxPlotSeriesOptions } from '@/entities/series/box-plot';
+import type { BoxPlotItemStyle, BoxPlotItemStylerParams, BoxPlotSeriesOptions } from '@/entities/series/box-plot';
 import type { BubbleSeriesOptions } from '@/entities/series/bubble';
 import type { CandlestickSeriesOptions } from '@/entities/series/candlestick';
 import type { ChordSeriesOptions } from '@/entities/series/chord';
@@ -60,7 +62,7 @@ import type { RadarLineSeriesOptions } from '@/entities/series/radar-line';
 import type { RadialBarSeriesOptions } from '@/entities/series/radial-bar';
 import type { RadialColumnSeriesOptions } from '@/entities/series/radial-column';
 import type { RadialGaugeSeriesOptions } from '@/entities/series/radial-gauge';
-import type { RangeAreaSeriesOptions } from '@/entities/series/range-area';
+import type { RangeAreaItemStylerParams, RangeAreaSeriesOptions } from '@/entities/series/range-area';
 import type { RangeBarItemStylerParams, RangeBarSeriesOptions } from '@/entities/series/range-bar';
 import type { SankeySeriesOptions } from '@/entities/series/sankey';
 import type { ScatterSeriesOptions } from '@/entities/series/scatter';
@@ -244,7 +246,10 @@ export type {
   RangeBarSeriesOptions,
   RangeBarItemStylerParams,
   RangeAreaSeriesOptions,
+  RangeAreaItemStylerParams,
   BoxPlotSeriesOptions,
+  BoxPlotItemStylerParams,
+  BoxPlotItemStyle,
   WaterfallSeriesOptions,
   WaterfallItemStylerParams,
   RectItemStylerParams,
@@ -256,6 +261,8 @@ export type {
   ConeFunnelSeriesOptions,
   CandlestickSeriesOptions,
   OhlcSeriesOptions,
+  OhlcItemStylerParams,
+  OhlcItemStyle,
   TreemapSeriesOptions,
   SunburstSeriesOptions,
   PyramidSeriesOptions,

@@ -24,27 +24,28 @@ tooltip: { renderer: ({ open, close, up }) => `${String(open)} → ${String(clos
 Без рендерера строки называются `O`, `H`, `L`, `C` — все они
 [ключи локали](/ru/guide/accessibility#локализация).
 
-| Опция                      | Тип                       | По умолчанию    | Описание                                     |
-| -------------------------- | ------------------------- | --------------- | -------------------------------------------- |
-| `xField`                   | `string`                  | —               | дата (Date / timestamp / строка)             |
-| `openField` … `closeField` | `string`                  | —               | четыре ключа OHLC                            |
-| `width`                    | preset                    | —               | размер и тема чарта в `createFinancialChart` |
-| `height`                   | preset                    | —               | размер и тема чарта в `createFinancialChart` |
-| `theme`                    | preset                    | —               | размер и тема чарта в `createFinancialChart` |
-| `container`                | preset                    | —               | контейнер и данные `createFinancialChart`    |
-| `data`                     | preset                    | —               | контейнер и данные `createFinancialChart`    |
-| `dateField`                | preset                    | `date`/OHLC     | поля данных пресета                          |
-| `openField`                | preset                    | `date`/OHLC     | поля данных пресета                          |
-| `highField`                | preset                    | `date`/OHLC     | поля данных пресета                          |
-| `lowField`                 | preset                    | `date`/OHLC     | поля данных пресета                          |
-| `closeField`               | preset                    | `date`/OHLC     | поля данных пресета                          |
-| `chartType`                | `'candlestick' \| 'ohlc'` | `'candlestick'` | тип серии пресета                            |
-| `title`                    | preset                    | вкл.            | прокидываются в ChartOptions                 |
-| `navigator`                | preset                    | вкл.            | прокидываются в ChartOptions                 |
-| `zoom`                     | preset                    | вкл.            | прокидываются в ChartOptions                 |
-| `annotations`              | preset                    | вкл.            | прокидываются в ChartOptions                 |
-| `item.up.fill`             | `ColorValue`              | зелёный темы    | заливка растущих свечей                      |
-| `item.down.fill`           | `ColorValue`              | красный темы    | заливка падающих                             |
+| Опция                      | Тип                       | По умолчанию    | Описание                                                                          |
+| -------------------------- | ------------------------- | --------------- | --------------------------------------------------------------------------------- |
+| `xField`                   | `string`                  | —               | дата (Date / timestamp / строка)                                                  |
+| `openField` … `closeField` | `string`                  | —               | четыре ключа OHLC                                                                 |
+| `width`                    | preset                    | —               | размер и тема чарта в `createFinancialChart`                                      |
+| `height`                   | preset                    | —               | размер и тема чарта в `createFinancialChart`                                      |
+| `theme`                    | preset                    | —               | размер и тема чарта в `createFinancialChart`                                      |
+| `container`                | preset                    | —               | контейнер и данные `createFinancialChart`                                         |
+| `data`                     | preset                    | —               | контейнер и данные `createFinancialChart`                                         |
+| `dateField`                | preset                    | `date`/OHLC     | поля данных пресета                                                               |
+| `openField`                | preset                    | `date`/OHLC     | поля данных пресета                                                               |
+| `highField`                | preset                    | `date`/OHLC     | поля данных пресета                                                               |
+| `lowField`                 | preset                    | `date`/OHLC     | поля данных пресета                                                               |
+| `closeField`               | preset                    | `date`/OHLC     | поля данных пресета                                                               |
+| `chartType`                | `'candlestick' \| 'ohlc'` | `'candlestick'` | тип серии пресета                                                                 |
+| `title`                    | preset                    | вкл.            | прокидываются в ChartOptions                                                      |
+| `navigator`                | preset                    | вкл.            | прокидываются в ChartOptions                                                      |
+| `zoom`                     | preset                    | вкл.            | прокидываются в ChartOptions                                                      |
+| `annotations`              | preset                    | вкл.            | прокидываются в ChartOptions                                                      |
+| `item.up.fill`             | `ColorValue`              | зелёный темы    | заливка растущих свечей                                                           |
+| `item.down.fill`           | `ColorValue`              | красный темы    | заливка падающих                                                                  |
+| `itemStyler`               | `(params) => style`       | —               | стиль одной свечи поверх `item.up`/`item.down`; в params ещё `up`, `open`…`close` |
 
 ## Financial preset
 

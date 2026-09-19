@@ -10,7 +10,7 @@ export class OhlcSeries extends OhlcSeriesBase<OhlcSeriesOptions> {
   readonly type = 'ohlc';
 
   protected renderCandle(geometry: CandleGeometry, highlighted: boolean, selected: boolean): SceneNode[] {
-    const style = geometry.up ? this.upStyle() : this.downStyle();
+    const style = this.candleStyle(geometry, highlighted);
     // selection: the glyph is all strokes, so the selected candle keeps its
     // up/down colour (unless itemStyle.stroke overrides it) and gets thicker
     const strokeWidth = selected ? style.strokeWidth + 1.5 : highlighted ? style.strokeWidth + 1 : style.strokeWidth;
