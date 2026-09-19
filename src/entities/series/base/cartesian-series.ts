@@ -81,6 +81,15 @@ export abstract class CartesianSeries<O extends SeriesBaseOptions<never> = Serie
   /** Main series color — for the legend and tooltip. */
   protected abstract mainColor(): ColorValue;
 
+  /**
+   * Color of one datum — the marker of its tooltip row. The series color
+   * unless an item styler paints the datum a color of its own; the legend
+   * keeps the series color either way.
+   */
+  protected itemColor(_datumIndex: number, _datum: Datum): ColorValue {
+    return this.mainColor();
+  }
+
   xValues(data: Datum[]): unknown[] {
     return data.map((datum) => datum[this.options.xField]);
   }
@@ -135,13 +144,13 @@ export abstract class CartesianSeries<O extends SeriesBaseOptions<never> = Serie
         xValue,
         yValue,
         seriesName: this.seriesName,
-        color: this.mainColor(),
+        color: this.itemColor(datumIndex, datum),
       });
       return typeof result === 'string' ? { heading: result, rows: [] } : result;
     }
     return {
       heading: String(xValue),
-      rows: [{ label: this.seriesName, value: String(yValue), color: this.mainColor() }],
+      rows: [{ label: this.seriesName, value: String(yValue), color: this.itemColor(datumIndex, datum) }],
     };
   }
 

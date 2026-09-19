@@ -63,7 +63,7 @@ y, для bubble — от `sizeField`, то есть от того, частью
 | `fillOpacity`              | `Fraction`                                           | `0.85`                            | заливка                                                              |
 | `stroke`                   | `ColorValue`                                         | фон                               | обводка                                                              |
 | `strokeWidth`              | `Pixels`                                             | `1`                               | обводка                                                              |
-| `itemStyler`               | `(params) => style`                                  | —                                 | пер-точечные стили (fill/stroke/size) по `datum`                     |
+| `itemStyler`               | `(params) => style`                                  | —                                 | стили точки (fill/stroke/size/label.color) по `datum`                |
 | `label.enabled`            | `boolean`                                            | `false`                           | показать подписи значений                                            |
 | `label.placement`          | `'top' \| 'bottom' \| 'left' \| 'right' \| 'inside'` | `'top'`                           | позиция подписи                                                      |
 | `label.formatter`          | `({ value, datum }) => string`                       | —                                 | вся подпись сразу; приоритет над category/value                      |

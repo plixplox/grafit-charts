@@ -1,5 +1,19 @@
-export { CartesianSeries, type RangeTooltipRendererParams, type SeriesBaseOptions, type SeriesTooltipRendererParams } from './cartesian-series';
-export { MarkerSeries, type MarkerSeriesBaseOptions, type MarkerItemStylerParams, type MarkerItemStyle } from './marker-series';
+export {
+  CartesianSeries,
+  type RangeTooltipRendererParams,
+  type SeriesBaseOptions,
+  type SeriesTooltipRendererParams,
+} from './cartesian-series';
+export { MarkerSeries, type MarkerSeriesBaseOptions } from './marker-series';
+export {
+  styleMarkerItem,
+  styleRectItem,
+  type ItemLabelStyle,
+  type MarkerItemStyle,
+  type MarkerItemStylerParams,
+  type RectItemStyle,
+  type RectItemStylerParams,
+} from './item-styler';
 
 export { PolarSeries, type PolarSeriesBaseOptions, type RadialTooltipRendererParams } from './polar-series';
 export { PieLikeSeries, type PieLikeSeriesOptions } from './pie-like-series';
@@ -8,14 +22,7 @@ export { RadialSectorSeries, type RadialSectorSeriesBaseOptions } from './radial
 export { FunnelSeriesBase, type FunnelSeriesBaseOptions } from './funnel-series';
 export { OhlcSeriesBase, type OhlcSeriesBaseOptions, type CandleGeometry, UP_COLOR, DOWN_COLOR } from './ohlc-series';
 export { StandaloneSeries, type StandaloneSeriesBaseOptions } from './standalone-series';
-export {
-  gaugeLabelText,
-  gaugeTextStyle,
-  styleGaugeText,
-  type GaugeLabelOptions,
-  type GaugeSegment,
-  type GaugeTextStyle,
-} from './gauge';
+export { gaugeLabelText, gaugeTextStyle, styleGaugeText, type GaugeLabelOptions, type GaugeSegment, type GaugeTextStyle } from './gauge';
 export { FlowSeries, type FlowSeriesBaseOptions, type FlowLabelFormatterParams } from './flow-series';
 export {
   placePointLabel,

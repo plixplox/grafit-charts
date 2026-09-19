@@ -63,7 +63,7 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `fillOpacity`              | `Fraction`                                           | `0.85`                             | fill                                                             |
 | `stroke`                   | `ColorValue`                                         | background                         | stroke                                                           |
 | `strokeWidth`              | `Pixels`                                             | `1`                                | stroke                                                           |
-| `itemStyler`               | `(params) => style`                                  | —                                  | per-point styles (fill/stroke/size) based on `datum`             |
+| `itemStyler`               | `(params) => style`                                  | —                                  | per-point styles (fill/stroke/size/label.color) by `datum`       |
 | `label.enabled`            | `boolean`                                            | `false`                            | show value labels                                                |
 | `label.placement`          | `'top' \| 'bottom' \| 'left' \| 'right' \| 'inside'` | `'top'`                            | label placement                                                  |
 | `label.formatter`          | `({ value, datum }) => string`                       | —                                  | the whole label at once; wins over category/value                |

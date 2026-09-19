@@ -18,6 +18,19 @@
 
 ::: chart-example bar-styled
 
+## Условные цвета
+
+`itemStyler` красит отдельный бар по его datum: получает `{ datum, index, highlighted, fill, stroke }`,
+где `fill` — цвет, который был бы у бара без него, и возвращает частичный стиль — `fill`,
+`fillOpacity`, `stroke`, `strokeWidth` и `label.color`. `undefined` оставляет бар как есть. В стеке
+вызывается для каждого сегмента с индексом datum в данных своей серии. Подсвеченный бар
+стилизуется дважды — сначала в покое, затем с `highlighted: true` поверх, — поэтому стайлер,
+не смотрящий на подсветку, сохраняет цвет под курсором. Подпись внутри бара подбирает
+контраст по итоговой заливке; маркер в тултипе берёт цвет бара, легенда — цвет серии. Обводка
+выбранного бара и затемнение невыбранных накладываются поверх стиля.
+
+::: chart-example bar-conditional
+
 ## Группировка
 
 Несколько bar-серий автоматически делят бэнд категории. Между соседними барами
@@ -71,25 +84,26 @@
 
 Общие опции всех серий (`name`, `showInLegend`, `tooltip.renderer`, …) — в разделе [Общие опции серий](/ru/guide/series-options).
 
-| Опция              | Тип                                     | По умолчанию                      | Описание                                          |
-| ------------------ | --------------------------------------- | --------------------------------- | ------------------------------------------------- |
-| `xField`           | `string`                                | —                                 | ключи данных (обязательны)                        |
-| `yField`           | `string`                                | —                                 | ключи данных (обязательны)                        |
-| `name`             | `string`                                | `yField`                          | имя для легенды и тултипа                         |
-| `direction`        | `'vertical' \| 'horizontal'`            | `'vertical'`                      | направление баров                                 |
-| `stacked`          | `boolean`                               | `false`                           | стекинг                                           |
-| `normalizedTo`     | `number`                                | —                                 | нормализация итога стека (100 — процентный стек)  |
-| `stackGroup`       | `string`                                | `'default'`                       | независимые группы стека                          |
-| `fill`             | `ColorValue`                            | палитра темы                      | заливка                                           |
-| `fillOpacity`      | `Fraction`                              | `1`                               | прозрачность заливки                              |
-| `stroke`           | `ColorValue`                            | —                                 | обводка                                           |
-| `strokeWidth`      | `Pixels`                                | —                                 | обводка                                           |
-| `cornerRadius`     | `Pixels`                                | `0`                               | скругление углов                                  |
-| `groupGap`         | `Fraction`                              | `0.2`                             | зазор между барами одной группы (доля шага слота) |
-| `label.enabled`    | `boolean`                               | `false`                           | показать подписи значений                         |
-| `label.placement`  | внешние/`center`/`inner-*` (17 позиций) | `'top'`                           | позиция подписи                                   |
-| `label.formatter`  | `({ value, datum }) => string`          | значение                          | содержимое подписи                                |
-| `label.fontSize`   | `Pixels`                                | `11`                              | размер шрифта подписи                             |
-| `label.fontWeight` | `string \| number`                      | `normal`                          | насыщенность                                      |
-| `label.fontFamily` | `string`                                | шрифт темы                        | гарнитура                                         |
-| `label.color`      | `ColorValue`                            | foreground; внутри — автоконтраст | цвет текста                                       |
+| Опция              | Тип                                     | По умолчанию                      | Описание                                                                           |
+| ------------------ | --------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------- |
+| `xField`           | `string`                                | —                                 | ключи данных (обязательны)                                                         |
+| `yField`           | `string`                                | —                                 | ключи данных (обязательны)                                                         |
+| `name`             | `string`                                | `yField`                          | имя для легенды и тултипа                                                          |
+| `direction`        | `'vertical' \| 'horizontal'`            | `'vertical'`                      | направление баров                                                                  |
+| `stacked`          | `boolean`                               | `false`                           | стекинг                                                                            |
+| `normalizedTo`     | `number`                                | —                                 | нормализация итога стека (100 — процентный стек)                                   |
+| `stackGroup`       | `string`                                | `'default'`                       | независимые группы стека                                                           |
+| `fill`             | `ColorValue`                            | палитра темы                      | заливка                                                                            |
+| `fillOpacity`      | `Fraction`                              | `1`                               | прозрачность заливки                                                               |
+| `stroke`           | `ColorValue`                            | —                                 | обводка                                                                            |
+| `strokeWidth`      | `Pixels`                                | —                                 | обводка                                                                            |
+| `cornerRadius`     | `Pixels`                                | `0`                               | скругление углов                                                                   |
+| `groupGap`         | `Fraction`                              | `0.2`                             | зазор между барами одной группы (доля шага слота)                                  |
+| `itemStyler`       | `(params) => style`                     | —                                 | стиль одного бара по `datum` (fill, fillOpacity, stroke, strokeWidth, label.color) |
+| `label.enabled`    | `boolean`                               | `false`                           | показать подписи значений                                                          |
+| `label.placement`  | внешние/`center`/`inner-*` (17 позиций) | `'top'`                           | позиция подписи                                                                    |
+| `label.formatter`  | `({ value, datum }) => string`          | значение                          | содержимое подписи                                                                 |
+| `label.fontSize`   | `Pixels`                                | `11`                              | размер шрифта подписи                                                              |
+| `label.fontWeight` | `string \| number`                      | `normal`                          | насыщенность                                                                       |
+| `label.fontFamily` | `string`                                | шрифт темы                        | гарнитура                                                                          |
+| `label.color`      | `ColorValue`                            | foreground; внутри — автоконтраст | цвет текста                                                                        |

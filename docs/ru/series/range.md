@@ -36,18 +36,19 @@ Range-area как фон + line поверх, общий тултип:
 
 ::: chart-example range-combo
 
-| Опция                | Тип                                    | Описание                                |
-| -------------------- | -------------------------------------- | --------------------------------------- |
-| `yLowField`          | `string`                               | границы диапазона                       |
-| `yHighField`         | `string`                               | границы диапазона                       |
-| `direction` (bar)    | `'vertical' \| 'horizontal'`           | направление баров (`vertical`)          |
-| `fill`               | `ColorValue \| (params) => ColorValue` | заливка; колбэк красит по datum         |
-| `fill`               | стили                                  | заливка                                 |
-| `fillOpacity`        | стили                                  | заливка                                 |
-| `stroke` (area)      | стили                                  | контурные линии                         |
-| `strokeWidth` (area) | стили                                  | контурные линии                         |
-| `cornerRadius` (bar) | `Pixels`                               | скругление                              |
-| `groupGap` (bar)     | `Fraction`                             | зазор между барами одной группы (`0.2`) |
+| Опция                | Тип                                    | Описание                                                               |
+| -------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
+| `yLowField`          | `string`                               | границы диапазона                                                      |
+| `yHighField`         | `string`                               | границы диапазона                                                      |
+| `direction` (bar)    | `'vertical' \| 'horizontal'`           | направление баров (`vertical`)                                         |
+| `fill`               | `ColorValue \| (params) => ColorValue` | заливка; колбэк красит по datum                                        |
+| `itemStyler` (bar)   | `(params) => style`                    | стиль одного бара поверх `fill`, как у bar; в params ещё `low`, `high` |
+| `fill`               | стили                                  | заливка                                                                |
+| `fillOpacity`        | стили                                  | заливка                                                                |
+| `stroke` (area)      | стили                                  | контурные линии                                                        |
+| `strokeWidth` (area) | стили                                  | контурные линии                                                        |
+| `cornerRadius` (bar) | `Pixels`                               | скругление                                                             |
+| `groupGap` (bar)     | `Fraction`                             | зазор между барами одной группы (`0.2`)                                |
 
 ### Полный список опций
 

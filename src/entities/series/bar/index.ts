@@ -4,6 +4,9 @@ import {
   labelFont,
   placeRectLabel,
   rectLabelOverflow,
+  styleRectItem,
+  type RectItemStyle,
+  type RectItemStylerParams,
   type RectLabelPlacement,
   type SeriesBaseOptions,
 } from '@/entities/series/base';
@@ -18,7 +21,7 @@ import type {
   SeriesPick,
   StackSegment,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Fraction, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Fraction, Styler, Switchable } from '@/shared/options';
 import { LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
@@ -41,6 +44,14 @@ export interface BarSeriesOptions extends SeriesBaseOptions {
    * (0–0.9, default 0.2). Ignored when the series is alone in the band.
    */
   groupGap?: Fraction;
+  /**
+   * Style of one bar by its datum — to paint the bars of a series by value.
+   * Undefined leaves the bar as the series draws it; a partial style is laid
+   * over it. Called for every segment of a stack with the index of the datum
+   * in the data of this series. The legend keeps the series color, the
+   * tooltip marker takes the bar's.
+   */
+  itemStyler?: Styler<RectItemStylerParams, RectItemStyle>;
   /**
    * Value labels. Outer placements: top/bottom/left/right and corners
    * (top-left, …); center and inner-* are inside the bar (auto-contrast + outline).
@@ -70,6 +81,21 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
 
   protected mainColor(): ColorValue {
     return this.options.fill ?? this.env.colors.fill;
+  }
+
+  /** How the item styler paints a bar, in the state it is in. */
+  private itemStyle(index: number, datum: Datum, highlighted: boolean): RectItemStyle {
+    return styleRectItem(this.options.itemStyler, {
+      datum,
+      index,
+      highlighted,
+      fill: this.mainColor(),
+      stroke: this.options.stroke,
+    });
+  }
+
+  protected override itemColor(index: number, datum: Datum): ColorValue {
+    return this.itemStyle(index, datum, false).fill ?? this.mainColor();
   }
 
   override yDomain(data: Datum[], stack?: StackSegment): [number, number] | undefined {
@@ -159,26 +185,31 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
     const group = new Group();
     const labels = new Group();
 
+    const highlighted =
+      ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
     this.rects = this.layoutBars(ctx, ctx.animationT ?? 1);
     this.rects.forEach((rect) => {
       const index = rect.index;
       const datum = data[index];
       if (!datum) return;
+      const item = this.itemStyle(index, datum, index === highlighted);
 
       const node = new Rect();
       node.x = rect.x;
       node.y = rect.y;
       node.width = rect.width;
       node.height = rect.height;
-      node.fill = this.mainColor();
-      node.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 1;
+      node.fill = item.fill ?? this.mainColor();
+      node.opacity = item.fillOpacity ?? this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 1;
       node.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 0;
+      // the selection outline wins over the styler's: it is what shows the bar is selected
+      const stroke = item.stroke ?? this.options.stroke;
       if (ctx.selected?.has(index)) {
         node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
         node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
-      } else if (this.options.stroke) {
-        node.stroke = this.options.stroke;
-        node.strokeWidth = this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1;
+      } else if (stroke) {
+        node.stroke = stroke;
+        node.strokeWidth = item.strokeWidth ?? this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1;
       }
       if (ctx.selectionActive && !ctx.selected?.has(index)) {
         node.opacity *= ctx.selectionStyle?.inactiveOpacity ?? 0.45;
@@ -199,7 +230,8 @@ export class BarSeries extends CartesianSeries<BarSeriesOptions> {
         text.fontWeight = font.weight;
         text.fontFamily = font.family;
         const barFill = node.fill ?? this.mainColor();
-        text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(barFill) : this.env.theme.foregroundColor);
+        text.fill =
+          item.label?.color ?? labelOptions.color ?? (placed.inside ? contrastTextColor(barFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = barFill;
         if (this.labelFits(ctx, text, labelOptions.avoidOverlap)) labels.append(text);
       }

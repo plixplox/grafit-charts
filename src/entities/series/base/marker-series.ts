@@ -1,4 +1,5 @@
 import { CartesianSeries, type SeriesBaseOptions } from './cartesian-series';
+import { styleMarkerItem, type MarkerItemStyle, type MarkerItemStylerParams } from './item-styler';
 import { placePointLabel, pointBlockCenter, pointBlockOverflow, POINT_LABEL_GAP } from './point-label';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY, FONT_STEP, themeFont } from '@/shared/kernel';
@@ -41,22 +42,6 @@ import {
   NO_OVERFLOW,
   type LabelPart,
 } from '@/shared/util';
-
-export interface MarkerItemStylerParams {
-  datum: Datum;
-  index: number;
-  highlighted: boolean;
-  fill: ColorValue;
-  stroke: ColorValue | undefined;
-  size: Pixels;
-}
-
-export interface MarkerItemStyle {
-  fill?: ColorValue;
-  stroke?: ColorValue;
-  strokeWidth?: Pixels;
-  size?: Pixels;
-}
 
 export interface MarkerSeriesBaseOptions extends SeriesBaseOptions {
   /** Y value name in the tooltip (yField by default). */
@@ -128,6 +113,16 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
 
   protected mainColor(): ColorValue {
     return this.options.fill ?? this.env.colors.fill;
+  }
+
+  /** How the item styler paints a point at rest — what its tooltip and its label go by. */
+  private restStyle(index: number, datum: Datum): MarkerItemStyle {
+    const params = { datum, index, highlighted: false, fill: this.mainColor(), stroke: this.options.stroke, size: this.sizeFor(index) };
+    return styleMarkerItem(this.options.itemStyler, params, 1);
+  }
+
+  protected override itemColor(index: number, datum: Datum): ColorValue {
+    return this.restStyle(index, datum).fill ?? this.mainColor();
   }
 
   preferredXAxisType(): 'number' {
@@ -245,11 +240,13 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
   private labelPartsFor(datum: Datum, index: number, share: number): LabelPart[] {
     const options = this.options.label;
     const inside = options?.placement === 'inside';
+    const item = this.restStyle(index, datum);
     const defaults = {
       fontSize: options?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label),
       fontFamily: options?.fontFamily ?? this.env.theme.fontFamily,
       fontWeight: options?.fontWeight !== undefined ? String(options.fontWeight) : 'normal',
-      color: options?.color ?? (inside ? contrastTextColor(this.mainColor()) : this.env.theme.foregroundColor),
+      color:
+        item.label?.color ?? options?.color ?? (inside ? contrastTextColor(item.fill ?? this.mainColor()) : this.env.theme.foregroundColor),
     };
     if (options?.formatter) {
       return labelParts([{ text: options.formatter({ value: Number(datum[this.options.yField]), datum }) }], defaults, options);
@@ -302,7 +299,7 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
     return {
       heading: {
         text: this.options.labelField !== undefined ? this.labelFor(datum, datumIndex) : this.seriesName,
-        color: this.mainColor(),
+        color: this.itemColor(datumIndex, datum),
       },
       rows: [
         { label: this.options.xName ?? this.options.xField, value: String(datum[this.options.xField]) },
@@ -333,18 +330,23 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
       const isSelected = ctx.selected?.has(index) === true;
       const style = ctx.selectionStyle;
       const baseSize = this.sizeFor(index);
-      let fill = this.mainColor();
-      let stroke = isSelected ? (style?.stroke ?? this.env.theme.foregroundColor) : this.options.stroke;
-      let strokeWidth = isSelected ? (style?.strokeWidth ?? 2) : (this.options.strokeWidth ?? 1);
-      let size = isSelected ? baseSize * (style?.sizeRatio ?? 1.4) : isHighlighted ? baseSize * 1.4 : baseSize;
-      const styler = this.options.itemStyler;
-      if (styler) {
-        const style = styler({ datum, index, highlighted: isHighlighted, fill, stroke, size });
-        fill = style?.fill ?? fill;
-        stroke = style?.stroke ?? stroke;
-        strokeWidth = style?.strokeWidth ?? strokeWidth;
-        size = style?.size ?? size;
-      }
+      const stroke = isSelected ? (style?.stroke ?? this.env.theme.foregroundColor) : this.options.stroke;
+      // a selected marker is already as big as it gets, the pointer does not grow it further
+      const item = styleMarkerItem(
+        this.options.itemStyler,
+        {
+          datum,
+          index,
+          highlighted: isHighlighted,
+          fill: this.mainColor(),
+          stroke,
+          size: isSelected ? baseSize * (style?.sizeRatio ?? 1.4) : baseSize,
+        },
+        isSelected ? 1 : 1.4,
+      );
+      const fill = item.fill ?? this.mainColor();
+      const size = item.size;
+      const strokeWidth = item.strokeWidth ?? (isSelected ? (style?.strokeWidth ?? 2) : (this.options.strokeWidth ?? 1));
 
       const marker = new Marker();
       marker.x = x;
@@ -353,7 +355,7 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
       marker.size = size;
       marker.fill = fill;
       marker.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.85;
-      marker.stroke = stroke ?? this.env.theme.backgroundColor;
+      marker.stroke = item.stroke ?? stroke ?? this.env.theme.backgroundColor;
       marker.strokeWidth = strokeWidth;
       if (ctx.selectionActive && !isSelected)
         marker.opacity = (this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.85) * (style?.inactiveOpacity ?? 0.45);
@@ -368,7 +370,7 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
     if (this.options.label?.enabled === true) {
       const labelOptions = this.options.label;
       const placement = labelOptions.placement ?? 'top';
-      const outline = placement === 'inside' ? this.mainColor() : this.env.theme.backgroundColor;
+      const inside = placement === 'inside';
       const placed = this.labelBlocks(ctx).map((block) => {
         const at = placePointLabel(block.x, block.y, placement, this.labelOffset(block.index));
         const { height } = this.labelSize(block.parts, ctx.measureText);
@@ -387,6 +389,9 @@ export abstract class MarkerSeries<O extends MarkerSeriesBaseOptions> extends Ca
           : new Set<(typeof placed)[number]>();
       for (const block of placed) {
         if (dropped.has(block)) continue;
+        const datum = data[block.index];
+        // inside the marker the outline is the point's own fill, so the text reads against it
+        const outline = inside && datum ? this.itemColor(block.index, datum) : this.env.theme.backgroundColor;
         drawLabelBlock(labels, block.parts, block.at.x, block.y, blockAlign(block.at.align), ctx.measureText, this.labelLayout, outline);
       }
     }

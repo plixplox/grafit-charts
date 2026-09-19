@@ -4,7 +4,10 @@ import {
   labelFont,
   placeRectLabel,
   rectLabelOverflow,
+  styleRectItem,
   type RangeTooltipRendererParams,
+  type RectItemStyle,
+  type RectItemStylerParams,
   type RectLabelPlacement,
   type SeriesBaseOptions,
 } from '@/entities/series/base';
@@ -19,7 +22,7 @@ import type {
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, Fraction, FontOptions, LabelOverlapOptions, Styler, Switchable } from '@/shared/options';
 import { LinearScale, groupSlot } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { extent, contrastTextColor, NO_OVERFLOW, tooltipContentOf } from '@/shared/util';
@@ -40,8 +43,14 @@ export interface RangeBarSeriesOptions extends Omit<SeriesBaseOptions<RangeToolt
   /**
    * Bar fill. A callback receives each datum and returns a color — use it to
    * paint bars by category/status (e.g. a Gantt chart coloured by task state).
+   * `itemStyler` does the same the way every other series does, and is laid over it.
    */
   fill?: ColorValue | RangeBarFillFn;
+  /**
+   * Style of one bar by its datum. Undefined leaves the bar as `fill` paints
+   * it; a partial style is laid over it.
+   */
+  itemStyler?: Styler<RangeBarItemStylerParams, RectItemStyle>;
   fillOpacity?: Fraction;
   cornerRadius?: Pixels;
   /**
@@ -49,6 +58,12 @@ export interface RangeBarSeriesOptions extends Omit<SeriesBaseOptions<RangeToolt
    * (0–0.9, default 0.2). Ignored when the series is alone in the band.
    */
   groupGap?: Fraction;
+}
+
+/** What the item styler of a range bar is handed: the bar also knows the range it spans. */
+export interface RangeBarItemStylerParams extends RectItemStylerParams {
+  low: number;
+  high: number;
 }
 
 export type RangeBarFillFn = (params: { low: number; high: number; datum: Datum; index: number }) => ColorValue;
@@ -75,6 +90,16 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
   private fillFor(params: { low: number; high: number; datum: Datum; index: number }): ColorValue {
     const fill = this.options.fill;
     return typeof fill === 'function' ? fill(params) : (fill ?? this.env.colors.fill);
+  }
+
+  /** How a bar is painted, in the state it is in: its fill with the item styler over it. */
+  private itemStyle(
+    params: { low: number; high: number; datum: Datum; index: number },
+    highlighted: boolean,
+  ): RectItemStyle & { fill: ColorValue } {
+    const fill = this.fillFor(params);
+    const style = styleRectItem(this.options.itemStyler, { ...params, highlighted, fill, stroke: undefined });
+    return { ...style, fill: style.fill ?? fill };
   }
 
   protected override get seriesName(): string {
@@ -150,23 +175,30 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
     const group = new Group();
     const labels = new Group();
 
+    const highlighted =
+      ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
     this.rects = this.layoutBars(ctx, ctx.animationT ?? 1);
     this.rects.forEach((rect) => {
       const { index, low, high } = rect;
       const datum = ctx.data[index];
       if (!datum) return;
+      const item = this.itemStyle({ low, high, datum, index }, index === highlighted);
 
       const node = new Rect();
       node.x = rect.x;
       node.y = rect.y;
       node.width = rect.width;
       node.height = rect.height;
-      node.fill = this.fillFor({ low, high, datum, index });
-      node.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.9;
+      node.fill = item.fill;
+      node.opacity = item.fillOpacity ?? this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.9;
       node.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 3;
+      // the selection outline wins over the styler's: it is what shows the bar is selected
       if (ctx.selected?.has(index)) {
         node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
         node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
+      } else if (item.stroke) {
+        node.stroke = item.stroke;
+        node.strokeWidth = item.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1;
       }
       if (ctx.selectionActive && !ctx.selected?.has(index)) {
         node.opacity *= ctx.selectionStyle?.inactiveOpacity ?? 0.45;
@@ -187,7 +219,8 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
         text.fontWeight = font.weight;
         text.fontFamily = font.family;
         const elementFill = node.fill ?? this.mainColor();
-        text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
+        text.fill =
+          item.label?.color ?? labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = elementFill;
         if (this.labelFits(ctx, text, labelOptions.avoidOverlap)) labels.append(text);
       }
@@ -216,7 +249,7 @@ export class RangeBarSeries extends CartesianSeries<RangeBarSeriesOptions & { yF
     if (!datum) return { rows: [] };
     const low = Number(datum[this.options.yLowField]);
     const high = Number(datum[this.options.yHighField]);
-    const color = this.fillFor({ low, high, datum, index: datumIndex });
+    const color = this.itemStyle({ low, high, datum, index: datumIndex }, false).fill;
     const renderer = this.options.tooltip?.renderer;
     if (renderer) {
       return tooltipContentOf(

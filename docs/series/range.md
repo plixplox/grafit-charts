@@ -36,18 +36,19 @@ Range-area as the background + line on top, with a shared tooltip:
 
 ::: chart-example range-combo
 
-| Option               | Type                                   | Description                           |
-| -------------------- | -------------------------------------- | ------------------------------------- |
-| `yLowField`          | `string`                               | range bounds                          |
-| `yHighField`         | `string`                               | range bounds                          |
-| `direction` (bar)    | `'vertical' \| 'horizontal'`           | bar direction (`vertical`)            |
-| `fill`               | `ColorValue \| (params) => ColorValue` | fill; callback colours per datum      |
-| `fill`               | styles                                 | fill                                  |
-| `fillOpacity`        | styles                                 | fill                                  |
-| `stroke` (area)      | styles                                 | outline lines                         |
-| `strokeWidth` (area) | styles                                 | outline lines                         |
-| `cornerRadius` (bar) | `Pixels`                               | corner rounding                       |
-| `groupGap` (bar)     | `Fraction`                             | gap between bars of one group (`0.2`) |
+| Option               | Type                                   | Description                                                       |
+| -------------------- | -------------------------------------- | ----------------------------------------------------------------- |
+| `yLowField`          | `string`                               | range bounds                                                      |
+| `yHighField`         | `string`                               | range bounds                                                      |
+| `direction` (bar)    | `'vertical' \| 'horizontal'`           | bar direction (`vertical`)                                        |
+| `fill`               | `ColorValue \| (params) => ColorValue` | fill; callback colours per datum                                  |
+| `itemStyler` (bar)   | `(params) => style`                    | style of one bar over `fill`, as in bar; params add `low`, `high` |
+| `fill`               | styles                                 | fill                                                              |
+| `fillOpacity`        | styles                                 | fill                                                              |
+| `stroke` (area)      | styles                                 | outline lines                                                     |
+| `strokeWidth` (area) | styles                                 | outline lines                                                     |
+| `cornerRadius` (bar) | `Pixels`                               | corner rounding                                                   |
+| `groupGap` (bar)     | `Fraction`                             | gap between bars of one group (`0.2`)                             |
 
 ### Full list of options
 

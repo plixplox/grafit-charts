@@ -4,12 +4,15 @@ import {
   placePointLabel,
   pointLabelOverflow,
   POINT_LABEL_GAP,
+  styleMarkerItem,
+  type MarkerItemStyle,
+  type MarkerItemStylerParams,
   type SeriesBaseOptions,
 } from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { CartesianGeometry, CartesianRenderContext, Insets, LabelOverflowContext, SeriesModule, SeriesPick } from '@/shared/kernel';
-import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, FontOptions, LabelOverlapOptions, Pixels, Styler, Switchable } from '@/shared/options';
 import { Group, Marker, Path, Text, type MarkerShape } from '@/shared/scene';
 import { NO_OVERFLOW } from '@/shared/util';
 
@@ -26,6 +29,13 @@ export interface LineSeriesOptions extends SeriesBaseOptions {
     fill?: ColorValue;
     stroke?: ColorValue;
     strokeWidth?: Pixels;
+    /**
+     * Style of one marker by its datum — to paint the points of the line by
+     * value; the line itself keeps the series color. Undefined leaves the
+     * marker as it is; a partial style is laid over it. Its `label.color`
+     * colours the value label of the point, markers shown or not.
+     */
+    itemStyler?: Styler<MarkerItemStylerParams, MarkerItemStyle>;
   };
   /** Value labels at points: top (by default) / bottom / left / right. */
   label?: Switchable &
@@ -53,6 +63,27 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
 
   protected mainColor(): ColorValue {
     return this.options.stroke ?? this.env.colors.stroke;
+  }
+
+  /** How the marker styler paints a point at rest — what its tooltip and its label go by. */
+  private restStyle(index: number, datum: Datum): MarkerItemStyle {
+    const marker = this.options.marker;
+    return styleMarkerItem(
+      marker?.itemStyler,
+      {
+        datum,
+        index,
+        highlighted: false,
+        fill: marker?.fill ?? this.mainColor(),
+        stroke: marker?.stroke ?? this.env.theme.backgroundColor,
+        size: marker?.size ?? DEFAULT_MARKER_SIZE,
+      },
+      1,
+    );
+  }
+
+  protected override itemColor(index: number, datum: Datum): ColorValue {
+    return this.restStyle(index, datum).fill ?? this.mainColor();
   }
 
   /**
@@ -129,18 +160,35 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
         const isSelected = ctx.selected?.has(point.index) === true;
         // hover-only markers still show the selection, or it would vanish with the pointer
         if (hoverOnly && !isSelected && point.index !== highlighted) continue;
+        const datum = ctx.data[point.index];
+        if (!datum) continue;
         const marker = new Marker();
         marker.x = point.x;
         marker.y = point.y;
         marker.shape = markerOptions?.shape ?? 'circle';
         const baseSize = markerOptions?.size ?? DEFAULT_MARKER_SIZE;
         const style = ctx.selectionStyle;
-        marker.size = isSelected ? baseSize * (style?.sizeRatio ?? 1.5) : point.index === highlighted ? baseSize * 1.5 : baseSize;
-        marker.fill = markerOptions?.fill ?? this.mainColor();
-        marker.stroke = isSelected
+        const fill = markerOptions?.fill ?? this.mainColor();
+        const stroke = isSelected
           ? (style?.stroke ?? this.env.theme.foregroundColor)
           : (markerOptions?.stroke ?? this.env.theme.backgroundColor);
-        marker.strokeWidth = isSelected ? (style?.strokeWidth ?? 2) : (markerOptions?.strokeWidth ?? 1.5);
+        // a selected marker is already as big as it gets, the pointer does not grow it further
+        const item = styleMarkerItem(
+          markerOptions?.itemStyler,
+          {
+            datum,
+            index: point.index,
+            highlighted: point.index === highlighted,
+            fill,
+            stroke,
+            size: isSelected ? baseSize * (style?.sizeRatio ?? 1.5) : baseSize,
+          },
+          isSelected ? 1 : 1.5,
+        );
+        marker.size = item.size;
+        marker.fill = item.fill ?? fill;
+        marker.stroke = item.stroke ?? stroke;
+        marker.strokeWidth = item.strokeWidth ?? (isSelected ? (style?.strokeWidth ?? 2) : (markerOptions?.strokeWidth ?? 1.5));
         if (ctx.selectionActive && !isSelected) marker.opacity = style?.inactiveOpacity ?? 0.45;
         group.append(marker);
       }
@@ -164,7 +212,7 @@ export class LineSeries extends CartesianSeries<LineSeriesOptions> {
         label.fontSize = font.size;
         label.fontWeight = font.weight;
         label.fontFamily = font.family;
-        label.fill = labelOptions.color ?? this.env.theme.foregroundColor;
+        label.fill = this.restStyle(point.index, datum).label?.color ?? labelOptions.color ?? this.env.theme.foregroundColor;
         label.outline = this.env.theme.backgroundColor;
         if (this.labelFits(ctx, label, labelOptions.avoidOverlap)) labels.append(label);
       }

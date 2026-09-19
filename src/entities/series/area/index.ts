@@ -4,6 +4,9 @@ import {
   placePointLabel,
   pointLabelOverflow,
   POINT_LABEL_GAP,
+  styleMarkerItem,
+  type MarkerItemStyle,
+  type MarkerItemStylerParams,
   type SeriesBaseOptions,
 } from '@/entities/series/base';
 import { numericValues } from '@/shared/data';
@@ -17,7 +20,7 @@ import type {
   SeriesPick,
   StackSegment,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction, Switchable, FontOptions, LabelOverlapOptions } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, Fraction, Styler, Switchable, FontOptions, LabelOverlapOptions } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
 import { Group, Marker, Path, type MarkerShape, Text } from '@/shared/scene';
 import { extent, NO_OVERFLOW } from '@/shared/util';
@@ -42,6 +45,13 @@ export interface AreaSeriesOptions extends SeriesBaseOptions {
     fill?: ColorValue;
     stroke?: ColorValue;
     strokeWidth?: Pixels;
+    /**
+     * Style of one marker by its datum — to paint the points of the area by
+     * value; the fill and the outline keep the series color. Undefined leaves
+     * the marker as it is; a partial style is laid over it. Its `label.color`
+     * colours the value label of the point, markers shown or not.
+     */
+    itemStyler?: Styler<MarkerItemStylerParams, MarkerItemStyle>;
   };
   /** Value labels at points: top (by default) / bottom / left / right. */
   label?: Switchable &
@@ -68,6 +78,27 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
 
   protected mainColor(): ColorValue {
     return this.options.fill ?? this.env.colors.fill;
+  }
+
+  /** How the marker styler paints a point at rest — what its tooltip and its label go by. */
+  private restStyle(index: number, datum: Datum): MarkerItemStyle {
+    const marker = this.options.marker;
+    return styleMarkerItem(
+      marker?.itemStyler,
+      {
+        datum,
+        index,
+        highlighted: false,
+        fill: marker?.fill ?? this.mainColor(),
+        stroke: marker?.stroke ?? this.env.theme.backgroundColor,
+        size: marker?.size ?? DEFAULT_MARKER_SIZE,
+      },
+      1,
+    );
+  }
+
+  protected override itemColor(index: number, datum: Datum): ColorValue {
+    return this.restStyle(index, datum).fill ?? this.mainColor();
   }
 
   override yDomain(data: Datum[], stack?: StackSegment): [number, number] | undefined {
@@ -159,34 +190,63 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
     group.append(strokePath);
 
     const markerOptions = this.options.marker;
+    const highlighted =
+      ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
     if (ctx.selected && ctx.selected.size > 0) {
       for (const point of this.points) {
-        if (!ctx.selected.has(point.index)) continue;
+        const datum = ctx.data[point.index];
+        if (!ctx.selected.has(point.index) || !datum) continue;
+        const stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
+        // a selected marker is already as big as it gets, the pointer does not grow it further
+        const item = styleMarkerItem(
+          markerOptions?.itemStyler,
+          {
+            datum,
+            index: point.index,
+            highlighted: point.index === highlighted,
+            fill: this.mainColor(),
+            stroke,
+            size: (markerOptions?.size ?? DEFAULT_MARKER_SIZE) * (ctx.selectionStyle?.sizeRatio ?? 1.4),
+          },
+          1,
+        );
         const marker = new Marker();
         marker.x = point.x;
         marker.y = point.y;
-        marker.size = (markerOptions?.size ?? 7) * (ctx.selectionStyle?.sizeRatio ?? 1.4);
-        marker.fill = this.mainColor();
-        marker.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
-        marker.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 2;
+        marker.size = item.size;
+        marker.fill = item.fill ?? this.mainColor();
+        marker.stroke = item.stroke ?? stroke;
+        marker.strokeWidth = item.strokeWidth ?? ctx.selectionStyle?.strokeWidth ?? 2;
         group.append(marker);
       }
     }
     const hoverOnly = markerOptions?.showOn === 'hover';
     if (markerOptions && (markerOptions.enabled === true || (hoverOnly && markerOptions.enabled !== false))) {
-      const highlighted =
-        ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
       for (const point of this.points) {
-        if (hoverOnly && point.index !== highlighted) continue;
+        const datum = ctx.data[point.index];
+        if ((hoverOnly && point.index !== highlighted) || !datum) continue;
+        const fill = markerOptions.fill ?? this.mainColor();
+        const stroke = markerOptions.stroke ?? this.env.theme.backgroundColor;
+        const item = styleMarkerItem(
+          markerOptions.itemStyler,
+          {
+            datum,
+            index: point.index,
+            highlighted: point.index === highlighted,
+            fill,
+            stroke,
+            size: markerOptions.size ?? DEFAULT_MARKER_SIZE,
+          },
+          1.5,
+        );
         const marker = new Marker();
         marker.x = point.x;
         marker.y = point.y;
         marker.shape = markerOptions.shape ?? 'circle';
-        const baseSize = markerOptions.size ?? 7;
-        marker.size = point.index === highlighted ? baseSize * 1.5 : baseSize;
-        marker.fill = markerOptions.fill ?? this.mainColor();
-        marker.stroke = markerOptions.stroke ?? this.env.theme.backgroundColor;
-        marker.strokeWidth = markerOptions.strokeWidth ?? 1.5;
+        marker.size = item.size;
+        marker.fill = item.fill ?? fill;
+        marker.stroke = item.stroke ?? stroke;
+        marker.strokeWidth = item.strokeWidth ?? markerOptions.strokeWidth ?? 1.5;
         group.append(marker);
       }
     }
@@ -214,7 +274,7 @@ export class AreaSeries extends CartesianSeries<AreaSeriesOptions> {
         label.fontSize = font.size;
         label.fontWeight = font.weight;
         label.fontFamily = font.family;
-        label.fill = labelOptions.color ?? this.env.theme.foregroundColor;
+        label.fill = this.restStyle(point.index, datum).label?.color ?? labelOptions.color ?? this.env.theme.foregroundColor;
         label.outline = this.env.theme.backgroundColor;
         if (this.labelFits(ctx, label, labelOptions.avoidOverlap)) labels.append(label);
       }

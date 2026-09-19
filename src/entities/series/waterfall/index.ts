@@ -4,6 +4,9 @@ import {
   plotBands,
   placeRectLabel,
   rectLabelOverflow,
+  styleRectItem,
+  type RectItemStyle,
+  type RectItemStylerParams,
   type RectLabelPlacement,
   type SeriesBaseOptions,
 } from '@/entities/series/base';
@@ -17,10 +20,10 @@ import type {
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
+import { localize } from '@/shared/locale';
+import type { ColorValue, Datum, Pixels, FontOptions, LabelOverlapOptions, Styler, Switchable } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
 import { Group, Line, Rect, Text } from '@/shared/scene';
-import { localize } from '@/shared/locale';
 import { contrastTextColor, NO_OVERFLOW, tooltipContentOf } from '@/shared/util';
 
 /**
@@ -42,6 +45,11 @@ export interface WaterfallTooltipRendererParams {
   color: ColorValue;
 }
 
+/** What the item styler of a waterfall is handed: a step also knows which kind of step it is. */
+export interface WaterfallItemStylerParams extends RectItemStylerParams {
+  kind: 'positive' | 'negative' | 'total';
+}
+
 export interface WaterfallSeriesOptions extends SeriesBaseOptions<WaterfallTooltipRendererParams> {
   type: 'waterfall';
   item?: {
@@ -49,6 +57,11 @@ export interface WaterfallSeriesOptions extends SeriesBaseOptions<WaterfallToolt
     negative?: { fill?: ColorValue };
     total?: { fill?: ColorValue };
   };
+  /**
+   * Style of one step by its datum, laid over the fill `item` gives its kind.
+   * Undefined leaves the step as it is; a partial style is laid over it.
+   */
+  itemStyler?: Styler<WaterfallItemStylerParams, RectItemStyle>;
   /** Data indices that are subtotals (bar drawn from zero). */
   totals?: number[];
   cornerRadius?: Pixels;
@@ -84,6 +97,20 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
 
   override occupiesBandSlot(): boolean {
     return true;
+  }
+
+  /** Kind of a step and the fill `item` gives that kind. */
+  private kindOf(bar: BarGeometry): { kind: WaterfallItemStylerParams['kind']; fill: ColorValue } {
+    if (bar.isTotal) return { kind: 'total', fill: this.options.item?.total?.fill ?? this.env.theme.mutedColor };
+    if (bar.end >= bar.start) return { kind: 'positive', fill: this.options.item?.positive?.fill ?? this.env.colors.fill };
+    return { kind: 'negative', fill: this.options.item?.negative?.fill ?? this.env.theme.negativeColor };
+  }
+
+  /** How a step is painted, in the state it is in: its kind's fill with the item styler over it. */
+  private itemStyle(bar: BarGeometry, datum: Datum, highlighted: boolean): RectItemStyle & { fill: ColorValue } {
+    const { kind, fill } = this.kindOf(bar);
+    const style = styleRectItem(this.options.itemStyler, { datum, index: bar.index, highlighted, fill, stroke: undefined, kind });
+    return { ...style, fill: style.fill ?? fill };
   }
 
   /** Cumulative start/end for each bar. */
@@ -169,9 +196,8 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
     this.lastCtx = ctx;
     this.bars = [];
     if (!this.visible) return;
-    const positiveFill = this.options.item?.positive?.fill ?? this.env.colors.fill;
-    const negativeFill = this.options.item?.negative?.fill ?? this.env.theme.negativeColor;
-    const totalFill = this.options.item?.total?.fill ?? this.env.theme.mutedColor;
+    const highlighted =
+      ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
     const group = new Group();
     const labels = new Group();
 
@@ -193,16 +219,23 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
         group.append(connector);
       }
 
+      const datum = ctx.data[index];
+      const item: RectItemStyle & { fill: ColorValue } = datum ? this.itemStyle(bar, datum, index === highlighted) : this.kindOf(bar);
       const node = new Rect();
       node.x = bar.x;
       node.y = bar.y;
       node.width = bar.width;
       node.height = bar.height;
-      node.fill = bar.isTotal ? totalFill : bar.end >= bar.start ? positiveFill : negativeFill;
+      node.fill = item.fill;
+      if (item.fillOpacity !== undefined) node.opacity = item.fillOpacity;
       node.cornerRadius = this.options.cornerRadius ?? this.env.theme.cornerRadius ?? 2;
+      // the selection outline wins over the styler's: it is what shows the step is selected
       if (ctx.selected?.has(index)) {
         node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
         node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
+      } else if (item.stroke) {
+        node.stroke = item.stroke;
+        node.strokeWidth = item.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1;
       }
       if (ctx.selectionActive && !ctx.selected?.has(index)) {
         node.opacity *= ctx.selectionStyle?.inactiveOpacity ?? 0.45;
@@ -223,7 +256,8 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
         text.fontWeight = font.weight;
         text.fontFamily = font.family;
         const elementFill = node.fill ?? this.env.colors.fill;
-        text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
+        text.fill =
+          item.label?.color ?? labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = elementFill;
         if (this.labelFits(ctx, text, labelOptions.avoidOverlap)) labels.append(text);
       }
@@ -252,11 +286,7 @@ export class WaterfallSeries extends CartesianSeries<WaterfallSeriesOptions> {
     const bar = this.bars.find((candidate) => candidate.index === datumIndex);
     if (!datum || !bar) return { rows: [] };
     const delta = bar.end - bar.start;
-    const color = bar.isTotal
-      ? (this.options.item?.total?.fill ?? this.env.theme.mutedColor)
-      : delta >= 0
-        ? (this.options.item?.positive?.fill ?? this.env.colors.fill)
-        : (this.options.item?.negative?.fill ?? this.env.theme.negativeColor);
+    const color = this.itemStyle(bar, datum, false).fill;
     const renderer = this.options.tooltip?.renderer;
     if (renderer) {
       return tooltipContentOf(

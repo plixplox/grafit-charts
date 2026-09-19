@@ -20,6 +20,15 @@ import type {
 } from '@/entities/legend';
 import type { AreaSeriesOptions } from '@/entities/series/area';
 import type { BarSeriesOptions } from '@/entities/series/bar';
+import type {
+  GaugeLabelOptions,
+  GaugeSegment,
+  MarkerItemStyle,
+  ItemLabelStyle,
+  MarkerItemStylerParams,
+  RectItemStyle,
+  RectItemStylerParams,
+} from '@/entities/series/base';
 import type { BoxPlotSeriesOptions } from '@/entities/series/box-plot';
 import type { BubbleSeriesOptions } from '@/entities/series/bubble';
 import type { CandlestickSeriesOptions } from '@/entities/series/candlestick';
@@ -40,7 +49,6 @@ import type {
   HistogramSeriesOptions,
   HistogramTooltipRendererParams,
 } from '@/entities/series/histogram';
-import type { GaugeLabelOptions, GaugeSegment } from '@/entities/series/base';
 import type { LineSeriesOptions } from '@/entities/series/line';
 import type { LinearGaugeSeriesOptions } from '@/entities/series/linear-gauge';
 import type { NightingaleSeriesOptions } from '@/entities/series/nightingale';
@@ -53,12 +61,12 @@ import type { RadialBarSeriesOptions } from '@/entities/series/radial-bar';
 import type { RadialColumnSeriesOptions } from '@/entities/series/radial-column';
 import type { RadialGaugeSeriesOptions } from '@/entities/series/radial-gauge';
 import type { RangeAreaSeriesOptions } from '@/entities/series/range-area';
-import type { RangeBarSeriesOptions } from '@/entities/series/range-bar';
+import type { RangeBarItemStylerParams, RangeBarSeriesOptions } from '@/entities/series/range-bar';
 import type { SankeySeriesOptions } from '@/entities/series/sankey';
 import type { ScatterSeriesOptions } from '@/entities/series/scatter';
 import type { SunburstSeriesOptions } from '@/entities/series/sunburst';
 import type { TreemapSeriesOptions } from '@/entities/series/treemap';
-import type { WaterfallSeriesOptions } from '@/entities/series/waterfall';
+import type { WaterfallItemStylerParams, WaterfallSeriesOptions } from '@/entities/series/waterfall';
 import type { AnnotationOptions } from '@/features/annotations';
 import type { ChartState } from '@/features/chart-state';
 import type { ContextMenuOptions } from '@/features/context-menu';
@@ -234,9 +242,16 @@ export type {
   RadialBarSeriesOptions,
   HeatmapSeriesOptions,
   RangeBarSeriesOptions,
+  RangeBarItemStylerParams,
   RangeAreaSeriesOptions,
   BoxPlotSeriesOptions,
   WaterfallSeriesOptions,
+  WaterfallItemStylerParams,
+  RectItemStylerParams,
+  RectItemStyle,
+  MarkerItemStylerParams,
+  MarkerItemStyle,
+  ItemLabelStyle,
   FunnelSeriesOptions,
   ConeFunnelSeriesOptions,
   CandlestickSeriesOptions,

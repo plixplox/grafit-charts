@@ -18,6 +18,20 @@ inside a bar the color is chosen by auto-contrast with a halo in the bar's color
 
 ::: chart-example bar-styled
 
+## Conditional colors
+
+`itemStyler` paints one bar by its datum: it receives `{ datum, index, highlighted, fill, stroke }`,
+where `fill` is the color the bar would have without it, and returns a partial style —
+`fill`, `fillOpacity`, `stroke`, `strokeWidth` and `label.color`. `undefined` leaves the bar as it
+is. In a stack it is called for every segment with the index of the datum in the data of its
+series. A highlighted bar is styled twice — at rest first, then with `highlighted: true` over
+that — so a styler that ignores the highlight keeps its colors under the pointer. A label inside
+the bar picks its contrast from the styled fill; the tooltip marker takes the bar's color, the
+legend keeps the series'. The selection outline and the dimming of unselected bars are laid
+over the styled look.
+
+::: chart-example bar-conditional
+
 ## Grouping
 
 Multiple bar series automatically share the category band. Adjacent bars are
@@ -71,25 +85,26 @@ axis overrides it:
 
 Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) are covered in [Common series options](/guide/series-options).
 
-| Option             | Type                                    | Default                               | Description                                               |
-| ------------------ | --------------------------------------- | ------------------------------------- | --------------------------------------------------------- |
-| `xField`           | `string`                                | —                                     | data keys (required)                                      |
-| `yField`           | `string`                                | —                                     | data keys (required)                                      |
-| `name`             | `string`                                | `yField`                              | name for the legend and tooltip                           |
-| `direction`        | `'vertical' \| 'horizontal'`            | `'vertical'`                          | bar direction                                             |
-| `stacked`          | `boolean`                               | `false`                               | stacking                                                  |
-| `normalizedTo`     | `number`                                | —                                     | normalize the stack total (100 — percentage stack)        |
-| `stackGroup`       | `string`                                | `'default'`                           | independent stack groups                                  |
-| `fill`             | `ColorValue`                            | theme palette                         | fill                                                      |
-| `fillOpacity`      | `Fraction`                              | `1`                                   | fill opacity                                              |
-| `stroke`           | `ColorValue`                            | —                                     | stroke                                                    |
-| `strokeWidth`      | `Pixels`                                | —                                     | stroke                                                    |
-| `cornerRadius`     | `Pixels`                                | `0`                                   | corner rounding                                           |
-| `groupGap`         | `Fraction`                              | `0.2`                                 | gap between bars of one group (fraction of the slot step) |
-| `label.enabled`    | `boolean`                               | `false`                               | show value labels                                         |
-| `label.placement`  | outer/`center`/`inner-*` (17 positions) | `'top'`                               | label position                                            |
-| `label.formatter`  | `({ value, datum }) => string`          | the value                             | label content                                             |
-| `label.fontSize`   | `Pixels`                                | `11`                                  | label font size                                           |
-| `label.fontWeight` | `string \| number`                      | `normal`                              | font weight                                               |
-| `label.fontFamily` | `string`                                | theme font                            | font family                                               |
-| `label.color`      | `ColorValue`                            | foreground; auto-contrast when inside | text color                                                |
+| Option             | Type                                    | Default                               | Description                                                                           |
+| ------------------ | --------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
+| `xField`           | `string`                                | —                                     | data keys (required)                                                                  |
+| `yField`           | `string`                                | —                                     | data keys (required)                                                                  |
+| `name`             | `string`                                | `yField`                              | name for the legend and tooltip                                                       |
+| `direction`        | `'vertical' \| 'horizontal'`            | `'vertical'`                          | bar direction                                                                         |
+| `stacked`          | `boolean`                               | `false`                               | stacking                                                                              |
+| `normalizedTo`     | `number`                                | —                                     | normalize the stack total (100 — percentage stack)                                    |
+| `stackGroup`       | `string`                                | `'default'`                           | independent stack groups                                                              |
+| `fill`             | `ColorValue`                            | theme palette                         | fill                                                                                  |
+| `fillOpacity`      | `Fraction`                              | `1`                                   | fill opacity                                                                          |
+| `stroke`           | `ColorValue`                            | —                                     | stroke                                                                                |
+| `strokeWidth`      | `Pixels`                                | —                                     | stroke                                                                                |
+| `cornerRadius`     | `Pixels`                                | `0`                                   | corner rounding                                                                       |
+| `groupGap`         | `Fraction`                              | `0.2`                                 | gap between bars of one group (fraction of the slot step)                             |
+| `itemStyler`       | `(params) => style`                     | —                                     | style of one bar by its `datum` (fill, fillOpacity, stroke, strokeWidth, label.color) |
+| `label.enabled`    | `boolean`                               | `false`                               | show value labels                                                                     |
+| `label.placement`  | outer/`center`/`inner-*` (17 positions) | `'top'`                               | label position                                                                        |
+| `label.formatter`  | `({ value, datum }) => string`          | the value                             | label content                                                                         |
+| `label.fontSize`   | `Pixels`                                | `11`                                  | label font size                                                                       |
+| `label.fontWeight` | `string \| number`                      | `normal`                              | font weight                                                                           |
+| `label.fontFamily` | `string`                                | theme font                            | font family                                                                           |
+| `label.color`      | `ColorValue`                            | foreground; auto-contrast when inside | text color                                                                            |
