@@ -7,12 +7,17 @@ export {
 export { MarkerSeries, type MarkerSeriesBaseOptions } from './marker-series';
 export {
   styleMarkerItem,
+  styleLiftedItem,
   styleRectItem,
+  type HierarchyItemStyle,
+  type HierarchyItemStylerParams,
   type ItemLabelStyle,
   type MarkerItemStyle,
   type MarkerItemStylerParams,
   type RectItemStyle,
   type RectItemStylerParams,
+  type SectorItemStyle,
+  type SectorItemStylerParams,
 } from './item-styler';
 
 export { PolarSeries, type PolarSeriesBaseOptions, type RadialTooltipRendererParams } from './polar-series';
@@ -31,7 +36,13 @@ export {
 } from './ohlc-series';
 export { StandaloneSeries, type StandaloneSeriesBaseOptions } from './standalone-series';
 export { gaugeLabelText, gaugeTextStyle, styleGaugeText, type GaugeLabelOptions, type GaugeSegment, type GaugeTextStyle } from './gauge';
-export { FlowSeries, type FlowSeriesBaseOptions, type FlowLabelFormatterParams } from './flow-series';
+export {
+  FlowSeries,
+  type FlowSeriesBaseOptions,
+  type FlowLabelFormatterParams,
+  type FlowNodeStyle,
+  type FlowNodeStylerParams,
+} from './flow-series';
 export {
   placePointLabel,
   pointLabelOverflow,

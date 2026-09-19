@@ -1,4 +1,10 @@
-import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
+import {
+  StandaloneSeries,
+  styleLiftedItem,
+  type HierarchyItemStyle,
+  type HierarchyItemStylerParams,
+  type StandaloneSeriesBaseOptions,
+} from '@/entities/series/base';
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LegendItemDescriptor, MeasureText, SeriesModule, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
 import type {
@@ -11,6 +17,7 @@ import type {
   PartNameParams,
   PartValueLabelOptions,
   Pixels,
+  Styler,
   Switchable,
 } from '@/shared/options';
 import { Group, Rect } from '@/shared/scene';
@@ -65,6 +72,14 @@ export interface TreemapSeriesOptions extends StandaloneSeriesBaseOptions {
    * A label that does not fit its tile is not drawn.
    */
   label?: TreemapLabelOptions;
+  /**
+   * Style of one node by its datum — a tile, or a group, whose color is then
+   * the color of its heading and the `fill` its children are handed.
+   * Undefined leaves the node its branch color; a partial style is laid over
+   * it. A hovered tile lifts from the styled color. The legend keeps the
+   * palette.
+   */
+  itemStyler?: Styler<HierarchyItemStylerParams, HierarchyItemStyle>;
 }
 
 /**
@@ -139,6 +154,8 @@ const EDGE_EPSILON = 0.5;
 export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
   readonly type = 'treemap';
   private nodes: TreeNode[] = [];
+  /** The color each node has at rest, by node index — what its tooltip and its children go by. */
+  private restFills: ColorValue[] = [];
   /** Sum of the roots — what a share of the whole is measured against. */
   private total = 0;
 
@@ -195,13 +212,13 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
   }
 
   /** Font a tile label starts from: the label options over the theme, ink chosen against the tile. */
-  private tileDefaults(fill: string): LabelPartDefaults {
+  private tileDefaults(fill: string, color: ColorValue | undefined): LabelPartDefaults {
     const options = this.options.label;
     return {
       fontSize: options?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label),
       fontFamily: options?.fontFamily ?? this.env.theme.fontFamily,
       fontWeight: options?.fontWeight !== undefined ? String(options.fontWeight) : 'normal',
-      color: options?.color ?? contrastTextColor(fill),
+      color: color ?? options?.color ?? contrastTextColor(fill),
     };
   }
 
@@ -210,7 +227,7 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
    * unfilled strip has no color to contrast against, so the heading is written
    * in the color of the group it names.
    */
-  private headerDefaults(node: TreeNode, background: ColorValue | undefined): LabelPartDefaults {
+  private headerDefaults(style: HierarchyItemStyle & { fill: ColorValue }, background: ColorValue | undefined): LabelPartDefaults {
     const label = this.options.label;
     const header = this.options.groupHeader;
     const weight = header?.fontWeight ?? label?.fontWeight;
@@ -218,7 +235,7 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
       fontSize: header?.fontSize ?? label?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label),
       fontFamily: header?.fontFamily ?? label?.fontFamily ?? this.env.theme.fontFamily,
       fontWeight: weight !== undefined ? String(weight) : 'bold',
-      color: header?.color ?? label?.color ?? (background ? contrastTextColor(background) : this.colorFor(node.branchIndex)),
+      color: style.label?.color ?? header?.color ?? label?.color ?? (background ? contrastTextColor(background) : style.fill),
     };
   }
 
@@ -250,9 +267,16 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
    * whole block fits inside, insets and all. A tile is the room the label has;
    * one that spills out of it says less than no label at all.
    */
-  private drawTileLabel(group: Group, node: TreeNode, area: RectArea, fill: string, measureText: MeasureText): void {
+  private drawTileLabel(
+    group: Group,
+    node: TreeNode,
+    area: RectArea,
+    style: HierarchyItemStyle & { fill: ColorValue },
+    measureText: MeasureText,
+  ): void {
     if (!this.worthLabelling(node)) return;
-    const parts = this.labelPartsFor(node, this.tileDefaults(fill), this.labelLayout);
+    const fill = style.fill;
+    const parts = this.labelPartsFor(node, this.tileDefaults(fill, style.label?.color), this.labelLayout);
     if (parts.length === 0) return;
     const block = labelBlockSize(parts, measureText, this.labelLayout);
     if (block.width + LABEL_INSET * 2 > area.width || block.height + LABEL_INSET * 2 > area.height) return;
@@ -277,11 +301,12 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
     group: Group,
     node: TreeNode,
     area: RectArea,
+    style: HierarchyItemStyle & { fill: ColorValue },
     background: ColorValue | undefined,
     measureText: MeasureText,
   ): void {
     if (!this.worthLabelling(node)) return;
-    const parts = this.labelPartsFor(node, this.headerDefaults(node, background), 'inline');
+    const parts = this.labelPartsFor(node, this.headerDefaults(style, background), 'inline');
     if (parts.length === 0) return;
     const block = labelBlockSize(parts, measureText, 'inline');
     if (block.width + HEADER_INSET * 2 > area.width || block.height > area.height) return;
@@ -386,6 +411,7 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
     this.lastCtx = ctx;
     this.hits = [];
     this.nodes = [];
+    this.restFills = [];
     if (!this.visible) return;
     const roots = this.parse(ctx.data);
     this.total = roots.reduce((sum, node) => sum + node.value, 0);
@@ -397,11 +423,15 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
     const highlighted =
       ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
 
-    const renderLevel = (items: TreeNode[], area: RectArea) => {
+    const renderLevel = (items: TreeNode[], area: RectArea, parentFill: ColorValue | undefined) => {
       for (const { node, rect: tile } of this.squarify(items, area)) {
         const nodeIndex = this.nodes.length;
         this.nodes.push(node);
         const isGroup = node.children.length > 0;
+        // Tiles carry their branch color at full strength; hovering lifts the tile
+        // towards its own contrast color instead of dropping the others' alpha.
+        const style = this.itemStyle(node, nodeIndex, parentFill, nodeIndex === highlighted);
+        this.restFills[nodeIndex] = nodeIndex === highlighted ? this.itemStyle(node, nodeIndex, parentFill, false).fill : style.fill;
         const inner = this.insetTile(tile, area, isGroup ? groupGap : itemGap);
         if (isGroup) {
           const strip = Math.min(headerHeight, inner.height);
@@ -414,34 +444,66 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
             header.fill = headerBackground;
             group.append(header);
           }
-          this.drawHeaderLabel(group, node, { ...inner, height: strip }, headerBackground, ctx.measureText);
+          this.drawHeaderLabel(group, node, { ...inner, height: strip }, style, headerBackground, ctx.measureText);
           this.registerHit(nodeIndex, inner.x, inner.y, inner.width, strip);
-          renderLevel(node.children, {
-            x: inner.x,
-            y: inner.y + strip,
-            width: inner.width,
-            height: inner.height - strip,
-          });
+          renderLevel(
+            node.children,
+            {
+              x: inner.x,
+              y: inner.y + strip,
+              width: inner.width,
+              height: inner.height - strip,
+            },
+            this.restFills[nodeIndex],
+          );
         } else {
           const tileNode = new Rect();
           tileNode.x = inner.x;
           tileNode.y = inner.y;
           tileNode.width = inner.width;
           tileNode.height = inner.height;
-          const branchColor = this.colorFor(node.branchIndex);
-          // Tiles carry their branch color at full strength; hovering lifts the tile
-          // towards its own contrast color instead of dropping the others' alpha.
-          tileNode.fill = nodeIndex === highlighted ? mixColors(branchColor, contrastTextColor(branchColor), HIGHLIGHT_LIFT) : branchColor;
+          tileNode.fill = style.fill;
           tileNode.cornerRadius = 2;
           group.append(tileNode);
           this.registerHit(nodeIndex, inner.x, inner.y, inner.width, inner.height);
-          this.drawTileLabel(group, node, inner, tileNode.fill, ctx.measureText);
+          this.drawTileLabel(group, node, inner, style, ctx.measureText);
         }
       }
     };
-    renderLevel(roots, { ...ctx.plot });
+    renderLevel(roots, { ...ctx.plot }, undefined);
     group.opacity = ctx.animationT ?? 1;
     ctx.layer.append(group);
+  }
+
+  /**
+   * How a node is painted, in the state it is in: the color it inherits — its
+   * parent's, the palette's for a root — with the item styler over it; a
+   * hovered tile lifts from there.
+   */
+  private itemStyle(
+    node: TreeNode,
+    index: number,
+    parentFill: ColorValue | undefined,
+    highlighted: boolean,
+  ): HierarchyItemStyle & { fill: ColorValue } {
+    const fill = parentFill ?? this.colorFor(node.branchIndex);
+    const leaf = node.children.length === 0;
+    return styleLiftedItem(
+      this.options.itemStyler,
+      {
+        datum: node.meta,
+        index,
+        label: node.label,
+        depth: node.depth,
+        value: node.value,
+        share: this.total > 0 ? this.shareOf(node.value) : 0,
+        leaf,
+        highlighted,
+        fill,
+      },
+      // a group is a heading, not a tile: nothing of it is filled for the pointer to lift
+      (color) => (leaf ? mixColors(color, contrastTextColor(color), HIGHLIGHT_LIFT) : color),
+    );
   }
 
   /** The row a tile came from: nested nodes are numbered too, so an index is not a row. */
@@ -458,7 +520,7 @@ export class TreemapSeries extends StandaloneSeries<TreemapSeriesOptions> {
       value: node.value,
       share: this.total > 0 ? this.shareOf(node.value) : undefined,
       valueField: this.sizeField,
-      color: this.colorFor(node.branchIndex),
+      color: this.restFills[datumIndex] ?? this.colorFor(node.branchIndex),
     });
   }
 

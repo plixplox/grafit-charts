@@ -36,6 +36,7 @@
 | `strokeWidth`   | `Pixels`     | `1`           | обводка                                            |
 | `groupGap`      | `Fraction`   | `0.2`         | зазор между секторами одной группы (radial-column) |
 | `sectorSpacing` | `Pixels`     | `1`           | зазор постоянной ширины между соседними секторами  |
+| `itemStyler`    | `(params) => style` | —   | стиль одного сектора (бара) по `datum`: fill, fillOpacity, stroke, strokeWidth |
 
 
 ## Подсказка и сетка

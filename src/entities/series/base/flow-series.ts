@@ -1,7 +1,8 @@
+import type { ItemLabelStyle } from './item-styler';
 import { StandaloneSeries, type StandaloneSeriesBaseOptions } from './standalone-series';
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LabelGuard, MeasureText } from '@/shared/kernel';
-import type { FontOptions, PartLabelBlockOptions, PartLabelLayout, Switchable } from '@/shared/options';
+import type { ColorValue, FontOptions, PartLabelBlockOptions, PartLabelLayout, Styler, Switchable } from '@/shared/options';
 import type { Group } from '@/shared/scene';
 import { drawLabelBlock, formatValue, labelBlockSize, labelParts, partFont, partText, worthLabelling, type LabelPart } from '@/shared/util';
 
@@ -19,7 +20,37 @@ export interface FlowLabelFormatterParams {
   share: number;
 }
 
+/**
+ * What the node styler of a sankey or a chord is handed: a node is known by its
+ * name — its place in the palette depends on the layout, which is the series'
+ * business — and by what flows through it.
+ */
+export interface FlowNodeStylerParams {
+  /** Node name. */
+  name: string;
+  /** Column of a sankey node, 0 for the sources; a chord has no columns. */
+  depth?: number;
+  /** What flows through the node. */
+  total: number;
+  /** Share of the whole, 0..1: of its column for a sankey node, of the ring for a chord one. */
+  share: number;
+  /** The color the node would have without the styler — from `fills` or the palette. */
+  fill: ColorValue;
+}
+
+export interface FlowNodeStyle {
+  fill?: ColorValue;
+  /** The label of the node; it wins over `label.color` of the series. */
+  label?: ItemLabelStyle;
+}
+
 export interface FlowSeriesBaseOptions extends StandaloneSeriesBaseOptions {
+  /**
+   * Style of one node by its name. Undefined leaves the node its palette
+   * color; a partial style is laid over it. A link takes the color of the
+   * node it flows out of, styled or not.
+   */
+  nodeStyler?: Styler<FlowNodeStylerParams, FlowNodeStyle>;
   /**
    * Node labels: the name of a node and what flows through it, drawn as one
    * block so the two always read together — each half with its own font and its
@@ -60,6 +91,16 @@ export abstract class FlowSeries<O extends FlowSeriesBaseOptions> extends Standa
     return this.options.label?.layout;
   }
 
+  /**
+   * How a node is painted: its palette color by the place `paletteIndex` the
+   * layout gave it, with the node styler over it.
+   */
+  protected nodeStyle(params: Omit<FlowNodeStylerParams, 'fill'>, paletteIndex: number): FlowNodeStyle & { fill: ColorValue } {
+    const fill = this.colorFor(paletteIndex);
+    const style = this.options.nodeStyler?.({ ...params, fill });
+    return { ...style, fill: style?.fill ?? fill };
+  }
+
   /** Whether a node carries enough of the whole to be worth a label (label.minShare). */
   protected worthLabelling(total: number, whole: number): boolean {
     return worthLabelling(total, whole, this.options.label?.minShare);
@@ -85,14 +126,15 @@ export abstract class FlowSeries<O extends FlowSeriesBaseOptions> extends Standa
   }
 
   /** The label of one node, run by run: the name and the value, each with its own font. */
-  protected labelPartsFor(params: FlowLabelFormatterParams): LabelPart[] {
+  protected labelPartsFor(params: FlowLabelFormatterParams, color?: ColorValue): LabelPart[] {
     const options = this.options.label;
     const theme = this.env.theme;
     const defaults = {
       fontSize: options?.fontSize ?? themeFont(theme, FONT_STEP.label),
       fontFamily: options?.fontFamily ?? theme.fontFamily,
       fontWeight: options?.fontWeight !== undefined ? String(options.fontWeight) : 'normal',
-      color: options?.color ?? theme.foregroundColor,
+      // the node styler speaks for one node, so it wins over the series
+      color: color ?? options?.color ?? theme.foregroundColor,
     };
     if (options?.formatter) return labelParts([{ text: options.formatter(params) }], defaults, options);
     const entries: Array<{ text: string; font?: Switchable & FontOptions }> = [];

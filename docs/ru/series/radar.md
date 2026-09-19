@@ -76,6 +76,7 @@ axes: {
 | `marker.enabled`           | `boolean`                                           | `true`        | маркеры вершин               |
 | `marker.shape`             | `MarkerShape`                                       | `circle`      | форма                        |
 | `marker.size`              | `Pixels`                                            | `6`           | размер                       |
+| `marker.itemStyler`        | `(params) => style` | —  | стиль маркера вершины по `datum`, включая `label.color`; сетка остаётся цвета серии |
 
 
 ## Подписи значений

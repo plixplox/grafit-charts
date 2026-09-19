@@ -192,6 +192,7 @@ tooltip: {
 | `stroke`           | стили                                              | палитра                                | оформление столбцов                     |
 | `fillOpacity`      | стили                                              | палитра                                | оформление столбцов                     |
 | `strokeWidth`      | стили                                              | `1`                                    | обводка корзин                          |
+| `itemStyler`       | `(params) => style`                                | —                                      | стиль одного бара по корзине: `binIndex`, `x0`, `x1`, `value`, `count`, `group` |
 | `label.enabled`    | `boolean`                                          | `false`                                | показать подписи значений               |
 | `label.placement`  | внешние/`center`/`inner-*` (17 позиций)            | `'top'`                                | позиция подписи                         |
 | `label.formatter`  | `({ value, x0, x1, raw, count, group }) => string` | значение                               | содержимое подписи                      |

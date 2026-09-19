@@ -6,6 +6,8 @@ import {
   labelFont,
   placeRectLabel,
   rectLabelOverflow,
+  styleRectItem,
+  type RectItemStyle,
   type RectLabelPlacement,
   type SeriesBaseOptions,
 } from '@/entities/series/base';
@@ -21,8 +23,8 @@ import type {
   SeriesPick,
   TooltipContentData,
 } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction, FontOptions, LabelOverlapOptions, Switchable } from '@/shared/options';
 import { localize } from '@/shared/locale';
+import type { ColorValue, Datum, Pixels, Fraction, FontOptions, LabelOverlapOptions, Styler, Switchable } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
 import { Group, Rect, Text } from '@/shared/scene';
 import { contrastTextColor, NO_OVERFLOW } from '@/shared/util';
@@ -48,6 +50,32 @@ export interface HistogramTooltipRendererParams {
   /** The group's label, or the series name when nothing splits it. */
   seriesName: string;
   color: ColorValue;
+}
+
+/**
+ * What the item styler of a histogram is handed: a bin, not a row — its
+ * bounds, its height and the group it belongs to.
+ */
+export interface HistogramItemStylerParams {
+  /** Index of the bar, counted the way events and the tooltip count them — bin by bin, group within bin. */
+  index: number;
+  binIndex: number;
+  /** Lower bound of the bin. */
+  x0: number;
+  /** Upper bound of the bin. */
+  x1: number;
+  /** What the bar draws — the aggregate restated by `normalize`. */
+  value: number;
+  /** The aggregate before normalization. */
+  raw: number;
+  /** Rows that landed in the bin. */
+  count: number;
+  /** Value of `groupField` for this bar; undefined without grouping. */
+  group?: unknown;
+  highlighted: boolean;
+  /** The color of the bar's group — what it would have without the styler. */
+  fill: ColorValue;
+  stroke: ColorValue | undefined;
 }
 
 export interface HistogramSeriesOptions extends Omit<SeriesBaseOptions<HistogramTooltipRendererParams>, 'yField' | 'name'>, BinningOptions {
@@ -89,6 +117,11 @@ export interface HistogramSeriesOptions extends Omit<SeriesBaseOptions<Histogram
   fillOpacity?: Fraction;
   stroke?: ColorValue;
   strokeWidth?: Pixels;
+  /**
+   * Style of one bar by its bin. Undefined leaves the bar the color of its
+   * group; a partial style is laid over it. The legend keeps the group colors.
+   */
+  itemStyler?: Styler<HistogramItemStylerParams, RectItemStyle>;
 }
 
 interface BinRect {
@@ -249,17 +282,42 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
   }
 
   /** The index a pick, a tooltip and a selection address a bar by. */
+  /** How the item styler paints a bar, in the state it is in. */
+  private itemStyle(binIndex: number, groupIndex: number, highlighted: boolean): RectItemStyle {
+    const edge = this.model.edges[binIndex];
+    const slice = this.model.groups[groupIndex]?.slices[binIndex];
+    if (!this.options.itemStyler || !edge || !slice) return {};
+    return styleRectItem(this.options.itemStyler, {
+      index: this.nodeIndex(binIndex, groupIndex),
+      binIndex,
+      x0: edge.x0,
+      x1: edge.x1,
+      value: slice.value,
+      raw: slice.raw,
+      count: slice.count,
+      group: this.model.groups[groupIndex]?.key,
+      highlighted,
+      fill: this.colorFor(groupIndex),
+      stroke: this.options.stroke ?? this.env.theme.backgroundColor,
+    });
+  }
+
+  /** Color of a bar for its tooltip: the styled one, its group's otherwise. */
+  private binColor(binIndex: number, groupIndex: number): ColorValue {
+    return this.itemStyle(binIndex, groupIndex, false).fill ?? this.colorFor(groupIndex);
+  }
+
   private nodeIndex(binIndex: number, groupIndex: number): number {
     return binIndex * Math.max(1, this.model.groups.length) + groupIndex;
   }
 
-  private sliceAt(nodeIndex: number): { edge: BinEdge; slice: BinSlice; groupIndex: number } | undefined {
+  private sliceAt(nodeIndex: number): { edge: BinEdge; slice: BinSlice; binIndex: number; groupIndex: number } | undefined {
     const groups = Math.max(1, this.model.groups.length);
     const binIndex = Math.floor(nodeIndex / groups);
     const groupIndex = nodeIndex % groups;
     const edge = this.model.edges[binIndex];
     const slice = this.model.groups[groupIndex]?.slices[binIndex];
-    return edge && slice ? { edge, slice, groupIndex } : undefined;
+    return edge && slice ? { edge, slice, binIndex, groupIndex } : undefined;
   }
 
   private labelTextFor(edge: BinEdge, slice: BinSlice, groupIndex: number): string {
@@ -322,13 +380,16 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
     const group = new Group();
     const labels = new Group();
 
+    const highlighted =
+      ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
     this.rects = this.layoutRects(ctx, model);
     this.rects.forEach((rect) => {
       const edge = model.edges[rect.binIndex];
       const slice = model.groups[rect.groupIndex]?.slices[rect.binIndex];
       if (!edge || !slice) return;
       const nodeIndex = this.nodeIndex(rect.binIndex, rect.groupIndex);
-      const fill = this.colorFor(rect.groupIndex);
+      const item = this.itemStyle(rect.binIndex, rect.groupIndex, nodeIndex === highlighted);
+      const fill = item.fill ?? this.colorFor(rect.groupIndex);
 
       const node = new Rect();
       node.x = rect.x;
@@ -336,9 +397,10 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
       node.width = rect.width;
       node.height = rect.height;
       node.fill = fill;
-      node.opacity = this.options.fillOpacity ?? this.defaultOpacity();
-      node.stroke = this.options.stroke ?? this.env.theme.backgroundColor;
-      node.strokeWidth = this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1;
+      node.opacity = item.fillOpacity ?? this.options.fillOpacity ?? this.defaultOpacity();
+      node.stroke = item.stroke ?? this.options.stroke ?? this.env.theme.backgroundColor;
+      node.strokeWidth = item.strokeWidth ?? this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1;
+      // the selection outline wins over the styler's: it is what shows the bar is selected
       if (ctx.selected?.has(nodeIndex)) {
         node.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
         node.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 1.5;
@@ -362,7 +424,8 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
         text.fontWeight = font.weight;
         text.fontFamily = font.family;
         const elementFill = node.fill ?? fill;
-        text.fill = labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
+        text.fill =
+          item.label?.color ?? labelOptions.color ?? (placed.inside ? contrastTextColor(elementFill) : this.env.theme.foregroundColor);
         if (placed.inside) text.outline = elementFill;
         if (this.labelFits(ctx, text, labelOptions.avoidOverlap)) labels.append(text);
       }
@@ -427,7 +490,7 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
   override tooltipFor(nodeIndex: number): TooltipContentData {
     const found = this.sliceAt(nodeIndex);
     if (!found) return { rows: [] };
-    const { edge, slice, groupIndex } = found;
+    const { edge, slice, binIndex, groupIndex } = found;
     const group = this.model.groups[groupIndex];
 
     const renderer = this.options.tooltip?.renderer;
@@ -440,7 +503,7 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
         count: slice.count,
         group: group?.key,
         seriesName: this.model.grouped ? (group?.label ?? this.seriesName) : this.seriesName,
-        color: this.colorFor(groupIndex),
+        color: this.binColor(binIndex, groupIndex),
       });
       return typeof result === 'string' ? { heading: result, rows: [] } : result;
     }
@@ -453,7 +516,7 @@ export class HistogramSeries extends CartesianSeries<HistogramSeriesOptions & { 
     const label = this.model.grouped ? (this.model.groups[groupIndex]?.label ?? this.seriesName) : this.seriesName;
     return {
       heading: this.headingFor(edge),
-      rows: [{ label, value, color: this.colorFor(groupIndex) }],
+      rows: [{ label, value, color: this.binColor(binIndex, groupIndex) }],
     };
   }
 

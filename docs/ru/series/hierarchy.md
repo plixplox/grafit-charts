@@ -57,6 +57,7 @@ series: [
 | `groupHeader.fontFamily` | treemap                          | `label.fontFamily`, затем шрифт темы | гарнитура заглавия     |
 | `groupHeader.color` | treemap                               | цвет самой группы; автоконтраст по фону | цвет текста заглавия |
 | `fills`             | все                                   | палитра                           | цвета ветвей/слоёв        |
+| `itemStyler`        | treemap                               | —                                 | стиль любого узла по `datum` (`fill`, `label.color`); цвет группы наследуют её плитки |
 | `itemGap`           | treemap                               | `2`                               | зазор между соседними плитками |
 | `groupGap`          | treemap                               | `itemGap`                         | зазор между соседними группами |
 | `labelField`        | treemap                               | `label`/`size`/`children`         | ключи иерархии            |

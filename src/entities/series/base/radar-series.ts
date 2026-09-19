@@ -1,9 +1,10 @@
+import { styleMarkerItem, type MarkerItemStyle, type MarkerItemStylerParams } from './item-styler';
 import { placePointLabel, POINT_LABEL_GAP, type PointLabelPlacement } from './point-label';
 import { PolarSeries, type PolarSeriesBaseOptions } from './polar-series';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY, FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LegendItemDescriptor, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
-import type { ColorValue, Datum, FontOptions, Pixels, Fraction, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, FontOptions, Pixels, Fraction, Styler, Switchable } from '@/shared/options';
 import { Group, Marker, Path, Text, type MarkerShape } from '@/shared/scene';
 import { contrastTextColor, extent } from '@/shared/util';
 
@@ -16,7 +17,16 @@ export interface RadarSeriesBaseOptions extends PolarSeriesBaseOptions {
   stroke?: ColorValue;
   strokeWidth?: Pixels;
   fillOpacity?: Fraction;
-  marker?: Switchable & { shape?: MarkerShape; size?: Pixels };
+  marker?: Switchable & {
+    shape?: MarkerShape;
+    size?: Pixels;
+    /**
+     * Style of one marker by its datum — the web keeps the series color.
+     * Undefined leaves the marker as it is; a partial style is laid over it.
+     * Its `label.color` colours the value label of the vertex, markers shown or not.
+     */
+    itemStyler?: Styler<MarkerItemStylerParams, MarkerItemStyle>;
+  };
   /**
    * Value labels on the vertices. `placement` hangs the label off its point:
    * `'outward'` (the default) pushes it away from the centre along the spoke,
@@ -65,6 +75,34 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
 
   protected mainColor(): ColorValue {
     return this.options.stroke ?? this.env.colors.stroke;
+  }
+
+  /** How the marker styler paints a vertex, in the state it is in. */
+  private markerStyle(
+    index: number,
+    datum: Datum,
+    state: { highlighted: boolean; stroke: ColorValue; size: Pixels; grow: number },
+  ): MarkerItemStyle & { size: Pixels } {
+    return styleMarkerItem(
+      this.options.marker?.itemStyler,
+      { datum, index, highlighted: state.highlighted, fill: this.mainColor(), stroke: state.stroke, size: state.size },
+      state.grow,
+    );
+  }
+
+  /** How a vertex looks at rest — what its tooltip and its label go by. */
+  private restStyle(index: number, datum: Datum): MarkerItemStyle {
+    return this.markerStyle(index, datum, {
+      highlighted: false,
+      stroke: this.env.theme.backgroundColor,
+      size: this.options.marker?.size ?? 6,
+      grow: 1,
+    });
+  }
+
+  /** Color of a datum for its tooltip: the styled marker's, the series' otherwise. */
+  private itemColor(index: number, datum: Datum): ColorValue {
+    return this.restStyle(index, datum).fill ?? this.mainColor();
   }
 
   protected get seriesName(): string {
@@ -135,33 +173,49 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
       const highlighted =
         ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
       for (const point of this.points) {
+        const datum = data[point.index];
+        if (!datum) continue;
         const marker = new Marker();
         marker.x = point.x;
         marker.y = point.y;
         marker.shape = this.options.marker?.shape ?? 'circle';
         const base = this.options.marker?.size ?? 6;
         const isSelected = ctx.selected?.has(point.index) === true;
-        marker.size = isSelected
-          ? base * (ctx.selectionStyle?.sizeRatio ?? 1.4)
-          : point.index === highlighted
-            ? base * (1 + 0.5 * (ctx.highlightT ?? 1))
-            : base;
-        marker.fill = this.mainColor();
-        marker.stroke = isSelected ? (ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor) : this.env.theme.backgroundColor;
-        marker.strokeWidth = isSelected ? (ctx.selectionStyle?.strokeWidth ?? 2) : 1.2;
+        const stroke = isSelected ? (ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor) : this.env.theme.backgroundColor;
+        // a selected marker is already as big as it gets, the pointer does not grow it further
+        const item = this.markerStyle(point.index, datum, {
+          highlighted: point.index === highlighted,
+          stroke,
+          size: isSelected ? base * (ctx.selectionStyle?.sizeRatio ?? 1.4) : base,
+          grow: isSelected ? 1 : 1 + 0.5 * (ctx.highlightT ?? 1),
+        });
+        marker.size = item.size;
+        marker.fill = item.fill ?? this.mainColor();
+        marker.stroke = item.stroke ?? stroke;
+        marker.strokeWidth = item.strokeWidth ?? (isSelected ? (ctx.selectionStyle?.strokeWidth ?? 2) : 1.2);
         if (ctx.selectionActive && !isSelected) marker.opacity = ctx.selectionStyle?.inactiveOpacity ?? 0.45;
         group.append(marker);
       }
     } else if (ctx.selected && ctx.selected.size > 0) {
+      const highlighted =
+        ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
       for (const point of this.points) {
-        if (!ctx.selected.has(point.index)) continue;
+        const datum = data[point.index];
+        if (!ctx.selected.has(point.index) || !datum) continue;
+        const stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
+        const item = this.markerStyle(point.index, datum, {
+          highlighted: point.index === highlighted,
+          stroke,
+          size: 6 * (ctx.selectionStyle?.sizeRatio ?? 1.4),
+          grow: 1,
+        });
         const marker = new Marker();
         marker.x = point.x;
         marker.y = point.y;
-        marker.size = 6 * (ctx.selectionStyle?.sizeRatio ?? 1.4);
-        marker.fill = this.mainColor();
-        marker.stroke = ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor;
-        marker.strokeWidth = ctx.selectionStyle?.strokeWidth ?? 2;
+        marker.size = item.size;
+        marker.fill = item.fill ?? this.mainColor();
+        marker.stroke = item.stroke ?? stroke;
+        marker.strokeWidth = item.strokeWidth ?? ctx.selectionStyle?.strokeWidth ?? 2;
         group.append(marker);
       }
     }
@@ -205,8 +259,10 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
     label.fontSize = options?.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
     label.fontFamily = options?.fontFamily ?? this.env.theme.fontFamily;
     if (options?.fontWeight !== undefined) label.fontWeight = String(options.fontWeight);
-    label.fill = options?.color ?? (placement === 'inside' ? contrastTextColor(this.mainColor()) : this.env.theme.foregroundColor);
-    if (placement === 'inside') label.outline = this.mainColor();
+    const item = this.restStyle(point.index, datum);
+    const fill = item.fill ?? this.mainColor();
+    label.fill = item.label?.color ?? options?.color ?? (placement === 'inside' ? contrastTextColor(fill) : this.env.theme.foregroundColor);
+    if (placement === 'inside') label.outline = fill;
     group.append(label);
   }
 
@@ -227,7 +283,9 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
     const maxX = Math.max(x0, x1);
     const minY = Math.min(y0, y1);
     const maxY = Math.max(y0, y1);
-    return this.points.filter((point) => point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY).map((point) => point.index);
+    return this.points
+      .filter((point) => point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY)
+      .map((point) => point.index);
   }
 
   nodeAt(datumIndex: number): SeriesPick | undefined {
@@ -246,13 +304,13 @@ export abstract class RadarSeries<O extends RadarSeriesBaseOptions = RadarSeries
         label: String(datum[this.options.angleField]),
         value: datum[this.options.radiusField],
         seriesName: this.seriesName,
-        color: this.mainColor(),
+        color: this.itemColor(datumIndex, datum),
       });
       return typeof result === 'string' ? { heading: result, rows: [] } : result;
     }
     return {
       heading: String(datum[this.options.angleField]),
-      rows: [{ label: this.seriesName, value: String(datum[this.options.radiusField]), color: this.mainColor() }],
+      rows: [{ label: this.seriesName, value: String(datum[this.options.radiusField]), color: this.itemColor(datumIndex, datum) }],
     };
   }
 

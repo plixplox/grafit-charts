@@ -1,6 +1,6 @@
-import { FlowSeries, type FlowSeriesBaseOptions } from '@/entities/series/base';
+import { FlowSeries, type FlowNodeStyle, type FlowSeriesBaseOptions } from '@/entities/series/base';
 import type { SeriesModule, SeriesPick, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
-import type { Pixels } from '@/shared/options';
+import type { ColorValue, Pixels } from '@/shared/options';
 import { Group, Path, Sector } from '@/shared/scene';
 
 export interface ChordSeriesOptions extends FlowSeriesBaseOptions {
@@ -20,6 +20,8 @@ interface ChordNode {
   startAngle: number;
   endAngle: number;
   cursor: number;
+  /** The node painted: its palette color with the node styler over it. */
+  style: FlowNodeStyle & { fill: ColorValue };
 }
 
 const RING = 12;
@@ -70,7 +72,9 @@ export class ChordSeries extends FlowSeries<ChordSeriesOptions> {
     const nodeMap = new Map<string, ChordNode>();
     for (const name of names) {
       const sweep = ((totals.get(name) ?? 0) / grandTotal) * sweepTotal * t;
-      const node: ChordNode = { name, total: totals.get(name) ?? 0, startAngle: cursor, endAngle: cursor + sweep, cursor };
+      const total = totals.get(name) ?? 0;
+      const style = this.nodeStyle({ name, total, share: total / grandTotal }, this.nodeList.length);
+      const node: ChordNode = { name, total, startAngle: cursor, endAngle: cursor + sweep, cursor, style };
       nodeMap.set(name, node);
       this.nodeList.push(node);
       cursor += sweep + gap;
@@ -103,14 +107,13 @@ export class ChordSeries extends FlowSeries<ChordSeriesOptions> {
       const back = this.pointAt(a0, innerRadius);
       ribbon.curveTo(this.center.x, this.center.y, this.center.x, this.center.y, back.x, back.y);
       ribbon.closePath();
-      const fromIndex = this.nodeList.indexOf(from);
-      ribbon.fill = this.colorFor(fromIndex);
+      ribbon.fill = from.style.fill;
       ribbon.opacity = this.options.linkOpacity ?? this.env.theme.fillOpacity ?? 0.35;
       group.append(ribbon);
     }
 
     // node arcs and labels
-    this.nodeList.forEach((node, index) => {
+    this.nodeList.forEach((node) => {
       const arc = new Sector();
       arc.centerX = this.center.x;
       arc.centerY = this.center.y;
@@ -118,13 +121,13 @@ export class ChordSeries extends FlowSeries<ChordSeriesOptions> {
       arc.outerRadius = this.outerRadius;
       arc.startAngle = node.startAngle;
       arc.endAngle = node.endAngle;
-      arc.fill = this.colorFor(index);
+      arc.fill = node.style.fill;
       group.append(arc);
 
       if (!this.labelsShown || !this.worthLabelling(node.total, grandTotal)) return;
       const mid = (node.startAngle + node.endAngle) / 2;
       const at = this.pointAt(mid, this.outerRadius + LABEL_GAP);
-      const parts = this.labelPartsFor({ name: node.name, total: node.total, share: node.total / grandTotal });
+      const parts = this.labelPartsFor({ name: node.name, total: node.total, share: node.total / grandTotal }, node.style.label?.color);
       const sin = Math.sin(mid);
       const cos = Math.cos(mid);
       // the block is centred on the point it is given, so a label above or
@@ -187,7 +190,7 @@ export class ChordSeries extends FlowSeries<ChordSeriesOptions> {
       label: node.name,
       value: node.total,
       valueField: this.options.sizeField,
-      color: this.colorFor(datumIndex),
+      color: node.style.fill,
     });
   }
 }

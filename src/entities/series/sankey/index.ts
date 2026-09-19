@@ -1,7 +1,7 @@
 import { columnHeight, fitNodeSpacing, fitValueScale, MIN_NODE_HEIGHT } from './layout';
-import { FlowSeries, type FlowSeriesBaseOptions } from '@/entities/series/base';
+import { FlowSeries, type FlowNodeStyle, type FlowSeriesBaseOptions } from '@/entities/series/base';
 import type { SeriesModule, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
-import type { Pixels } from '@/shared/options';
+import type { ColorValue, Pixels } from '@/shared/options';
 import { Group, Path, Rect } from '@/shared/scene';
 
 export interface SankeySeriesOptions extends FlowSeriesBaseOptions {
@@ -24,6 +24,8 @@ interface SankeyNode {
   y: number;
   height: number;
   colorIndex: number;
+  /** The node painted: its palette color with the node styler over it. */
+  style: FlowNodeStyle & { fill: ColorValue };
   outOffset: number;
   inOffset: number;
 }
@@ -123,15 +125,18 @@ export class SankeySeries extends FlowSeries<SankeySeriesOptions> {
       const columnTotal = column.reduce((sum, name) => sum + (totals.get(name) ?? 0), 0);
       for (const name of column) {
         const height = Math.max(MIN_NODE_HEIGHT, (totals.get(name) ?? 0) * valueScale);
+        const total = totals.get(name) ?? 0;
+        const colorIndex = this.nodeList.length;
         const node: SankeyNode = {
           name,
           depth: d,
-          total: totals.get(name) ?? 0,
+          total,
           columnTotal,
           x,
           y,
           height,
-          colorIndex: this.nodeList.length,
+          colorIndex,
+          style: this.nodeStyle({ name, depth: d, total, share: columnTotal > 0 ? total / columnTotal : 0 }, colorIndex),
           outOffset: 0,
           inOffset: 0,
         };
@@ -162,7 +167,7 @@ export class SankeySeries extends FlowSeries<SankeySeriesOptions> {
       link.lineTo(x1, y1 + value);
       link.curveTo(cx, y1 + value, cx, y0 + value, x0, y0 + value);
       link.closePath();
-      link.fill = this.colorFor(from.colorIndex);
+      link.fill = from.style.fill;
       link.opacity = this.options.linkOpacity ?? this.env.theme.fillOpacity ?? 0.35;
       group.append(link);
     }
@@ -173,7 +178,7 @@ export class SankeySeries extends FlowSeries<SankeySeriesOptions> {
       rect.y = node.y;
       rect.width = nodeWidth;
       rect.height = node.height;
-      rect.fill = this.colorFor(node.colorIndex);
+      rect.fill = node.style.fill;
       rect.cornerRadius = 2;
       group.append(rect);
       this.registerHit(index, node.x - 2, node.y - 2, nodeWidth + 4, node.height + 4);
@@ -181,11 +186,14 @@ export class SankeySeries extends FlowSeries<SankeySeriesOptions> {
       // the label stands beside its node, on the side that has the room: the
       // last column reads inwards, every other one outwards
       if (!this.labelsShown || !this.worthLabelling(node.total, node.columnTotal)) return;
-      const parts = this.labelPartsFor({
-        name: node.name,
-        total: node.total,
-        share: node.columnTotal > 0 ? node.total / node.columnTotal : 0,
-      });
+      const parts = this.labelPartsFor(
+        {
+          name: node.name,
+          total: node.total,
+          share: node.columnTotal > 0 ? node.total / node.columnTotal : 0,
+        },
+        node.style.label?.color,
+      );
       const rightSide = node.x > plot.x + plot.width / 2;
       this.drawNodeLabel(
         group,
@@ -207,7 +215,7 @@ export class SankeySeries extends FlowSeries<SankeySeriesOptions> {
       label: node.name,
       value: node.total,
       valueField: this.options.sizeField,
-      color: this.colorFor(node.colorIndex),
+      color: node.style.fill,
     });
   }
 }

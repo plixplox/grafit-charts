@@ -2,7 +2,7 @@ import { HistogramSeries, type HistogramSeriesOptions } from './index';
 import type { LayoutRect, SeriesEnv } from '@/shared/kernel';
 import type { Datum } from '@/shared/options';
 import { LinearScale } from '@/shared/scale';
-import { Group } from '@/shared/scene';
+import { Group, Rect } from '@/shared/scene';
 import { describe, expect, it } from 'vitest';
 
 const env: SeriesEnv = {
@@ -330,5 +330,43 @@ describe('switching a group off in the legend', () => {
     histogram.toggleItem(1);
     histogram.toggleItem(1);
     expect(histogram.legendItems().map((item) => item.visible)).toEqual([true, true]);
+  });
+});
+
+describe('item styler', () => {
+  it('is told each bin and paints the bars it answers for, the tooltip too', () => {
+    const seen: unknown[] = [];
+    const histogram = series({
+      ...grouped,
+      itemStyler: ({ binIndex, group, count, fill }) => {
+        seen.push([binIndex, group, count, fill]);
+        return count >= 2 ? { fill: '#000' } : undefined;
+      },
+    });
+    histogram.setData(split);
+    const layer = new Group();
+    const domain = histogram.yDomain(split) ?? [0, 1];
+    histogram.update({
+      measureText,
+      data: split,
+      xScale: new LinearScale(edgeExtent(histogram, split), [plot.x, plot.x + plot.width]),
+      yScale: new LinearScale(domain, [plot.y + plot.height, plot.y]),
+      swapped: false,
+      plot,
+      layer,
+    });
+    expect(seen).toContainEqual([0, 'web', 2, '#436ff4']);
+    // bin by bin, group within bin: web and app in the first bin, then in the second
+    const fills: unknown[] = [];
+    const walk = (node: { children?: unknown[] }) => {
+      for (const child of node.children ?? []) {
+        if (child instanceof Rect) fills.push(child.fill);
+        else walk(child as { children?: unknown[] });
+      }
+    };
+    walk(layer as unknown as { children?: unknown[] });
+    expect(fills).toEqual(['#000', '#21a06c', '#436ff4', '#21a06c']);
+    expect(histogram.tooltipFor(0).rows[0]?.color).toBe('#000');
+    expect(histogram.legendItems()[0]?.color).toBe('#436ff4');
   });
 });

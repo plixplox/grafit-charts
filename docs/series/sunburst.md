@@ -34,6 +34,7 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `sizeField`        | `string`                              | `label`/`size`/`children`      | hierarchy keys                     |
 | `childrenField`    | `string`                              | `label`/`size`/`children`      | hierarchy keys                     |
 | `fills`            | `ColorValue[]`                        | palette                        | branch colors                      |
+| `itemStyler`       | `(params) => style`                   | —                              | style of any sector by `datum` (`fill`, `label.color`); outer rings inherit it |
 | `sectorSpacing`    | `Pixels`                              | `0`                            | constant-width gap between sectors |
 | `cornerRadius`     | `Pixels`                              | `0`                            | sector corner rounding             |
 | `stroke`           | styles                                | background `1px` with zero gap | sector stroke                      |

@@ -21,8 +21,14 @@ import type {
 import type { AreaSeriesOptions } from '@/entities/series/area';
 import type { BarSeriesOptions } from '@/entities/series/bar';
 import type {
+  FlowNodeStyle,
+  FlowNodeStylerParams,
   GaugeLabelOptions,
   GaugeSegment,
+  HierarchyItemStyle,
+  HierarchyItemStylerParams,
+  SectorItemStyle,
+  SectorItemStylerParams,
   MarkerItemStyle,
   ItemLabelStyle,
   MarkerItemStylerParams,
@@ -49,6 +55,7 @@ import type {
   HistogramNormalize,
   HistogramNormalizeWithin,
   HistogramSeriesOptions,
+  HistogramItemStylerParams,
   HistogramTooltipRendererParams,
 } from '@/entities/series/histogram';
 import type { LineSeriesOptions } from '@/entities/series/line';
@@ -226,6 +233,7 @@ export type {
   BubbleSeriesOptions,
   HistogramSeriesOptions,
   HistogramTooltipRendererParams,
+  HistogramItemStylerParams,
   // the binning vocabulary: needed to call binEdges() and to type an options object
   BinningOptions,
   BinEdge,
@@ -257,6 +265,12 @@ export type {
   MarkerItemStylerParams,
   MarkerItemStyle,
   ItemLabelStyle,
+  SectorItemStylerParams,
+  SectorItemStyle,
+  FlowNodeStylerParams,
+  FlowNodeStyle,
+  HierarchyItemStylerParams,
+  HierarchyItemStyle,
   FunnelSeriesOptions,
   ConeFunnelSeriesOptions,
   CandlestickSeriesOptions,

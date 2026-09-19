@@ -76,6 +76,7 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `marker.enabled`           | `boolean`                                           | `true`        | vertex markers         |
 | `marker.shape`             | `MarkerShape`                                       | `circle`      | shape                  |
 | `marker.size`              | `Pixels`                                            | `6`           | size                   |
+| `marker.itemStyler`        | `(params) => style` | —  | style of one vertex marker by `datum`, incl. `label.color`; the web keeps the series color |
 
 
 ## Value labels

@@ -55,6 +55,7 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `toField`   | both   | flow graph edges                        |
 | `sizeField` | both   | flow graph edges                        |
 | `fills`     | both   | node colors cycling through the palette |
+| `nodeStyler` | both | style of one node by `name` (`fill`, `label.color`); params add `depth` (sankey), `total`, `share`; links take the color of their source |
 
 ### Full option list
 

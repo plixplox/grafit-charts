@@ -25,6 +25,19 @@ export interface ItemLabelStyle {
   color?: ColorValue;
 }
 
+/** What every item styler is told about the state of its item, whatever else it is handed. */
+interface StateParams {
+  highlighted: boolean;
+  fill: ColorValue;
+  stroke?: ColorValue | undefined;
+}
+
+/** What an item styler of a sector (nightingale, radial column, radial bar) is handed. */
+export type SectorItemStylerParams = RectItemStylerParams;
+
+/** The style of one sector; a radial series has no value labels to colour. */
+export type SectorItemStyle = Omit<RectItemStyle, 'label'>;
+
 /** What an item styler of a marker (a scatter point, a point of a line) is handed. */
 export interface MarkerItemStylerParams {
   datum: Datum;
@@ -58,7 +71,7 @@ function over<S extends { label?: ItemLabelStyle }>(rest: S, highlighted: S): S 
  * item under the pointer, and one that answers `highlighted` builds on its own
  * colours rather than on the series'.
  */
-export function styleRectItem<P extends RectItemStylerParams>(styler: Styler<P, RectItemStyle> | undefined, params: P): RectItemStyle {
+export function styleRectItem<P extends StateParams>(styler: Styler<P, RectItemStyle> | undefined, params: P): RectItemStyle {
   if (!styler) return {};
   const rest = styler({ ...params, highlighted: false }) ?? {};
   if (!params.highlighted) return rest;
@@ -82,4 +95,52 @@ export function styleMarkerItem<P extends MarkerItemStylerParams>(
   const grown = restSize * grow;
   const highlighted = styler?.({ ...params, fill: rest.fill ?? params.fill, stroke: rest.stroke ?? params.stroke, size: grown }) ?? {};
   return { ...over(rest, highlighted), size: highlighted.size ?? grown };
+}
+
+/**
+ * The style of an item whose highlight is a colour of its own — a treemap tile
+ * or a sunburst sector lifts towards its contrast under the pointer. It is
+ * styled like a rectangle, and the lift is laid over whatever colour comes
+ * out, so a styler that never looks at `highlighted` still shows the pointer.
+ */
+export function styleLiftedItem<P extends StateParams, S extends { fill?: ColorValue; label?: ItemLabelStyle }>(
+  styler: Styler<P, S> | undefined,
+  params: P,
+  lift: (fill: ColorValue) => ColorValue,
+): S & { fill: ColorValue } {
+  const rest = styler?.({ ...params, highlighted: false }) ?? ({} as S);
+  const restFill = rest.fill ?? params.fill;
+  if (!params.highlighted) return { ...rest, fill: restFill };
+  const highlighted = styler?.({ ...params, fill: restFill }) ?? ({} as S);
+  return { ...over(rest, highlighted), fill: lift(highlighted.fill ?? restFill) };
+}
+
+/**
+ * What the item styler of a treemap or a sunburst is handed: any node of the
+ * tree, a branch as much as a leaf. The color a branch is styled with is the
+ * `fill` its children are handed, so painting a branch paints all of it.
+ */
+export interface HierarchyItemStylerParams {
+  datum: Datum;
+  /** Index of the node, counted the way events and the tooltip count them — depth first. */
+  index: number;
+  /** Name of the node (labelField). */
+  label: string;
+  /** 0 for the roots. */
+  depth: number;
+  /** Size of the node: its own for a leaf, the sum of its children for a branch. */
+  value: number;
+  /** Share of the chart total, 0..1. */
+  share: number;
+  /** Whether the node has no children. */
+  leaf: boolean;
+  highlighted: boolean;
+  /** The color the node would have without the styler: its parent's, or the palette's for a root. */
+  fill: ColorValue;
+}
+
+export interface HierarchyItemStyle {
+  fill?: ColorValue;
+  /** The label of the node; it wins over `label.color` of the series. */
+  label?: ItemLabelStyle;
 }

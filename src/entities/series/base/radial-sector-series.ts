@@ -1,8 +1,9 @@
+import { styleRectItem, type SectorItemStyle, type SectorItemStylerParams } from './item-styler';
 import { PolarSeries, type PolarSeriesBaseOptions, type RadialTooltipRendererParams } from './polar-series';
 import { numericValues } from '@/shared/data';
 import { DEFAULT_DIM_OPACITY } from '@/shared/kernel';
 import type { LegendItemDescriptor, PolarRenderContext, SeriesPick, TooltipContentData } from '@/shared/kernel';
-import type { ColorValue, Datum, Pixels, Fraction, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, Pixels, Fraction, Styler, Switchable } from '@/shared/options';
 import { groupSlot } from '@/shared/scale';
 import { Group, Sector } from '@/shared/scene';
 import { extent, tooltipContentOf } from '@/shared/util';
@@ -22,6 +23,11 @@ export interface RadialSectorSeriesBaseOptions extends PolarSeriesBaseOptions {
   groupGap?: Fraction;
   /** Constant-width gap between adjacent sectors, px (1 by default). */
   sectorSpacing?: Pixels;
+  /**
+   * Style of one sector by its datum. Undefined leaves the sector as it is; a
+   * partial style is laid over it. The legend keeps the series color.
+   */
+  itemStyler?: Styler<SectorItemStylerParams, SectorItemStyle>;
   tooltip?: Switchable & {
     renderer?: (params: RadialTooltipRendererParams) => TooltipContentData | string;
   };
@@ -48,6 +54,16 @@ export abstract class RadialSectorSeries<O extends RadialSectorSeriesBaseOptions
 
   protected mainColor(): ColorValue {
     return this.options.fill ?? this.env.colors.fill;
+  }
+
+  /** How the item styler paints a sector, in the state it is in. */
+  private itemStyle(index: number, datum: Datum, highlighted: boolean): SectorItemStyle {
+    return styleRectItem(this.options.itemStyler, { datum, index, highlighted, fill: this.mainColor(), stroke: this.options.stroke });
+  }
+
+  /** Color of a datum for its tooltip: the styled sector's, the series' otherwise. */
+  private itemColor(index: number, datum: Datum): ColorValue {
+    return this.itemStyle(index, datum, false).fill ?? this.mainColor();
   }
 
   protected get seriesName(): string {
@@ -100,15 +116,15 @@ export abstract class RadialSectorSeries<O extends RadialSectorSeriesBaseOptions
       node.startAngle = startAngle;
       node.endAngle = endAngle;
       node.edgeInset = (this.options.sectorSpacing ?? 1) / 2;
-      node.fill = this.mainColor();
-      node.opacity = this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.85;
+      const item = this.itemStyle(index, datum, index === highlighted);
+      node.fill = item.fill ?? this.mainColor();
+      node.opacity = item.fillOpacity ?? this.options.fillOpacity ?? this.env.theme.fillOpacity ?? 0.85;
       const isSelected = ctx.selected?.has(index) === true;
-      node.stroke = isSelected ? (ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor) : this.options.stroke;
+      // the selection outline wins over the styler's: it is what shows the sector is selected
+      node.stroke = isSelected ? (ctx.selectionStyle?.stroke ?? this.env.theme.foregroundColor) : (item.stroke ?? this.options.stroke);
       node.strokeWidth = isSelected
         ? (ctx.selectionStyle?.strokeWidth ?? 1.5)
-        : index === highlighted
-          ? 1.5
-          : (this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1);
+        : (item.strokeWidth ?? (index === highlighted ? 1.5 : (this.options.strokeWidth ?? this.env.theme.markStrokeWidth ?? 1)));
       if (ctx.selectionActive && !isSelected) node.opacity *= ctx.selectionStyle?.inactiveOpacity ?? 0.45;
       group.append(node);
     });
@@ -157,13 +173,13 @@ export abstract class RadialSectorSeries<O extends RadialSectorSeriesBaseOptions
           label: String(datum[this.options.angleField]),
           value: datum[this.options.radiusField],
           seriesName: this.seriesName,
-          color: this.mainColor(),
+          color: this.itemColor(datumIndex, datum),
         }),
       );
     }
     return {
       heading: String(datum[this.options.angleField]),
-      rows: [{ label: this.seriesName, value: String(datum[this.options.radiusField]), color: this.mainColor() }],
+      rows: [{ label: this.seriesName, value: String(datum[this.options.radiusField]), color: this.itemColor(datumIndex, datum) }],
     };
   }
 

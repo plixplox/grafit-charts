@@ -34,6 +34,7 @@
 | `sizeField`        | `string`                              | `label`/`size`/`children`        | ключи иерархии                          |
 | `childrenField`    | `string`                              | `label`/`size`/`children`        | ключи иерархии                          |
 | `fills`            | `ColorValue[]`                        | палитра                          | цвета ветвей                            |
+| `itemStyler`       | `(params) => style`                   | —                                | стиль любого сектора по `datum` (`fill`, `label.color`); внешние кольца его наследуют |
 | `sectorSpacing`    | `Pixels`                              | `0`                              | зазор постоянной ширины между секторами |
 | `cornerRadius`     | `Pixels`                              | `0`                              | скругление углов секторов               |
 | `stroke`           | стили                                 | фоновая `1px` при нулевом зазоре | обводка секторов                        |

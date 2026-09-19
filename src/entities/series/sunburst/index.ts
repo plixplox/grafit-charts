@@ -1,7 +1,13 @@
-import { StandaloneSeries, type StandaloneSeriesBaseOptions } from '@/entities/series/base';
+import {
+  StandaloneSeries,
+  styleLiftedItem,
+  type HierarchyItemStyle,
+  type HierarchyItemStylerParams,
+  type StandaloneSeriesBaseOptions,
+} from '@/entities/series/base';
 import { FONT_STEP, themeFont } from '@/shared/kernel';
 import type { LegendItemDescriptor, SeriesModule, SeriesPick, StandaloneRenderContext, TooltipContentData } from '@/shared/kernel';
-import type { ColorValue, Datum, FontOptions, Pixels, Switchable } from '@/shared/options';
+import type { ColorValue, Datum, FontOptions, Pixels, Styler, Switchable } from '@/shared/options';
 import { Group, Sector, Text } from '@/shared/scene';
 import { contrastTextColor, mixColors } from '@/shared/util';
 
@@ -25,6 +31,14 @@ export interface SunburstSeriesOptions extends StandaloneSeriesBaseOptions {
     FontOptions & {
       formatter?: (params: { label: string; value: number; depth: number }) => string;
     };
+  /**
+   * Style of one sector by its datum — any ring, not only the branches. The
+   * color a sector is styled with is the `fill` the sectors outside it are
+   * handed. Undefined leaves the sector its branch color; a partial style is
+   * laid over it. A hovered sector lifts from the styled color. The legend
+   * keeps the palette.
+   */
+  itemStyler?: Styler<HierarchyItemStylerParams, HierarchyItemStyle>;
 }
 
 interface SunNode {
@@ -49,7 +63,39 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
   readonly type = 'sunburst';
   private nodes: SunNode[] = [];
   private sectors: SectorGeometry[] = [];
+  /** The color each node has at rest, by node index — what its tooltip and its children go by. */
+  private restFills: ColorValue[] = [];
+  /** Sum of the roots — what a share of the whole is measured against. */
+  private total = 0;
   private center = { x: 0, y: 0 };
+
+  /**
+   * How a sector is painted, in the state it is in: the color it inherits —
+   * its parent's, the palette's for a root — with the item styler over it; a
+   * hovered sector lifts from there towards its own contrast.
+   */
+  private itemStyle(
+    node: SunNode,
+    index: number,
+    parentFill: ColorValue | undefined,
+    highlighted: boolean,
+  ): HierarchyItemStyle & { fill: ColorValue } {
+    return styleLiftedItem(
+      this.options.itemStyler,
+      {
+        datum: node.meta,
+        index,
+        label: node.label,
+        depth: node.depth,
+        value: node.value,
+        share: this.total > 0 ? node.value / this.total : 0,
+        leaf: node.children.length === 0,
+        highlighted,
+        fill: parentFill ?? this.colorFor(node.branchIndex),
+      },
+      (color) => mixColors(color, contrastTextColor(color), HIGHLIGHT_LIFT),
+    );
+  }
 
   private parse(data: Datum[]): SunNode[] {
     const labelField = this.options.labelField ?? 'label';
@@ -89,10 +135,11 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
     this.lastCtx = ctx;
     this.nodes = [];
     this.sectors = [];
+    this.restFills = [];
     if (!this.visible) return;
     const roots = this.parse(ctx.data);
-    const total = roots.reduce((sum, node) => sum + node.value, 0);
-    if (total <= 0) return;
+    this.total = roots.reduce((sum, node) => sum + node.value, 0);
+    if (this.total <= 0) return;
 
     const { plot } = ctx;
     const centerX = plot.x + plot.width / 2;
@@ -106,7 +153,7 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
       ctx.highlight && (ctx.highlight.allSeries || ctx.highlight.seriesId === this.id) ? ctx.highlight.datumIndex : undefined;
     const group = new Group();
 
-    const renderLevel = (items: SunNode[], startAngle: number, sweep: number, depth: number) => {
+    const renderLevel = (items: SunNode[], startAngle: number, sweep: number, depth: number, parentFill: ColorValue | undefined) => {
       const levelTotal = items.reduce((sum, item) => sum + item.value, 0);
       if (levelTotal <= 0) return;
       let cursor = startAngle;
@@ -134,8 +181,9 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
         // a sector further out is deeper, not fainter, and the ring it sits in is
         // told by the gap between rings. Hovering lifts one sector towards its own
         // contrast colour instead of paling the rest, as a treemap tile does.
-        const branchColor = this.colorFor(node.branchIndex);
-        const fill = nodeIndex === highlighted ? mixColors(branchColor, contrastTextColor(branchColor), HIGHLIGHT_LIFT) : branchColor;
+        const style = this.itemStyle(node, nodeIndex, parentFill, nodeIndex === highlighted);
+        this.restFills[nodeIndex] = nodeIndex === highlighted ? this.itemStyle(node, nodeIndex, parentFill, false).fill : style.fill;
+        const fill = style.fill;
         sector.fill = fill;
         const spacing = this.options.sectorSpacing ?? 0;
         sector.edgeInset = spacing / 2;
@@ -160,19 +208,19 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
             text.fontSize = labelOptions.fontSize ?? themeFont(this.env.theme, FONT_STEP.label);
             text.fontWeight = labelOptions.fontWeight !== undefined ? String(labelOptions.fontWeight) : 'normal';
             text.fontFamily = labelOptions.fontFamily ?? this.env.theme.fontFamily;
-            text.fill = labelOptions.color ?? contrastTextColor(fill);
+            text.fill = style.label?.color ?? labelOptions.color ?? contrastTextColor(fill);
             text.outline = fill;
             group.append(text);
           }
         }
 
         if (node.children.length > 0) {
-          renderLevel(node.children, cursor, nodeSweep, depth + 1);
+          renderLevel(node.children, cursor, nodeSweep, depth + 1, this.restFills[nodeIndex]);
         }
         cursor += nodeSweep;
       }
     };
-    renderLevel(roots, 0, Math.PI * 2, 0);
+    renderLevel(roots, 0, Math.PI * 2, 0, undefined);
     ctx.layer.append(group);
   }
 
@@ -222,14 +270,13 @@ export class SunburstSeries extends StandaloneSeries<SunburstSeriesOptions> {
   override tooltipFor(datumIndex: number): TooltipContentData {
     const node = this.nodes[datumIndex];
     if (!node) return { rows: [] };
-    const total = this.nodes.filter((candidate) => candidate.depth === 0).reduce((sum, root) => sum + root.value, 0);
     return this.nodeTooltip({
       datum: node.meta,
       label: node.label,
       value: node.value,
-      share: total > 0 ? node.value / total : undefined,
+      share: this.total > 0 ? node.value / this.total : undefined,
       valueField: this.options.sizeField ?? 'size',
-      color: this.colorFor(node.branchIndex),
+      color: this.restFills[datumIndex] ?? this.colorFor(node.branchIndex),
     });
   }
 

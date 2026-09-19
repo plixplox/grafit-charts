@@ -58,6 +58,7 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `groupHeader.fontFamily` | treemap                              | `label.fontFamily`, then theme font   | heading font family |
 | `groupHeader.color` | treemap                                   | the color of the group; auto-contrast over a fill | heading text color |
 | `fills`             | all                                       | palette                               | branch/layer colors |
+| `itemStyler`        | treemap                                   | —                                     | style of any node by `datum` (`fill`, `label.color`); a group's color is what its tiles inherit |
 | `itemGap`           | treemap                                   | `2`                                   | gap between neighbouring tiles |
 | `groupGap`          | treemap                                   | `itemGap`                             | gap between neighbouring groups |
 | `labelField`        | treemap                                   | `label`/`size`/`children`             | hierarchy keys      |

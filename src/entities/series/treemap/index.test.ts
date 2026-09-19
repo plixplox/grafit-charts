@@ -261,3 +261,36 @@ describe('tooltip', () => {
     expect(tooltip(0)).toMatchObject({ heading: 'App', rows: [{ label: 'size', value: '60 (60%)' }] });
   });
 });
+
+describe('item styler', () => {
+  const tree: Datum[] = [
+    {
+      label: 'Women',
+      children: [
+        { label: 'Dresses', size: 30 },
+        { label: 'Shoes', size: 10 },
+      ],
+    },
+    { label: 'Men', children: [{ label: 'Shirts', size: 20 }] },
+  ];
+
+  it('paints a group through its tiles and its heading, a tile on its own', () => {
+    const itemStyler: TreemapSeriesOptions['itemStyler'] = ({ label, value, leaf }) =>
+      label === 'Women' ? { fill: '#e0569b' } : leaf && value < 15 ? { fill: '#000', label: { color: '#ff0' } } : undefined;
+    const tiles = rectNodes({ itemStyler }, tree);
+    expect(tiles.map((tile) => tile.fill)).toEqual(['#e0569b', '#000', '#21a06c']);
+    const texts = labelNodes({ itemStyler }, tree);
+    // an unfilled heading is written in the color of its group
+    expect(texts.find((text) => text.text === 'Women')?.fill).toBe('#e0569b');
+    expect(texts.find((text) => text.text === 'Shoes')?.fill).toBe('#ff0');
+  });
+
+  it('hands the tooltip the styled color and leaves the legend the palette', () => {
+    const instance = series({ itemStyler: ({ label }) => (label === 'Dresses' ? { fill: '#000' } : undefined) });
+    instance.setData(tree);
+    instance.update({ data: tree, plot, layer: new Group(), measureText });
+    // depth first: Women, Dresses, Shoes, Men, Shirts
+    expect((instance.tooltipFor(1) as TooltipContentData).rows[0]?.color).toBe('#000');
+    expect(instance.legendItems()[0]?.color).toBe('#436ff4');
+  });
+});

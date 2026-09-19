@@ -193,6 +193,7 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `stroke`           | styles                                             | palette                                 | bar styling                               |
 | `fillOpacity`      | styles                                             | palette                                 | bar styling                               |
 | `strokeWidth`      | styles                                             | `1`                                     | bin stroke width                          |
+| `itemStyler`       | `(params) => style`                                | —                                       | style of one bar by its bin: `binIndex`, `x0`, `x1`, `value`, `count`, `group` |
 | `label.enabled`    | `boolean`                                          | `false`                                 | show value labels                         |
 | `label.placement`  | outer/`center`/`inner-*` (17 placements)           | `'top'`                                 | label placement                           |
 | `label.formatter`  | `({ value, x0, x1, raw, count, group }) => string` | value                                   | label content                             |

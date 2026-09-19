@@ -36,6 +36,7 @@ Options common to all series (`name`, `showInLegend`, `tooltip.renderer`, …) a
 | `strokeWidth`   | `Pixels`     | `1`           | stroke                                           |
 | `groupGap`      | `Fraction`   | `0.2`         | gap between sectors of one group (radial-column) |
 | `sectorSpacing` | `Pixels`     | `1`           | constant-width gap between adjacent sectors      |
+| `itemStyler`    | `(params) => style` | —   | style of one sector (bar) by `datum`: fill, fillOpacity, stroke, strokeWidth |
 
 
 ## Tooltip and the grid
