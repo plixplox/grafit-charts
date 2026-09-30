@@ -151,6 +151,12 @@ export interface LegendOptions extends Switchable {
   reverse?: boolean;
   /** Custom items; fully replaces the auto-derived series items. */
   data?: LegendItemOptions[];
+  /**
+   * Items appended after the series items (or after `data`) instead of replacing them —
+   * e.g. the colour a conditional `itemStyler` rule paints with. They stay at the end
+   * under `reverse` too.
+   */
+  extraItems?: LegendItemOptions[];
 }
 
 const MARKER_SIZE = 10;
@@ -182,6 +188,15 @@ export function resolveLegendItems(
   onUnresolved?: (ref: string) => void,
 ): ResolvedLegendItem[] {
   if (!data) return descriptors.map(({ seriesId, label, color, visible, value }) => ({ seriesId, label, color, visible, value }));
+  return resolveCustomItems(data, descriptors, onUnresolved);
+}
+
+/** Custom `data` / `extraItems` entries, each bound to its series when it names one. */
+export function resolveCustomItems(
+  data: LegendItemOptions[],
+  descriptors: LegendItemDescriptor[],
+  onUnresolved?: (ref: string) => void,
+): ResolvedLegendItem[] {
   return data.map((entry) => {
     const target =
       entry.series === undefined
@@ -383,12 +398,14 @@ export class Legend {
   }
 
   private resolveItems(): ResolvedLegendItem[] {
-    const items = resolveLegendItems(this.options?.data, this.items, (ref) => {
+    const onUnresolved = (ref: string) => {
       if (this.warnedUnresolved) return;
       this.warnedUnresolved = true;
       console.warn(`grafit: legend item references unknown series "${ref}"`);
-    });
-    return this.options?.reverse ? [...items].reverse() : items;
+    };
+    const items = resolveLegendItems(this.options?.data, this.items, onUnresolved);
+    const extra = this.options?.extraItems ? resolveCustomItems(this.options.extraItems, this.items, onUnresolved) : [];
+    return [...(this.options?.reverse ? items.reverse() : items), ...extra];
   }
 
   /**

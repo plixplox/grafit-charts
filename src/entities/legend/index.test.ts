@@ -210,6 +210,43 @@ describe('item layout', () => {
     // vertical column: the first row is the last descriptor
     expect(legend.hitTest(4, 6)).toBe('costs');
   });
+
+  describe('extraItems', () => {
+    // vertical column, 12px rows + 8px gaps: row n is centred at y = 6 + 20n
+    const rowsOf = (options: LegendOptions) => {
+      const legend = new Legend({ position: 'left-top', ...options }, theme);
+      legend.setItems(descriptors);
+      legend.measure(measureText, 300, 300);
+      const layer = new Group();
+      legend.render(layer, { x: 0, y: 0, width: 300, height: 300 });
+      const texts = (node: SceneNode): Text[] =>
+        node instanceof Text ? [node] : (((node as unknown as { children?: SceneNode[] }).children ?? []).flatMap(texts) as Text[]);
+      return { legend, labels: texts(layer).map((text) => text.text) };
+    };
+
+    it('appends after the series items instead of replacing them', () => {
+      const { legend, labels } = rowsOf({ extraItems: [{ name: '> 10M', marker: { color: '#dc2626' } }] });
+      expect(labels).toEqual(['Revenue', 'Costs', '12K', '> 10M']);
+      // the extra item is static
+      expect(legend.hitTest(4, 46)).toBeUndefined();
+      expect(legend.hitTest(4, 6)).toBe('revenue');
+    });
+
+    it('appends after custom data too', () => {
+      const { labels } = rowsOf({ data: [{ name: 'Income', series: 'revenue' }], extraItems: [{ name: 'Rule' }] });
+      expect(labels).toEqual(['Income', 'Rule']);
+    });
+
+    it('stays at the end under reverse', () => {
+      const { labels } = rowsOf({ reverse: true, extraItems: [{ name: 'Rule' }] });
+      expect(labels).toEqual(['Costs', '12K', 'Revenue', 'Rule']);
+    });
+
+    it('can bind to a series like a data item', () => {
+      const { legend } = rowsOf({ extraItems: [{ name: 'Costs again', series: 'costs' }] });
+      expect(legend.hitTest(4, 46)).toBe('costs');
+    });
+  });
 });
 
 describe('captionObstacle', () => {

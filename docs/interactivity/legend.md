@@ -39,6 +39,7 @@ When building with [grafit-charts/core](/guide/bundle), the legend is a separate
 | `background.padding`      | `PaddingValue`               | `8` / `0`         | inner padding, CSS-like ([below](#panel)); `8` when fill/stroke is set        |
 | `background.shadow`       | `ShadowOptions`              | —                 | drop shadow under the panel ([below](#panel))                                 |
 | `data`                    | `LegendItemOptions[]`        | —                 | custom items ([below](#custom-items))                                         |
+| `extraItems`              | `LegendItemOptions[]`        | —                 | items appended after the series ones ([below](#extra-items))                  |
 
 The item name is the series `name` (or `yField` if no name is set). `showInLegend: false` on a series removes its item.
 
@@ -134,3 +135,17 @@ The shadow is cast by the panel fill, so it needs `background.fill`; the border 
 | `value`        | `string`              | value to the right of the label                                            |
 
 `series` is matched against the series `id` first, then its `name`. A bound item toggles the series on click and dims when it is hidden; an item without `series` (or with an unknown reference) is static — it renders, but clicking does nothing. For pie/donut, bind to an individual sector by its label (or an explicit `id#index`); binding to the pie series as a whole is not supported.
+
+## Extra items
+
+`legend.extraItems` takes the same entries as `data` but appends them instead of replacing anything: the series items (or `data`, when set) come first, the extra ones after — and they stay at the end under `reverse`. The typical case is a conditional color that cuts across series: an `itemStyler` rule repaints bars of every series, and without an item of its own the color is nowhere in the legend:
+
+::: chart-example legend-extra-items
+
+```js
+legend: {
+  extraItems: [{ name: '> 10M', marker: { color: '#dc2626', shape: 'diamond' } }],
+},
+```
+
+An extra item without `series` is static; with one it binds and toggles exactly like a `data` item.
